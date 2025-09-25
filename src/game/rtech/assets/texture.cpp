@@ -351,7 +351,9 @@ void PostLoadTextureAsset(CAssetContainer* container, CAsset* asset)
     const TextureAsset* const txtrAsset = reinterpret_cast<TextureAsset*>(pakAsset->extraData());
 
     if (!txtrAsset->name)
+    {
         pakAsset->SetAssetNameFromCache();
+    }
 }
 
 std::shared_ptr<CTexture> CreateTextureFromMip(CPakAsset* const asset, const TextureMip_t* const mip, const DXGI_FORMAT format, const size_t arrayIdx)

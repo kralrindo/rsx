@@ -4,19 +4,21 @@
 
 struct AnimSeqDataAssetHeader_v1_t
 {
-	void* data;
+	char* data;
 };
 static_assert(sizeof(AnimSeqDataAssetHeader_v1_t) == 0x8);
 
 class AnimSeqDataAsset
 {
 public:
-	AnimSeqDataAsset(AnimSeqDataAssetHeader_v1_t* hdr) : data(hdr->data)
+	AnimSeqDataAsset(AnimSeqDataAssetHeader_v1_t* hdr) : data(hdr->data), dataSize(0ull)
 	{
 	
 	}
 
-	void* data;
+	char* data;
+
+	size_t dataSize;
 };
 
-void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc);
+void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount);

@@ -44,8 +44,15 @@ void LoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 	case eSeqVersion::VERSION_10:
 	case eSeqVersion::VERSION_11:
 	case eSeqVersion::VERSION_12:
+	{
+		AnimSeqAssetHeader_v8_t* hdr = reinterpret_cast<AnimSeqAssetHeader_v8_t*>(pakAsset->header());
+		seqAsset = new AnimSeqAsset(hdr, streamEntry, ver);
+		break;
+	}
 	case eSeqVersion::VERSION_12_1:
 	{
+		asset->SetAssetVersion({ 12, 1 });
+
 		AnimSeqAssetHeader_v8_t* hdr = reinterpret_cast<AnimSeqAssetHeader_v8_t*>(pakAsset->header());
 		seqAsset = new AnimSeqAsset(hdr, streamEntry, ver);
 		break;
@@ -99,7 +106,7 @@ void PostLoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 	case eSeqVersion::VERSION_10:
 	case eSeqVersion::VERSION_11:
 	{
-		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL);
+		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
 
 		break;
 	}
@@ -109,7 +116,7 @@ void PostLoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 		if (seqAsset->dataSize == 0)
 			seqAsset->UpdateDataSize_V12(static_cast<int>(bones->size()));
 
-		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL);
+		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
 
 		break;
 	}
@@ -119,8 +126,8 @@ void PostLoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 			seqAsset->UpdateDataSize_V12_1(static_cast<int>(bones->size()));
 
 		// [rika]: I love changing assets, but never ever would change a version!
-		ParseAnimSeqDataForSeqdesc(&seqAsset->seqdesc);
-		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_RETAIL);
+		ParseAnimSeqDataForSeqdesc(&seqAsset->seqdesc, bones->size());
+		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_ANIMDATA);
 
 		break;
 	}
@@ -198,7 +205,9 @@ static bool ExportRawAnimSeqAsset(CPakAsset* const asset, const AnimSeqAsset* co
 				out << "\t\t\"" << dependencyAssetName << "\"" << commaChar << "\n";
 			}
 			else
+			{
 				out << "\t\t\"" << std::hex << dependencies[i].guid << "\"" << commaChar << "\n";
+			}
 		}
 
 		out << "\t]\n";

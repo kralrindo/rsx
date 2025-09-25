@@ -947,6 +947,202 @@ namespace qc
 		return options;
 	}
 
+	// for formating keyvalues strings properly
+	const size_t CommandKeyvalues_ParseArray(CTextBuffer* const text, const char* const keyvalues, const size_t keyvalueSize, char* const indentation, uint16_t numIndentation)
+	{
+		assertm(numIndentation < s_QCMaxIndentation, "nested too deeply");
+		assertm(keyvalues[0] == '{', "invalid start");
+
+		size_t i = 0ull;
+
+		// seek past any whitespace
+		for (; i < keyvalueSize;)
+		{
+			switch (keyvalues[i])
+			{
+			case '\t':
+			case '\n':
+			case ' ':
+			case '{':
+			{
+				i++;
+				continue;
+			}
+			}
+
+			break;
+		}
+
+		// entry bracket
+		text->WriteFormated("\n%s{\n", indentation);
+		indentation[numIndentation] = '\t';
+		numIndentation++;
+
+		bool inStart = true;
+		bool inWhitespace = false;
+		bool inQuote = false;
+		bool inKey = true;
+		bool inValue = false;
+
+		// parse each character, one by one. lovely
+		for (; i < keyvalueSize;)
+		{
+			if (keyvalues[i] == '}')
+				break;
+
+			assertm(inKey != inValue, "in key and value at the same time?");
+
+			char character = keyvalues[i];
+
+			switch (character)
+			{
+			case '\"':
+			{
+				inQuote = !inQuote;
+				break;
+			}
+			case '\t':
+			case '\n':
+			case ' ':
+			{
+				if (inQuote)
+				{
+					break;
+				}
+
+				inWhitespace = true;
+				i++;
+				continue;
+			}
+			case '{':
+			{
+				if (inQuote)
+				{
+					break;
+				}
+
+				assertm(inKey && !inValue, "value was key ?");
+
+				i += CommandKeyvalues_ParseArray(text, keyvalues + i, keyvalueSize - i, indentation, numIndentation);
+
+				inStart = true;
+				inWhitespace = false;
+				inKey = false;
+				inValue = true;
+
+				continue;
+			}
+			}
+
+			if (inWhitespace)
+			{
+				if (inKey)
+				{
+					text->WriteCharacter(' ');
+				}
+
+				if (inValue)
+				{
+					text->WriteCharacter('\n');
+					inStart = true;
+				}
+
+				inWhitespace = false;
+				inKey = !inKey;
+				inValue = !inValue;
+			}
+
+			if (inStart)
+			{
+				text->WriteString(indentation);
+				inStart = false;
+			}
+
+			text->WriteCharacter(character);
+			i++;
+		}
+
+		// exit bracket
+		numIndentation--;
+		indentation[numIndentation] = '\0';
+		text->WriteFormated("\n%s}", indentation);
+
+		return i + 1;
+	}
+
+	// write function for qc because the string requires some post processing
+	size_t CommandKeyvalues_Write(const Command_t* const command, char* buffer, size_t bufferSize)
+	{
+		const CommandInfo_t* const info = command->info;
+		const CommandOption_t* const options = command->options;
+		const uint32_t numOptions = command->numOptions;
+
+		assertm(info->id == CommandList_t::QC_KEYVALUES, "command was not $keyvalues");
+		assertm(numOptions == 1u, "$keyvalues can only have one option");
+		assertm(options[0].desc->type == CommandOptionType_t::QC_OPT_STRING, "option was not the correct type");
+
+		const bool formatComment = command->IsComment(); // are we using comment formatting on this command?
+
+		CTextBuffer text(buffer, bufferSize);
+		text.SetTextStart();
+
+		// comment out this comand?
+		if (formatComment)
+		{
+			TEXTBUFFER_WRITE_STRING_CT(text, "/*");
+		}
+
+		text.WriteString(info->name);
+
+		const char* keyvalues = reinterpret_cast<const char*>(options[0].data.value.ptr);
+		size_t keyvalueSize = strnlen_s(keyvalues, bufferSize);
+
+		// skip 'mdlkeyvalue' and any trailing whitespace
+		for (size_t i = 0; i < keyvalueSize; i++)
+		{
+			const char character = keyvalues[i];
+
+			if (character == '\0')
+			{
+				assertm(false, "contained no entry bracket");
+
+				// comment out this comand?
+				if (formatComment)
+				{
+					TEXTBUFFER_WRITE_STRING_CT(text, "*/");
+				}
+
+				text.WriterToText();
+				return text.Capacity();
+			}
+
+			if (character != '{')
+				continue;
+
+			keyvalues += i;
+			keyvalueSize -= i;
+			break;
+		}
+
+		uint16_t numIndentation = 0u;
+		constexpr uint16_t indentBufferSize = s_QCMaxIndentation * 2;
+		char indentation[indentBufferSize]{};
+
+		CommandKeyvalues_ParseArray(&text, keyvalues, keyvalueSize, indentation, numIndentation);
+
+		// comment out this comand?
+		if (formatComment)
+		{
+			TEXTBUFFER_WRITE_STRING_CT(text, "*/");
+		}
+
+		// add a new line
+		text.WriteCharacter('\n');
+
+		text.WriterToText();
+		return text.Capacity();
+	}
+
 	// materials
 	CommandOption_t* CommandTextureGroup_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store = false)
 	{

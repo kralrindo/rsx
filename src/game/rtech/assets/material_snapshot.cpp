@@ -3,8 +3,6 @@
 
 #include <thirdparty/imgui/imgui.h>
 
-extern ExportSettings_t g_ExportSettings;
-
 
 #undef max
 void LoadMaterialSnapshotAsset(CAssetContainer* const container, CAsset* const asset)

@@ -5,6 +5,8 @@
 #include <game/rtech/utils/utils.h>
 #include <thirdparty/imgui/imgui.h>
 
+extern ExportSettings_t g_ExportSettings;
+
 void PostLoadTextureAnimationAsset(CAssetContainer* const container, CAsset* const asset)
 {
     UNUSED(container);
@@ -15,7 +17,6 @@ void PostLoadTextureAnimationAsset(CAssetContainer* const container, CAsset* con
     pakAsset->SetAssetNameFromCache();
 }
 
-extern ExportSettings_t g_ExportSettings;
 static const char* const s_PathPrefixTXAN = s_AssetTypePaths.find(AssetType_t::TXAN)->second;
 
 // [amos]: this information isn't stored in the rpak as the engine just animates

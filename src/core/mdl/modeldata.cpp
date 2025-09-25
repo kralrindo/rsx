@@ -533,6 +533,85 @@ void ParseModelSequenceData_NoStall(ModelParsedData_t* const parsedData, char* c
 	}
 }
 
+void ParseModelSequenceData_Stall_V8(ModelParsedData_t* const parsedData, char* const baseptr)
+{
+	assertm(parsedData->bones.size() > 0, "should have bones");
+
+	const studiohdr_generic_t* const pStudioHdr = parsedData->pStudioHdr();
+
+	if (pStudioHdr->localSequenceCount == 0)
+		return;
+
+	parsedData->sequences = new seqdesc_t[pStudioHdr->localSequenceCount];
+
+	for (int i = 0; i < pStudioHdr->localSequenceCount; i++)
+	{
+		parsedData->sequences[i] = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v8_t* const>(baseptr + pStudioHdr->localSequenceOffset) + i, nullptr);
+
+		ParseSeqDesc_R5(&parsedData->sequences[i], &parsedData->bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
+	}
+}
+
+void ParseModelSequenceData_Stall_V16(ModelParsedData_t* const parsedData, char* const baseptr)
+{
+	assertm(parsedData->bones.size() > 0, "should have bones");
+
+	const studiohdr_generic_t* const pStudioHdr = parsedData->pStudioHdr();
+
+	if (pStudioHdr->localSequenceCount == 0)
+		return;
+
+	parsedData->sequences = new seqdesc_t[pStudioHdr->localSequenceCount];
+
+	for (int i = 0; i < pStudioHdr->localSequenceCount; i++)
+	{
+		parsedData->sequences[i] = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v16_t* const>(baseptr + pStudioHdr->localSequenceOffset) + i, nullptr);
+
+		ParseSeqDesc_R5(&parsedData->sequences[i], &parsedData->bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
+	}
+}
+
+void ParseModelSequenceData_Stall_V18(ModelParsedData_t* const parsedData, char* const baseptr)
+{
+	assertm(parsedData->bones.size() > 0, "should have bones");
+
+	const studiohdr_generic_t* const pStudioHdr = parsedData->pStudioHdr();
+
+	if (pStudioHdr->localSequenceCount == 0)
+		return;
+
+	parsedData->sequences = new seqdesc_t[pStudioHdr->localSequenceCount];
+
+	for (int i = 0; i < pStudioHdr->localSequenceCount; i++)
+	{
+		parsedData->sequences[i] = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v16_t* const>(baseptr + pStudioHdr->localSequenceOffset) + i, nullptr);
+
+		ParseSeqDesc_R5(&parsedData->sequences[i], &parsedData->bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
+	}
+}
+
+extern void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount);
+void ParseModelSequenceData_Stall_V19_1(ModelParsedData_t* const parsedData, char* const baseptr)
+{
+	assertm(parsedData->bones.size() > 0, "should have bones");
+
+	const studiohdr_generic_t* const pStudioHdr = parsedData->pStudioHdr();
+
+	if (pStudioHdr->localSequenceCount == 0)
+		return;
+
+	parsedData->sequences = new seqdesc_t[pStudioHdr->localSequenceCount];
+
+	for (int i = 0; i < pStudioHdr->localSequenceCount; i++)
+	{
+		parsedData->sequences[i] = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v8_t* const>(baseptr + pStudioHdr->localSequenceOffset) + i, nullptr);
+
+		ParseAnimSeqDataForSeqdesc(parsedData->sequences + i, parsedData->bones.size());
+
+		ParseSeqDesc_R5(&parsedData->sequences[i], &parsedData->bones, AnimdataFuncType_t::ANIM_FUNC_STALL_ANIMDATA);
+	}
+}
+
 void ParseModelAnimTypes_V8(ModelParsedData_t* const parsedData)
 {
 	const studiohdr_generic_t* const pStudioHdr = parsedData->pStudioHdr();
@@ -762,7 +841,7 @@ void ParseSeqDesc_R2(seqdesc_t* const seqdesc, const std::vector<ModelBone_t>* c
 	}
 }
 
-void ParseAnimDesc_R5(seqdesc_t* const seqdesc, animdesc_t* const animdesc, const std::vector<ModelBone_t>* const bones, AnimdataFunc_t pAnimdata)
+void ParseAnimDesc_R5(seqdesc_t* const seqdesc, animdesc_t* const animdesc, const std::vector<ModelBone_t>* const bones, const AnimdataFuncType_t funcType)
 {
 	const int boneCount = static_cast<int>(bones->size());
 
@@ -827,7 +906,7 @@ void ParseAnimDesc_R5(seqdesc_t* const seqdesc, animdesc_t* const animdesc, cons
 			int iLocalFrame = iFrame;
 
 			int sectionlength = 0;
-			const uint8_t* const boneFlagArray = reinterpret_cast<const uint8_t* const>(animdesc->pAnimdataStall_DP(&iLocalFrame, &sectionlength));
+			const uint8_t* const boneFlagArray = reinterpret_cast<const uint8_t* const>((animdesc->*s_AnimdataFuncs_DP[funcType])(&iLocalFrame, &sectionlength));
 			const r5::mstudio_rle_anim_t* panim = reinterpret_cast<const r5::mstudio_rle_anim_t*>(&boneFlagArray[ANIM_BONEFLAG_SIZE(boneCount)]);
 
 			for (int bone = 0; bone < boneCount; bone++)
@@ -844,8 +923,6 @@ void ParseAnimDesc_R5(seqdesc_t* const seqdesc, animdesc_t* const animdesc, cons
 
 				if (boneFlags & (r5::RleBoneFlags_t::STUDIO_ANIM_DATA)) // check if this bone has data
 				{
-					UNUSED(panimtrack);
-					UNUSED(fLocalFrame);
 					if (boneFlags & r5::RleBoneFlags_t::STUDIO_ANIM_ROT)
 						r5::CalcBoneQuaternion_DP(sectionlength, &panimtrack, fLocalFrame, q);
 
@@ -891,7 +968,7 @@ void ParseAnimDesc_R5(seqdesc_t* const seqdesc, animdesc_t* const animdesc, cons
 			int iLocalFrame = iFrame;
 
 			int sectionlength = 0;
-			const uint8_t* const boneFlagArray = reinterpret_cast<const uint8_t* const>((animdesc->*pAnimdata)(&iLocalFrame, &sectionlength));
+			const uint8_t* const boneFlagArray = reinterpret_cast<const uint8_t* const>((animdesc->*s_AnimdataFuncs_RLE[funcType])(&iLocalFrame, &sectionlength));
 			const r5::mstudio_rle_anim_t* panim = reinterpret_cast<const r5::mstudio_rle_anim_t*>(&boneFlagArray[ANIM_BONEFLAG_SIZE(boneCount)]);
 			UNUSED(sectionlength);
 
@@ -958,17 +1035,18 @@ void ParseSeqDesc_R5(seqdesc_t* const seqdesc, const std::vector<ModelBone_t>* c
 	assertm(static_cast<uint8_t>(CAnimDataBone::ANIMDATA_ROT) == static_cast<uint8_t>(r5::RleBoneFlags_t::STUDIO_ANIM_ROT), "flag mismatch");
 	assertm(static_cast<uint8_t>(CAnimDataBone::ANIMDATA_SCL) == static_cast<uint8_t>(r5::RleBoneFlags_t::STUDIO_ANIM_SCALE), "flag mismatch");
 
-	AnimdataFunc_t pAnimdata = s_AnimdataFuncs[funcType];
-
 	for (int i = 0; i < seqdesc->AnimCount(); i++)
 	{
 		animdesc_t* const animdesc = &seqdesc->anims.at(i);
 
 		// [rika]: data for this anim is not loaded, skip it
-		if (!animdesc->baseptr_anim)
+		if (animdesc->animDataAsset && !animdesc->animData)
+		{
+			Log("sequence %s required asset %llx but it was not loaded, skipping...\n", seqdesc->szlabel, animdesc->animDataAsset);
 			continue;
+		}
 
-		ParseAnimDesc_R5(seqdesc, animdesc, bones, pAnimdata);
+		ParseAnimDesc_R5(seqdesc, animdesc, bones, funcType);
 	}
 }
 
@@ -1348,8 +1426,8 @@ bool ExportModelRMAX(const ModelParsedData_t* const parsedData, std::filesystem:
 					if (meshData.rawVertexLayoutFlags & VERT_COLOR)
 						mesh->AddColor(vertData->color);
 
-					for (int16_t texcoordIdx = 0; texcoordIdx < meshData.texcoordCount; texcoordIdx++)
-						mesh->AddTexcoord(texcoordIdx > 0 ? parsedVertexData->GetTexcoords()[(i * (meshData.texcoordCount - 1)) + (texcoordIdx - 1)] : vertData->texcoord);
+					for (uint16_t texcoordIdx = 0; texcoordIdx < meshData.texcoordCount; texcoordIdx++)
+						mesh->AddTexcoord(*vertData->GetTexcoordForVertex(texcoordIdx, meshData.texcoordCount, parsedVertexData->GetTexcoords(), i));
 
 					for (uint32_t weightIdx = 0; weightIdx < vertData->weightCount; weightIdx++)
 					{
@@ -1596,8 +1674,11 @@ bool ExportModelCast(const ModelParsedData_t* const parsedData, std::filesystem:
 					vert.normalPacked.UnpackNormal(vertexData.normals[curIndex + vertIdx]);
 					vertexData.colors[curIndex + vertIdx] = vert.color;
 
-					for (int16_t texcoordIdx = 0; texcoordIdx < meshData.texcoordCount; texcoordIdx++)
-						vertexData.texcoords[(lodData.vertexCount * texcoordIdx) + curIndex + vertIdx] = texcoordIdx > 0 ? parsedVertexData->GetTexcoords()[(vertIdx * (meshData.texcoordCount - 1)) + (texcoordIdx - 1)] : vert.texcoord;
+					for (uint16_t texcoordIdx = 0; texcoordIdx < meshData.texcoordCount; texcoordIdx++)
+					{
+						const Vector2D* const texcoord = vert.GetTexcoordForVertex(texcoordIdx, meshData.texcoordCount, parsedVertexData->GetTexcoords(), vertIdx);
+						vertexData.texcoords[(lodData.vertexCount * texcoordIdx) + curIndex + vertIdx] = *texcoord;
+					}
 
 					for (uint32_t weightIdx = 0; weightIdx < vert.weightCount; weightIdx++)
 					{
@@ -1643,7 +1724,7 @@ bool ExportModelCast(const ModelParsedData_t* const parsedData, std::filesystem:
 }
 
 // parse a Vertex_t into a smd vertex
-inline void ParseVertexIntoSMD(const Vertex_t* const srcVert, const VertexWeight_t* const srcWeights, smd::Vertex* const vert, const bool isStaticProp)
+inline void ParseVertexIntoSMD(const Vertex_t* const srcVert, const VertexWeight_t* const srcWeights, smd::Vertex* const vert, const bool isStaticProp, const uint32_t texcoordWidth = 1u, const Vector2D* const extraTexcoords = nullptr, const uint32_t vertexIndex = 0u)
 {
 	vert->position = srcVert->position;
 	srcVert->normalPacked.UnpackNormal(vert->normal);
@@ -1654,13 +1735,15 @@ inline void ParseVertexIntoSMD(const Vertex_t* const srcVert, const VertexWeight
 		StaticPropFlipFlop(vert->normal);
 	}
 
-	// [rika]: todo support more texcoords ?
-	vert->texcoords[0] = srcVert->texcoord;
-	Vertex_t::InvertTexcoord(vert->texcoords[0]); // [rika]: the texcoord has to be inverted for proper recompile
+	vert->numTexcoords = texcoordWidth > smd::maxTexcoords ? smd::maxTexcoords : texcoordWidth;
+	for (uint32_t texcoordIdx = 0u; texcoordIdx < vert->numTexcoords; texcoordIdx++)
+	{
+		vert->texcoords[texcoordIdx] = *srcVert->GetTexcoordForVertex(texcoordIdx, texcoordWidth, extraTexcoords, vertexIndex);
+		Vertex_t::InvertTexcoord(vert->texcoords[texcoordIdx]); // [rika]: the texcoord has to be inverted for proper recompile
+	}	
 
 	vert->numBones = srcVert->weightCount > smd::maxBoneWeights ? smd::maxBoneWeights : srcVert->weightCount;
-
-	for (int weightIdx = 0; weightIdx < vert->numBones; weightIdx++)
+	for (uint32_t weightIdx = 0u; weightIdx < vert->numBones; weightIdx++)
 	{
 		const VertexWeight_t* const weight = &srcWeights[srcVert->weightIndex + weightIdx];
 
@@ -1675,7 +1758,7 @@ bool ExportModelSMD(const ModelParsedData_t* const parsedData, std::filesystem::
 	std::string fileNameBase = exportPath.stem().string();
 	const std::filesystem::path filePath(exportPath.parent_path());
 
-	smd::CSourceModelData* const smd = new smd::CSourceModelData(filePath, parsedData->bones.size(), 1ull);
+	smd::CStudioModelData* const smd = new smd::CStudioModelData(filePath, parsedData->bones.size(), 1ull);
 
 	// [rika]: initialize the nodes, and in this case the frames since we should only have one
 	for (size_t i = 0; i < parsedData->bones.size(); i++)
@@ -1731,7 +1814,7 @@ bool ExportModelSMD(const ModelParsedData_t* const parsedData, std::filesystem::
 				const VertexWeight_t* const weights = parsedVertexData->GetWeights();
 
 				// [rika]: add more triangles
-				smd->AddTriangles(static_cast<size_t>(meshData.indexCount / 3));
+				smd->AddMeshCapacity(meshData.indexCount / 3u);
 
 				const ModelMaterialData_t* const materialData = parsedData->pMaterial(meshData.materialId);
 
@@ -2613,7 +2696,7 @@ bool ExportSeqDescSMD(const seqdesc_t* const seqdesc, std::filesystem::path& exp
 
 	const size_t boneCount = bones->size();
 
-	smd::CSourceModelData* const smd = new smd::CSourceModelData(exportPath.parent_path(), bones->size(), 1ull);
+	smd::CStudioModelData* const smd = new smd::CStudioModelData(exportPath.parent_path(), bones->size(), 1ull);
 
 	// [rika]: initialize the nodes
 	for (size_t i = 0; i < boneCount; i++)

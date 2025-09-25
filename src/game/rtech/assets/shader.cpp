@@ -466,7 +466,9 @@ void PostLoadShaderAsset(CAssetContainer* const pak, CAsset* const asset)
 #endif
 
 	if(!shaderAsset->name)
+	{
 		pakAsset->SetAssetNameFromCache();
+	}
 }
 
 void* PreviewShaderAsset(CAsset* const asset, const bool firstFrameForAsset)

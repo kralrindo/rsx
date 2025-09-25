@@ -63,7 +63,9 @@ void PostLoadUIAsset(CAssetContainer* const container, CAsset* const asset)
     UIAsset* const uiAsset = reinterpret_cast<UIAsset*>(pakAsset->extraData());
 
     if (!uiAsset->name)
+    {
         pakAsset->SetAssetNameFromCache();
+    }
 }
 
 struct UIPreviewData_t

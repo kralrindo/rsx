@@ -998,12 +998,12 @@ namespace r5
 
 		uint16_t numikrules;
 
-		uint8_t unk_12[4]; // pad? unused? what the hell man
+		uint8_t unused_12[4]; // pad? unused? what the hell man
 
 		uint16_t ikruleindex; // non-zero when IK data is stored in the mdl
 		inline const mstudioikrule_v16_t* const pIKRule(const int i) const { return reinterpret_cast<mstudioikrule_v16_t*>((char*)this + FIX_OFFSET(ikruleindex)) + i; };
 
-		uint64_t animSeqDataGUID; // guid for animseq data
+		uint64_t animDataAsset; // guid in pak, should be pointer to asset on load. not set if STUDIO_HAS_ANIM is missing
 
 		char* sectionDataExternal; // set on pak asset load
 		uint16_t unk1; // maybe some sort of thread/mutic for the external data? set on pak asset load from unk_10

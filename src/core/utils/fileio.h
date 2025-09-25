@@ -21,6 +21,11 @@ public:
         open(path.string(), mode);
     }
 
+    StreamIO(FILE* file, const eStreamIOMode mode)
+    {
+        open(file, mode);
+    }
+
     // opens a file with either read or write mode. Returns whether
     // the open operation was successful
     bool open(const std::string& path, const eStreamIOMode mode)
@@ -52,6 +57,66 @@ public:
             {
                 currentMode = eStreamIOMode::None;
             }
+        }
+
+        // if the mode is still the NONE/initial one -> we failed
+        return currentMode == eStreamIOMode::None ? false : true;
+    }
+
+    // opens a file with either read or write mode. Returns whether
+    // the open operation was successful
+    // new limited time FILE flavor!
+    bool open(FILE* file, const eStreamIOMode mode)
+    {
+        if (!file)
+        {
+            currentMode = eStreamIOMode::None;
+            return false;
+        }
+
+        currentMode = mode;
+
+        switch (mode)
+        {
+        case eStreamIOMode::Write:
+        {
+            // check if we had a previously opened file to close it
+            if (writer.is_open())
+                writer.close();
+
+            std::ofstream tmp(file);
+
+            if (!tmp.is_open())
+            {
+                currentMode = eStreamIOMode::None;
+                break;
+            }
+
+            writer.swap(tmp);
+            break;
+        }
+        case eStreamIOMode::Read:
+        {
+            // check if we had a previously opened file to close it
+            if (reader.is_open())
+                reader.close();
+
+            std::ifstream tmp(file);
+
+            if (!tmp.is_open())
+            {
+                currentMode = eStreamIOMode::None;
+                break;
+            }
+
+            reader.swap(tmp);
+            break;
+        }
+        case eStreamIOMode::None:
+        default:
+        {
+            break;
+        }
         }
 
         // if the mode is still the NONE/initial one -> we failed
@@ -277,6 +342,9 @@ private:
 
 bool CreateDirectories(const std::filesystem::path& exportPath);
 bool RestoreCurrentWorkingDirectory();
+
+HANDLE WaitForFileHandle(const uint32_t waitInterval, const uint32_t maxWaitTime, LPCSTR fileName, DWORD fileDesiredAccess, DWORD fileShareMode, LPSECURITY_ATTRIBUTES fileSecurityAttributes, DWORD fileCreationDisposition, DWORD fileFlagsAndAttributes, HANDLE fileTemplateFile);
+FILE* FileFromHandle(HANDLE handle, const eStreamIOMode mode);
 
 namespace FileSystem
 {

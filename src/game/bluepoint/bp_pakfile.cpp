@@ -98,6 +98,7 @@ void LoadBluepointWrappedFileAsset(CAssetContainer* container, CAsset* asset)
 	}
 	}
 
+	// [rika]: has no name var
 	file->SetAssetNameFromCache();
 }
 

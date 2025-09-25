@@ -2,6 +2,7 @@
 #include <string>
 #include <game/rtech/utils/utils.h>
 
+extern ExportSettings_t g_ExportSettings;
 
 enum class AssetType_t
 {
@@ -89,6 +90,7 @@ static std::map<AssetType_t, Color4> s_AssetTypeColours =
 	{ AssetType_t::MDL_, Color4(240, 60,  50) },
 	{ AssetType_t::ARIG, Color4(220, 75,  10) },
 	{ AssetType_t::ASEQ, Color4(220, 75, 109) },
+	{ AssetType_t::ASQD, Color4(200, 90, 150) },
 	{ AssetType_t::ANIR, Color4(200, 100, 130) },
 	// non pak
 	{ AssetType_t::MDL,  Color4(240, 60,  50) },
@@ -160,6 +162,7 @@ static const std::map<AssetType_t, const char*> s_AssetTypePaths =
 	{ AssetType_t::MDL_, "mdl" },
 	{ AssetType_t::ARIG, "animrig" },
 	{ AssetType_t::ASEQ, "animseq" },
+	{ AssetType_t::ASQD, "animseq_data" },
 	{ AssetType_t::ANIR, "anim_recording" },
 	{ AssetType_t::MDL, "models" },
 	{ AssetType_t::SEQ, "models" },
@@ -286,6 +289,9 @@ public:
 
 	void SetAssetNameFromCache()
 	{
+		if (g_ExportSettings.disableCachedNames)
+			return;
+		
 		CCacheEntry entry;
 
 		if (g_cacheDBManager.LookupGuid(GetAssetGUID(), &entry))

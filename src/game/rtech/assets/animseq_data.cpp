@@ -28,14 +28,45 @@ void LoadAnimSeqDataAsset(CAssetContainer* const container, CAsset* const asset)
 	pakAsset->setExtraData(animSeqDataAsset);
 }
 
-void PostLoadAnimSeqDataAsset(CAssetContainer* const container, CAsset* const asset)
+static const char* const s_PathPrefixASQD = s_AssetTypePaths.find(AssetType_t::ASQD)->second;
+bool ExportAnimSeqDataAsset(CAsset* const asset, const int setting)
 {
-	UNUSED(container);
+	UNUSED(setting);
 
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	// [rika]: has no name var
-	pakAsset->SetAssetNameFromCache();
+	const AnimSeqDataAsset* const animSeqDataAsset = reinterpret_cast<AnimSeqDataAsset*>(pakAsset->extraData());
+	assertm(animSeqDataAsset, "Extra data should be valid at this point.");
+
+	if (animSeqDataAsset->dataSize == 0)
+	{
+		Log("animseq data %s had a size of 0, skipping...\n", pakAsset->GetAssetName().c_str());
+		return true;
+	}
+
+	// Create exported path + asset path.
+	std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+	const std::filesystem::path animPath(pakAsset->GetAssetName());
+	const std::string animStem(animPath.stem().string());
+
+	// truncate paths?
+	if (g_ExportSettings.exportPathsFull)
+		exportPath.append(animPath.parent_path().string());
+	else
+		exportPath.append(std::format("{}/{}", s_PathPrefixASQD, animStem));
+
+	if (!CreateDirectories(exportPath))
+	{
+		assertm(false, "Failed to create asset directory.");
+		return false;
+	}
+
+	exportPath.append(std::format("{}.asqd", animStem));
+
+	StreamIO out(exportPath, eStreamIOMode::Write);
+	out.write(animSeqDataAsset->data, animSeqDataAsset->dataSize);
+
+	return true;
 }
 
 void InitAnimSeqDataAssetType()
@@ -45,33 +76,64 @@ void InitAnimSeqDataAssetType()
 		.type = 'dqsa',
 		.headerAlignment = 8,
 		.loadFunc = LoadAnimSeqDataAsset,
-		.postLoadFunc = PostLoadAnimSeqDataAsset,
+		.postLoadFunc = nullptr,
 		.previewFunc = nullptr,
-		.e = { nullptr, 0, nullptr, 0ull },
+		.e = { ExportAnimSeqDataAsset, 0, nullptr, 0ull },
 	};
 
 	REGISTER_TYPE(type);
 }
 
-void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc)
+void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount)
 {
 	for (size_t i = 0; i < seqdesc->AnimCount(); i++)
 	{
 		animdesc_t* const animdesc = &seqdesc->anims.at(i);
 
-		if (!animdesc->animSeqDataGUID && animdesc->baseptr_anim)
+		if (!animdesc->animDataAsset && animdesc->animData)
 			continue;
 
-		CPakAsset* const dataAsset = g_assetData.FindAssetByGUID<CPakAsset>(animdesc->animSeqDataGUID);
+		CPakAsset* const dataAsset = g_assetData.FindAssetByGUID<CPakAsset>(animdesc->animDataAsset);
 		if (!dataAsset)
 		{
 			/*assertm(false, "animseq data was not loaded!");*/
-			animdesc->baseptr_anim = nullptr;
+			animdesc->animData = nullptr;
 			continue;
 		}
 
-		const AnimSeqDataAsset* const animSeqDataAsset = reinterpret_cast<const AnimSeqDataAsset* const>(dataAsset->extraData());
+		AnimSeqDataAsset* const animSeqDataAsset = reinterpret_cast<AnimSeqDataAsset* const>(dataAsset->extraData());
 
-		animdesc->baseptr_anim = animSeqDataAsset->data;
+		if (!animSeqDataAsset->data)
+		{
+			assertm(false, "animseq data ptr was invalid");
+			continue;
+		}
+
+		animdesc->animData = animSeqDataAsset->data;
+
+		int index = 0;
+
+		if (animdesc->sectionframes)
+		{
+			for (int section = animdesc->SectionCount(true) - 1; section >= 0; section--)
+			{
+				const animsection_t* const pSection = &animdesc->sections.at(section);
+
+				if (pSection->isExternal)
+					continue;
+
+				index = pSection->animindex;
+			}
+		}
+
+		const uint8_t* const boneFlagArray = reinterpret_cast<const uint8_t* const>(animdesc->animData + index);
+		const r5::mstudio_rle_anim_t* panim = reinterpret_cast<const r5::mstudio_rle_anim_t*>(&boneFlagArray[ANIM_BONEFLAG_SIZE(boneCount)]);
+
+		for (size_t bone = 0; bone < boneCount; bone++)
+		{
+			panim = panim->pNext();
+		}
+
+		animSeqDataAsset->dataSize = reinterpret_cast<const char* const>(panim) - animdesc->animData;
 	}
 }

@@ -113,6 +113,7 @@ static void ExportSettings_ReadLine(ImGuiContext* const ctx, ImGuiSettingsHandle
         int i;
         ImGuiReadSetting("ExportPathsFull=%i",              settings->exportPathsFull, i, int);
         ImGuiReadSetting("ExportAssetDeps=%i",              settings->exportAssetDeps, i, int);
+        ImGuiReadSetting("DisableCacheNames=%i",            settings->disableCachedNames, i, int);
 
         ImGuiReadSetting("ExportTextureNameSetting=%u",     settings->exportTextureNameSetting, i, uint32_t);
         ImGuiReadSetting("ExportNormalRecalcSetting=%u",    settings->exportNormalRecalcSetting, i, uint32_t);
@@ -131,11 +132,12 @@ static void ExportSettings_WriteAll(ImGuiContext* const ctx, ImGuiSettingsHandle
 {
     UNUSED(ctx);
 
-    buf->reserve(buf->size() + (48 * 10));
+    buf->reserve(buf->size() + (48 * 11));
     buf->appendf("[%s][general]\n", handler->TypeName);
     
     buf->appendf("ExportPathsFull=%i\n",            g_ExportSettings.exportPathsFull);
     buf->appendf("ExportAssetDeps=%i\n",            g_ExportSettings.exportAssetDeps);
+    buf->appendf("DisableCacheNames=%i\n",          g_ExportSettings.disableCachedNames);
 
     buf->appendf("ExportTextureNameSetting=%u\n",   g_ExportSettings.exportTextureNameSetting);
     buf->appendf("ExportNormalRecalcSetting=%u\n",  g_ExportSettings.exportNormalRecalcSetting);

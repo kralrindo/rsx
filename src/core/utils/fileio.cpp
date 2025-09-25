@@ -31,6 +31,76 @@ bool RestoreCurrentWorkingDirectory()
     return true;
 }
 
+// time is in ms
+HANDLE WaitForFileHandle(const uint32_t waitInterval, const uint32_t maxWaitTime, LPCSTR fileName, DWORD fileDesiredAccess, DWORD fileShareMode, LPSECURITY_ATTRIBUTES fileSecurityAttributes, DWORD fileCreationDisposition, DWORD fileFlagsAndAttributes, HANDLE fileTemplateFile)
+{
+	HANDLE fileHandle = INVALID_HANDLE_VALUE;
+	uint32_t timeWaited = 0u;
+
+	// [rika]: wait for the desired time
+	while (maxWaitTime >= timeWaited)
+	{
+		fileHandle = CreateFileA(fileName, fileDesiredAccess, fileShareMode, fileSecurityAttributes, fileCreationDisposition, fileFlagsAndAttributes, fileTemplateFile);
+
+		if (fileHandle != INVALID_HANDLE_VALUE)
+			break;
+
+		const DWORD error = GetLastError();
+
+		// [rika]: sharing violation is good, actually
+		if (error != ERROR_SHARING_VIOLATION)
+		{
+			assertm(false, "invalid file handle");
+			Log("failed to get handle for file %s, invalid error code!\n", fileName);
+			break;
+		}
+
+		Sleep(waitInterval);
+		timeWaited += waitInterval;
+	}
+
+	return fileHandle;
+}
+
+FILE* FileFromHandle(HANDLE handle, const eStreamIOMode mode)
+{
+	if (handle == INVALID_HANDLE_VALUE)
+	{
+		assertm(false, "invalid handle");
+		return nullptr;
+	}
+
+	const int fileDescriptor = _open_osfhandle(reinterpret_cast<intptr_t>(handle), 0);
+	if (fileDescriptor == -1)
+	{
+		assertm(false, "invalid descriptor");
+		return nullptr;
+	}
+
+	FILE* file = nullptr;
+	switch (mode)
+	{
+	case eStreamIOMode::Write:
+	{
+		file = _fdopen(fileDescriptor, "w");
+		break;
+	}
+	case eStreamIOMode::Read:
+	{
+		file = _fdopen(fileDescriptor, "r");
+		break;
+	}
+	default:
+	{
+		assertm(false, "invalid eStreamIOMode");
+		break;
+	}
+	}
+
+	assertm(file, "invalid file");
+	return file;
+}
+
 namespace FileSystem
 {
 

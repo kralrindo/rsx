@@ -47,6 +47,26 @@ struct Vertex_t
 	{
 		texcoord.y = 1.0f - texcoord.y;
 	}
+
+	inline const Vector2D* const GetTexcoordForVertex(const uint32_t texcoordIdx, const uint32_t texcoordWidth, const Vector2D* const extraTexcoords, const uint32_t vertIdx) const
+	{
+		if (texcoordIdx == 0)
+		{
+			return &texcoord;
+		}
+
+		if (!extraTexcoords || texcoordIdx >= texcoordWidth)
+		{
+			return nullptr;
+		}
+
+		// only extra texcoords are stored, so subtract one for the base texcoord
+		const uint32_t adjustedIndex = texcoordIdx - 1;
+		const uint32_t adjustedWidth = texcoordWidth - 1;
+
+		const Vector2D* const out = extraTexcoords + (vertIdx * adjustedWidth) + adjustedIndex;
+		return out;
+	}
 };
 
 //
@@ -77,8 +97,8 @@ struct ModelMeshData_t
 	uint16_t weightsPerVert; // max number of weights per vertex
 	uint32_t weightsCount; // the total number of weights in this mesh
 
-	int16_t texcoordCount;
-	int16_t texcoodIndices; // texcoord indices, e.g. texcoord0, texcoord2, etc
+	uint16_t texcoordCount;
+	uint16_t texcoodIndices; // texcoord indices, e.g. texcoord0, texcoord2, etc
 
 	// [rika]: swapped this to CPakAsset because in many cases the parsed asset would not exist yet
 	int materialId; // the index of this material
@@ -582,29 +602,11 @@ void ParseSeqDesc_R2(seqdesc_t* const seqdesc, const std::vector<ModelBone_t>* c
 void ParseSeqDesc_R5(seqdesc_t* const seqdesc, const std::vector<ModelBone_t>* const bones, const AnimdataFuncType_t funcType);
 
 // [rika]: this is for model internal sequence data (r5)
-extern void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc);
 void ParseModelSequenceData_NoStall(ModelParsedData_t* const parsedData, char* const baseptr);
-template<typename mstudioseqdesc_t, typename mstudioanimdesc_t> void ParseModelSequenceData_Stall(ModelParsedData_t* const parsedData, char* const baseptr, const AnimdataFuncType_t funcType)
-{
-	assertm(parsedData->bones.size() > 0, "should have bones");
-
-	const studiohdr_generic_t* const pStudioHdr = parsedData->pStudioHdr();
-
-	if (pStudioHdr->localSequenceCount == 0)
-		return;
-
-	parsedData->sequences = new seqdesc_t[pStudioHdr->localSequenceCount];
-	constexpr const mstudioanimdesc_t* const pAnimdescVersion = nullptr;
-
-	for (int i = 0; i < pStudioHdr->localSequenceCount; i++)
-	{
-		parsedData->sequences[i] = seqdesc_t(reinterpret_cast<mstudioseqdesc_t* const>(baseptr + pStudioHdr->localSequenceOffset) + i, pAnimdescVersion, nullptr);
-
-		ParseAnimSeqDataForSeqdesc(parsedData->sequences + i);
-
-		ParseSeqDesc_R5(&parsedData->sequences[i], &parsedData->bones, funcType);
-	}
-}
+void ParseModelSequenceData_Stall_V8(ModelParsedData_t* const parsedData, char* const baseptr);
+void ParseModelSequenceData_Stall_V16(ModelParsedData_t* const parsedData, char* const baseptr);
+void ParseModelSequenceData_Stall_V18(ModelParsedData_t* const parsedData, char* const baseptr);
+void ParseModelSequenceData_Stall_V19_1(ModelParsedData_t* const parsedData, char* const baseptr);
 
 void ParseModelAnimTypes_V8(ModelParsedData_t* const parsedData);
 void ParseModelAnimTypes_V16(ModelParsedData_t* const parsedData);

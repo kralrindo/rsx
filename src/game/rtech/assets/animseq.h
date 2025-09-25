@@ -85,18 +85,29 @@ constexpr uint64_t s_AnimSeqTimeStamp_V12_1 = 0x01DC1DF805C28000; // 09/05/2025 
 
 inline const eSeqVersion GetAnimSeqVersionFromAsset(CPakAsset* const asset, CPakFile* const pak)
 {
-	eSeqVersion out = eSeqVersion::VERSION_UNK;
+	const eSeqVersion out = s_seqVersionMap.count(asset->version()) == 1u ? s_seqVersionMap.at(asset->version()) : eSeqVersion::VERSION_UNK;
 
-	if (s_seqVersionMap.count(asset->version()) == 1u)
-		out = s_seqVersionMap.at(asset->version());
+	switch (out)
+	{
+	case eSeqVersion::VERSION_7:
+	{
+		if (asset->data()->headerStructSize == sizeof(AnimSeqAssetHeader_v7_1_t))
+			return eSeqVersion::VERSION_7_1;
 
-	if (out == eSeqVersion::VERSION_7)
-		return asset->data()->headerStructSize == sizeof(AnimSeqAssetHeader_v7_t) ? eSeqVersion::VERSION_7 : eSeqVersion::VERSION_7_1;
+		return eSeqVersion::VERSION_7;
+	}
+	case eSeqVersion::VERSION_12:
+	{
+		if (pak->header()->createdTime >= s_AnimSeqTimeStamp_V12_1)
+			return eSeqVersion::VERSION_12_1;
 
-	if (out == eSeqVersion::VERSION_12)
-		return pak->header()->createdTime > s_AnimSeqTimeStamp_V12_1 ? eSeqVersion::VERSION_12_1 : eSeqVersion::VERSION_12;
-
-	return out;
+		return eSeqVersion::VERSION_12;
+	}
+	default:
+	{
+		return out;
+	}
+	}
 }
 
 class AnimSeqAsset
@@ -109,12 +120,8 @@ public:
 	};
 
 	AnimSeqAsset(AnimSeqAssetHeader_v7_1_t* hdr, AssetPtr_t streamedData, eSeqVersion ver) : name(hdr->name), data(hdr->data), models(hdr->models), effects(nullptr), settings(hdr->settings), numModels(hdr->numModels), numSettings(static_cast<uint32_t>(hdr->numSettings)),
-		dataSize(0), dataExtraPerm(hdr->dataExtra), dataExtraStreamed(streamedData), dataExtraSize(hdr->dataExtraSize), version(ver), parentModel(nullptr), parentRig(nullptr), animationParsed(false)
+		dataSize(0), dataExtraPerm(hdr->dataExtra), dataExtraStreamed(streamedData), dataExtraSize(hdr->dataExtraSize), version(ver), seqdesc(reinterpret_cast<r5::mstudioseqdesc_v8_t*>(data), dataExtraPerm), parentModel(nullptr), parentRig(nullptr), animationParsed(false)
 	{
-		// [rika]: version handling
-		const r5::mstudioanimdesc_v12_1_t* const pAnimdesc = nullptr;
-		seqdesc = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v8_t*>(data), pAnimdesc, dataExtraPerm);
-
 		RawSizeV7();
 	};
 
@@ -126,9 +133,7 @@ public:
 		case eSeqVersion::VERSION_8:
 		case eSeqVersion::VERSION_10:
 		{
-			// [rika]: version handling
-			const r5::mstudioanimdesc_v12_1_t* const pAnimdesc = nullptr;
-			seqdesc = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v8_t*>(data), pAnimdesc, dataExtraPerm);
+			seqdesc = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v8_t*>(data), dataExtraPerm);
 
 			RawSizeV7();
 
@@ -136,11 +141,9 @@ public:
 		}
 		case eSeqVersion::VERSION_11:
 		{
-			// [rika]: version handling
-			const r5::mstudioanimdesc_v16_t* const pAnimdesc = nullptr;
 			r5::mstudioseqdesc_v16_t* const tmp = reinterpret_cast<r5::mstudioseqdesc_v16_t* const>(data);
 
-			seqdesc = seqdesc_t(tmp, pAnimdesc, dataExtraPerm);
+			seqdesc = seqdesc_t(tmp, dataExtraPerm);
 
 			const int boneCount = (tmp->activitymodifierindex - tmp->weightlistindex) / 4;
 
@@ -150,11 +153,9 @@ public:
 		}
 		case eSeqVersion::VERSION_12:
 		{
-			// [rika]: version handling
-			const r5::mstudioanimdesc_v16_t* const pAnimdesc = nullptr;
 			r5::mstudioseqdesc_v18_t* const tmp = reinterpret_cast<r5::mstudioseqdesc_v18_t* const>(data);
 
-			seqdesc = seqdesc_t(tmp, pAnimdesc, dataExtraPerm);
+			seqdesc = seqdesc_t(tmp, dataExtraPerm, 0u);
 
 			if (tmp->weightlistindex == 1 || tmp->weightlistindex == 3)
 			{
@@ -170,14 +171,14 @@ public:
 		}
 		case eSeqVersion::VERSION_12_1:
 		{
-			// [rika]: version handling
-			const r5::mstudioanimdesc_v19_1_t* const pAnimdesc = nullptr;
 			r5::mstudioseqdesc_v18_t* const tmp = reinterpret_cast<r5::mstudioseqdesc_v18_t* const>(data);
 
-			seqdesc = seqdesc_t(tmp, pAnimdesc, dataExtraPerm);
+			seqdesc = seqdesc_t(tmp, dataExtraPerm, 1u);
 			dataSize = 0;
 
-			//RawSizeV11(boneCount);
+			const int boneCount = (tmp->activitymodifierindex - tmp->weightlistindex) / 4;
+			
+			RawSizeV12_1(boneCount);
 
 			break;
 		}
@@ -240,15 +241,16 @@ private:
 			return;
 		}
 
+		const int animCount = seqdesc.AnimCount();
 		const char* ends[24]{};
-		assertm(seqdesc.AnimCount() < 24, "too many anims");
+		assertm(animCount < 24, "too many anims");
 
 		// start at the last, and work back if required.
-		for (int i = 0; i < seqdesc.AnimCount(); i++)
+		for (int i = 0; i < animCount; i++)
 		{
 			const animdesc_t* const anim = &seqdesc.anims.at(i);
 
-			const r5::mstudioanimdesc_v16_t* const animdesc = reinterpret_cast<const r5::mstudioanimdesc_v16_t* const>(anim->baseptr_desc);
+			const r5::mstudioanimdesc_v16_t* const animdesc = reinterpret_cast<const r5::mstudioanimdesc_v16_t* const>(anim->baseptr);
 			int lastFrame = anim->numframes - 1;
 
 			const bool useDatapointAnim = (anim->flags & ANIM_DATAPOINT) ? true : false;
@@ -348,8 +350,11 @@ private:
 			// if the last data is animation data
 			if (anim->flags & ANIM_VALID && !(anim->flags & ANIM_ALLZEROS))
 			{
+				// [rika]: if you use the newer function for RLE anims, you will skip a section, which is not ideal for getting the total size
+				AnimdataFunc_t pAnimdata = useDatapointAnim ? s_AnimdataFuncs_DP[AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR] : s_AnimdataFuncs_RLE[AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR];
+
 				int sectionlength;
-				const uint8_t* const boneFlagArray = useDatapointAnim ? reinterpret_cast<const uint8_t* const>(anim->pAnimdataStall_DP(&lastFrame, &sectionlength)) : reinterpret_cast<const uint8_t* const>(anim->pAnimdataStall(&lastFrame, nullptr));
+				const uint8_t* const boneFlagArray = reinterpret_cast<const uint8_t* const>((anim->*pAnimdata)(&lastFrame, &sectionlength));
 
 				const r5::mstudio_rle_anim_t* panim = reinterpret_cast<const r5::mstudio_rle_anim_t*>(&boneFlagArray[ANIM_BONEFLAG_SIZE(boneCount)]);
 
@@ -370,7 +375,7 @@ private:
 			}
 			else if (anim->animindex)
 			{
-				ends[i] = reinterpret_cast<const char*>(anim->baseptr_desc) + anim->animindex;
+				ends[i] = reinterpret_cast<const char*>(anim->baseptr) + anim->animindex;
 
 				continue;
 			}
@@ -427,21 +432,20 @@ private:
 			}
 		}
 
-		if (!seqdesc.AnimCount())
-		{
-			const char* end = seqdesc.szlabel;
-			end += strnlen_s(end, MAX_PATH) + 1; // plus null terminator
-
-			ends[0] = end;
-		}
-
 		const char* end = nullptr;
-		for (int i = 0; i < seqdesc.AnimCount(); i++)
+		for (int i = 0; i < animCount; i++)
 		{
 			end = end < ends[i] ? ends[i] : end;
 		}
 
-		dataSize = IALIGN4(end - (char*)seqdesc.baseptr);
+		// [rika]: might need to cycle through events
+		if (!animCount)
+		{
+			end = seqdesc.szlabel;
+			end += strnlen_s(end, MAX_PATH) + 1; // plus null terminator
+		}
+
+		dataSize = IALIGN2(end - (char*)seqdesc.baseptr);
 
 		return;
 	}
@@ -455,15 +459,16 @@ private:
 			return;
 		}
 
+		const int animCount = seqdesc.AnimCount();
 		const char* ends[24]{};
-		assertm(seqdesc.AnimCount() < 24, "too many anims");
+		assertm(animCount < 24, "too many anims");
 
 		// start at the last, and work back if required.
-		for (int i = 0; i < seqdesc.AnimCount(); i++)
+		for (int i = 0; i < animCount; i++)
 		{
 			const animdesc_t* const anim = &seqdesc.anims.at(i);
 
-			const r5::mstudioanimdesc_v16_t* const animdesc = reinterpret_cast<const r5::mstudioanimdesc_v16_t* const>(anim->baseptr_desc);
+			const r5::mstudioanimdesc_v19_1_t* const animdesc = reinterpret_cast<const r5::mstudioanimdesc_v19_1_t* const>(anim->baseptr);
 			int lastFrame = anim->numframes - 1;
 
 			const bool useDatapointAnim = (anim->flags & ANIM_DATAPOINT) ? true : false;
@@ -560,13 +565,9 @@ private:
 				continue;
 			}
 
-			// ikrules are static and do not have compresedikerrors (new as of v12)
-			if (animdesc->ikruleindex == 3 || animdesc->ikruleindex == 5)
-				continue;
-
 			// not likely to get hit, but we should cover our bases.
 			// if the last data is compressedikerror data
-			if (animdesc->numikrules > 0)
+			if (animdesc->numikrules > 0 && !(animdesc->ikruleindex == 3 || animdesc->ikruleindex == 5))
 			{
 				for (int j = static_cast<int>(animdesc->numikrules) - 1; j >= 0; j--)
 				{
@@ -609,24 +610,33 @@ private:
 
 					continue;
 				}
-			}
-		}
 
-		if (!seqdesc.AnimCount())
-		{
+				// [rika]: there was a compressedikerror, proceed to next anim
+				if (ends[i])
+					continue;
+			}
+
+			// [rika]: parse animation name strings
 			const char* end = seqdesc.szlabel;
 			end += strnlen_s(end, MAX_PATH) + 1; // plus null terminator
 
-			ends[0] = end;
+			ends[i] = end;
 		}
 
 		const char* end = nullptr;
-		for (int i = 0; i < seqdesc.AnimCount(); i++)
+		for (int i = 0; i < animCount; i++)
 		{
 			end = end < ends[i] ? ends[i] : end;
 		}
 
-		dataSize = IALIGN4(end - (char*)seqdesc.baseptr);
+		// [rika]: might need to cycle through events
+		if (!animCount)
+		{
+			end = seqdesc.szlabel;
+			end += strnlen_s(end, MAX_PATH) + 1; // plus null terminator
+		}
+
+		dataSize = IALIGN2(end - (char*)seqdesc.baseptr);
 
 		return;
 	}

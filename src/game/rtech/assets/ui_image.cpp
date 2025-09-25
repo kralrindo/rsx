@@ -5,6 +5,7 @@
 #include <thirdparty/imgui/imgui.h>
 
 extern CDXParentHandler* g_dxHandler;
+extern ExportSettings_t g_ExportSettings;
 
 void LoadUIImageAsset(CAssetContainer* const pak, CAsset* const asset)
 {
@@ -223,7 +224,9 @@ void PostLoadUIImageAsset(CAssetContainer* container, CAsset* asset)
     UIImageAsset* const uiAsset = reinterpret_cast<UIImageAsset*>(pakAsset->extraData());
 
     if (!uiAsset->name)
+    {
         pakAsset->SetAssetNameFromCache();
+    }
 }
 
 // Or swizzle work..

@@ -12,9 +12,8 @@
 
 extern ExportSettings_t g_ExportSettings;
 
-void LoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
+void LoadAnimRigAsset(CAssetContainer* const container, CAsset* const asset)
 {
-    UNUSED(pak);
     AnimRigAsset* arigAsset = nullptr;
 
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
@@ -36,8 +35,11 @@ void LoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
     }
     case 7:
     {
+        CPakFile* const pak = static_cast<CPakFile* const>(container);
+        const eMDLVersion ver = pak->header()->createdTime >= s_AnimSeqTimeStamp_V12_1 ? eMDLVersion::VERSION_19_1 : eMDLVersion::VERSION_19;
+
         AnimRigAssetHeader_v5_t* const hdr = reinterpret_cast<AnimRigAssetHeader_v5_t*>(pakAsset->header());
-        arigAsset = new AnimRigAsset(hdr, eMDLVersion::VERSION_19);
+        arigAsset = new AnimRigAsset(hdr, ver);
         break;
     }
     default:
@@ -55,7 +57,6 @@ void LoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
         ParseModelBoneData_v8(arigAsset->GetParsedData());
         ParseModelAttachmentData_v8(arigAsset->GetParsedData());
         ParseModelHitboxData_v8(arigAsset->GetParsedData());
-        ParseModelSequenceData_NoStall(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data));
         ParseModelAnimTypes_V8(arigAsset->GetParsedData());
 
         break;
@@ -74,7 +75,6 @@ void LoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
         ParseModelBoneData_v12_1(arigAsset->GetParsedData());
         ParseModelAttachmentData_v8(arigAsset->GetParsedData());
         ParseModelHitboxData_v8(arigAsset->GetParsedData());
-        ParseModelSequenceData_Stall<r5::mstudioseqdesc_v8_t, r5::mstudioanimdesc_v12_1_t>(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data), AnimdataFuncType_t::ANIM_FUNC_STALL);
         ParseModelAnimTypes_V8(arigAsset->GetParsedData());
 
         break;
@@ -85,7 +85,6 @@ void LoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
         ParseModelBoneData_v16(arigAsset->GetParsedData());
         ParseModelAttachmentData_v16(arigAsset->GetParsedData());
         ParseModelHitboxData_v16(arigAsset->GetParsedData());
-        ParseModelSequenceData_Stall<r5::mstudioseqdesc_v16_t, r5::mstudioanimdesc_v16_t>(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data), AnimdataFuncType_t::ANIM_FUNC_STALL);
         ParseModelAnimTypes_V16(arigAsset->GetParsedData());
 
         break;
@@ -95,7 +94,6 @@ void LoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
         ParseModelBoneData_v16(arigAsset->GetParsedData());
         ParseModelAttachmentData_v16(arigAsset->GetParsedData());
         ParseModelHitboxData_v16(arigAsset->GetParsedData());
-        ParseModelSequenceData_Stall<r5::mstudioseqdesc_v18_t, r5::mstudioanimdesc_v16_t>(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data), AnimdataFuncType_t::ANIM_FUNC_STALL);
         ParseModelAnimTypes_V16(arigAsset->GetParsedData());
 
         break;
@@ -105,7 +103,6 @@ void LoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
         ParseModelBoneData_v19(arigAsset->GetParsedData());
         ParseModelAttachmentData_v16(arigAsset->GetParsedData());
         ParseModelHitboxData_v16(arigAsset->GetParsedData());
-        ParseModelSequenceData_Stall<r5::mstudioseqdesc_v18_t, r5::mstudioanimdesc_v16_t>(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data), AnimdataFuncType_t::ANIM_FUNC_STALL);
         ParseModelAnimTypes_V16(arigAsset->GetParsedData());
 
         break;
@@ -115,7 +112,6 @@ void LoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
         ParseModelBoneData_v19(arigAsset->GetParsedData());
         ParseModelAttachmentData_v16(arigAsset->GetParsedData());
         ParseModelHitboxData_v16(arigAsset->GetParsedData());
-        ParseModelSequenceData_Stall<r5::mstudioseqdesc_v18_t, r5::mstudioanimdesc_v16_t>(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data), AnimdataFuncType_t::ANIM_FUNC_STALL_RETAIL);
         ParseModelAnimTypes_V16(arigAsset->GetParsedData());
 
         break;
@@ -123,7 +119,7 @@ void LoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
     case eMDLVersion::VERSION_UNK:
     default:
     {
-        assertm(false, "bad stuff happened!");
+        assertm(false, "unaccounted asset version, will cause major issues!");
         break;
     }
     }
@@ -161,6 +157,67 @@ void PostLoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
         }
 
         animSeq->parentRig = !animSeq->parentRig ? arigAsset : animSeq->parentRig;
+    }
+
+    // [rika]: this should never get hit
+    if (arigAsset->GetParsedData()->NumLocalSeq() == 0)
+        return;
+
+    assertm(false, "arig had internal sequences");
+
+    switch (arigAsset->studioVersion)
+    {
+    case eMDLVersion::VERSION_8:
+    case eMDLVersion::VERSION_9:
+    case eMDLVersion::VERSION_10:
+    case eMDLVersion::VERSION_11:
+    case eMDLVersion::VERSION_12:
+    {
+        ParseModelSequenceData_NoStall(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data));
+
+        break;
+    }
+    case eMDLVersion::VERSION_12_1:
+    case eMDLVersion::VERSION_12_2:
+    case eMDLVersion::VERSION_12_3:
+    case eMDLVersion::VERSION_12_4:
+    case eMDLVersion::VERSION_12_5:
+    case eMDLVersion::VERSION_13:
+    case eMDLVersion::VERSION_13_1:
+    case eMDLVersion::VERSION_14:
+    case eMDLVersion::VERSION_14_1:
+    case eMDLVersion::VERSION_15:
+    {
+        ParseModelSequenceData_Stall_V8(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data));
+
+        break;
+    }
+    case eMDLVersion::VERSION_16:
+    case eMDLVersion::VERSION_17:
+    {
+        ParseModelSequenceData_Stall_V16(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data));
+
+        break;
+    }
+    case eMDLVersion::VERSION_18:
+    case eMDLVersion::VERSION_19:
+    {
+        ParseModelSequenceData_Stall_V18(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data));
+
+        break;
+    }
+    case eMDLVersion::VERSION_19_1:
+    {
+        ParseModelSequenceData_Stall_V19_1(arigAsset->GetParsedData(), reinterpret_cast<char* const>(arigAsset->data));
+
+        break;
+    }
+    case eMDLVersion::VERSION_UNK:
+    default:
+    {
+        assertm(false, "unaccounted asset version, will cause major issues!");
+        break;
+    }
     }
 }
 

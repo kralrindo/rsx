@@ -11,6 +11,7 @@ struct ExportSettings_t
     // misc
     bool exportPathsFull;
     bool exportAssetDeps;
+    bool disableCachedNames;
 
     // model settings
     uint32_t previewedSkinIndex;

@@ -41,6 +41,7 @@
     <ClInclude Include="core\shaderexp\multishader.h" />
     <ClInclude Include="core\splash.h" />
     <ClInclude Include="core\utils\buffermanager.h" />
+    <ClInclude Include="core\utils\crc32.h" />
     <ClInclude Include="core\utils\exportsettings.h" />
     <ClInclude Include="core\utils\fileio.h" />
     <ClInclude Include="core\utils\ramen.h" />

@@ -63,8 +63,7 @@ struct animdesc_t
 		if (nullptr != movement) delete movement;
 	}
 
-	const void* baseptr_desc; // for getting to the animations
-	const void* baseptr_anim; // for getting to the animations
+	const void* baseptr; // for getting to the animations
 
 	const char* name;
 
@@ -82,9 +81,10 @@ struct animdesc_t
 	int animindex;
 
 	// data array, starting with per bone flags
-	const char* const pAnimdataNoStall(int* const piFrame, int* const sectionFrameCount) const;
-	const char* const pAnimdataStall(int* const piFrame, int* const sectionFrameCount) const;
-	const char* const pAnimdataStall_DP(int* const piFrame, int* const sectionFrameCount) const;
+	const char* const pAnimdataNoStall(int* const piFrame, int* const _UNUSED) const;			// v8 - v12
+	const char* const pAnimdataStall_0(int* const piFrame, int* const _UNUSED) const;			// v12.1 - v18
+	const char* const pAnimdataStall_1(int* const piFrame, int* const sectionFrameCount) const;	// v19
+	const char* const pAnimdataStall_2(int* const piFrame, int* const sectionFrameCount) const;	// v19.1 - retail
 
 	int sectionindex; // can be safely removed
 	int sectionstallframes; // number of static frames inside the animation, the reset excluding the final frame are stored externally. when external data is not loaded(?)/found(?) it falls back on the last frame of this as a stall
@@ -93,32 +93,27 @@ struct animdesc_t
 	inline const bool HasStall() const { return sectionstallframes > 0; }
 	inline const animsection_t* pSection(const int i) const { return &sections.at(i); }
 
-	inline const int SectionCount_RLE() const
+	inline const int SectionCount(const bool useAnimData = false) const
 	{
-		const int sectionbase = ((numframes - sectionstallframes - 1) / sectionframes); // basic section index
-		const int sectionmaxindex = sectionbase + static_cast<int>(HasStall()) + 1; // max index of a section, check for a stall section, add final trailing section that rle anims have
-		return sectionmaxindex + 1; // add one to make this max index a max count
-	}
+		const int useTrailSection = (flags & eStudioAnimFlags::ANIM_DATAPOINT) ? false : true; // rle anims have an extra section at the end, with only the last frame in full types (Quaternion48, Vector48, etc)
+		const int useStallSection = HasStall();
 
-	inline const int SectionCount_DP() const
-	{
-		const int sectionbase = ((numframes - sectionstallframes) / sectionframes); // basic section index
-		const int sectionmaxindex = sectionbase + static_cast<int>(HasStall()); // max index of a section
-		return sectionmaxindex + 1; // add one to make this max index a max count
-	}
+		const int maxFrameIndex = (numframes - sectionstallframes - 1); // subtract to get the last frame index outside of stall
 
-	inline const int SectionCount() const
-	{
-		if (flags & eStudioAnimFlags::ANIM_DATAPOINT)
-		{
-			return SectionCount_DP();
-		}
+		const int sectionBase = (maxFrameIndex / sectionframes); // basic section index
+		const int sectionMaxIndex = sectionBase + useTrailSection + useStallSection; // max index of a section
 
-		return SectionCount_RLE();
+		// [rika]: where we'd normally add one to get the count, in retail the first section omitted as it's expected to always be at offset 0 in animdata
+		// [rika]: only retail animations will have this set, and it is not optional, if not set there is no animation data
+		if (useAnimData)
+			return sectionMaxIndex;
+
+		return sectionMaxIndex + 1; // add one to make this max index a max count
 	}
 
 	const char* sectionDataExtra;
-	uint64_t animSeqDataGUID;
+	const char* animData;
+	uint64_t animDataAsset;
 
 	size_t parsedBufferIndex;
 
@@ -134,17 +129,24 @@ typedef const char* const (animdesc_t::* AnimdataFunc_t)(int* const, int* const)
 enum AnimdataFuncType_t : uint8_t
 {
 	ANIM_FUNC_NOSTALL,
-	ANIM_FUNC_STALL,
-	ANIM_FUNC_STALL_RETAIL,
+	ANIM_FUNC_STALL_BASEPTR,
+	ANIM_FUNC_STALL_ANIMDATA,
 
 	ANIM_FUNC_COUNT,
 };
 
-static AnimdataFunc_t s_AnimdataFuncs[AnimdataFuncType_t::ANIM_FUNC_COUNT] =
+static AnimdataFunc_t s_AnimdataFuncs_RLE[AnimdataFuncType_t::ANIM_FUNC_COUNT] =
 {
 	&animdesc_t::pAnimdataNoStall,
-	&animdesc_t::pAnimdataStall,
-	&animdesc_t::pAnimdataStall_DP,
+	&animdesc_t::pAnimdataStall_0,
+	&animdesc_t::pAnimdataStall_2,
+};
+
+static AnimdataFunc_t s_AnimdataFuncs_DP[AnimdataFuncType_t::ANIM_FUNC_COUNT] =
+{
+	&animdesc_t::pAnimdataNoStall,
+	&animdesc_t::pAnimdataStall_1,
+	&animdesc_t::pAnimdataStall_2,
 };
 
 struct seqdesc_t
@@ -153,10 +155,9 @@ struct seqdesc_t
 	seqdesc_t() = default;
 	seqdesc_t(const r2::mstudioseqdesc_t* const seqdesc);
 	seqdesc_t(const r5::mstudioseqdesc_v8_t* const seqdesc);
-	seqdesc_t(const r5::mstudioseqdesc_v8_t* const seqdesc, const r5::mstudioanimdesc_v12_1_t* const animdesc, const char* const ext);
-	seqdesc_t(const r5::mstudioseqdesc_v16_t* const seqdesc, const r5::mstudioanimdesc_v16_t* const animdesc, const char* const ext);
-	seqdesc_t(const r5::mstudioseqdesc_v18_t* const seqdesc, const r5::mstudioanimdesc_v16_t* const animdesc, const char* const ext);
-	seqdesc_t(const r5::mstudioseqdesc_v18_t* const seqdesc, const r5::mstudioanimdesc_v19_1_t* const animdesc, const char* const ext);
+	seqdesc_t(const r5::mstudioseqdesc_v8_t* const seqdesc, const char* const ext);
+	seqdesc_t(const r5::mstudioseqdesc_v16_t* const seqdesc, const char* const ext);
+	seqdesc_t(const r5::mstudioseqdesc_v18_t* const seqdesc, const char* const ext, const uint32_t version);
 
 	seqdesc_t& operator=(seqdesc_t&& seqdesc) noexcept
 	{

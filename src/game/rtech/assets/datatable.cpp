@@ -286,7 +286,10 @@ bool ExportDatatableAsset(CAsset* const asset, const int setting)
 void PostLoadDatatableAsset(CAssetContainer* container, CAsset* asset)
 {
     UNUSED(container);
+
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
+
+    // [rika]: has no name var
     pakAsset->SetAssetNameFromCache();
 }
 

@@ -1125,6 +1125,8 @@ namespace qc
 
 	// custom commands
 	// misc
+	size_t CommandKeyvalues_Write(const Command_t* const command, char* buffer, size_t bufferSize);
+
 	CommandOption_t* CommandConstDirectLight_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandIllumPosition_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandMaxEyeDeflect_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
@@ -1175,7 +1177,7 @@ namespace qc
 		CommandInfo_t(QC_MAXEYEDEFLECTION,			"$maxeyedeflection",			QCI_BASE,		&CommandGeneric_Write,	&CommandMaxEyeDeflect_ParseBinary,	nullptr, s_QCVersion_MIN, s_QCVersion_R1),
 		CommandInfo_t(QC_AUTOCENTER,				"$autocenter",					QCI_BASE,		&CommandGeneric_Write,	&CommandNone_ParseBinary,			nullptr),
 		
-		CommandInfo_t(QC_KEYVALUES,					"$keyvalues",					QCI_BASE,		&CommandGeneric_Write,	&CommandString_ParseBinary,			nullptr),
+		CommandInfo_t(QC_KEYVALUES,					"$keyvalues",					QCI_BASE,		&CommandKeyvalues_Write,&CommandString_ParseBinary,			nullptr),
 
 		CommandInfo_t(QC_INCLUDE,					"$include",						QCI_BASE,		&CommandGeneric_Write,	&CommandString_ParseBinary,			nullptr),
 

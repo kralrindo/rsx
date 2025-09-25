@@ -97,7 +97,9 @@ void PostLoadShaderSetAsset(CAssetContainer* const pak, CAsset* const asset)
 	shdsAsset->pixelShaderAsset = g_assetData.FindAssetByGUID<CPakAsset>(shdsAsset->pixelShader);
 
 	if(!shdsAsset->name)
+	{
 		pakAsset->SetAssetNameFromCache();
+	}
 
 	//if (shdsAsset->vertexShader && !shdsAsset->vertexShaderAsset)
 	//	Log("Shaderset has vertex shader but it is not loaded.\n");

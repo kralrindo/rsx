@@ -396,6 +396,9 @@
     <ClInclude Include="game\rtech\assets\animseq_data.h">
       <Filter>game\rtech\assets</Filter>
     </ClInclude>
+    <ClInclude Include="core\utils\crc32.h">
+      <Filter>core\utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">

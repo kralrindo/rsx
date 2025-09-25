@@ -20,6 +20,13 @@
 #include <ranges>
 #include <mutex>
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#include <io.h>
+
+#include <core/utils/crc32.h>
 #include <core/utils/utils_general.h>
 #include <core/utils/fileio.h>
 #include <core/utils/thread.h>
@@ -42,11 +49,6 @@
 #include <core/logging/logger.h>
 
 #include <core/cache/cachedb.h>
-
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <Windows.h>
 
 #pragma warning (disable: 4201)
 

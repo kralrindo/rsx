@@ -2,8 +2,18 @@
 // Source Model Data
 namespace smd
 {
-	constexpr int maxBoneWeights = 3;
-	constexpr int maxTexcoords = 1;
+	enum StudioModelDataVersion_t : uint32_t
+	{
+		SMD_INVALID = 0u,
+		SMD_V1, // basic run of the mill smd
+		SMD_V2, // unknown
+		SMD_V3, // support for up to 8 texcoords (adjust maxTexcoords, currently have it set low because we don't use it and it hogs memory with the way vertices are setup)
+	};
+
+	static uint32_t s_outputVersion = SMD_V1;
+
+	constexpr uint32_t maxBoneWeights = 3;
+	constexpr uint32_t maxTexcoords = 1;
 
 	class Node
 	{
@@ -39,10 +49,11 @@ namespace smd
 		Vector normal;
 
 		Vector2D texcoords[maxTexcoords];
+		uint32_t numTexcoords;
 
+		uint32_t numBones;
 		float weight[maxBoneWeights];
 		int bone[maxBoneWeights];
-		int numBones;
 	};
 
 	class Triangle
@@ -54,10 +65,10 @@ namespace smd
 		Vertex vertices[3];
 	};
 
-	class CSourceModelData
+	class CStudioModelData
 	{
 	public:
-		CSourceModelData(const std::filesystem::path& path, const size_t nodeCount, const size_t frameCount) : exportPath(path), numNodes(nodeCount), nodes(nullptr), numFrames(frameCount), frames(nullptr)
+		CStudioModelData(const std::filesystem::path& path, const size_t nodeCount, const size_t frameCount) : exportPath(path), numNodes(nodeCount), nodes(nullptr), numFrames(frameCount), frames(nullptr)
 		{
 			assertm(numNodes, "must have at least one bone");
 			assertm(numFrames, "must have at least one frame");
@@ -72,7 +83,7 @@ namespace smd
 			}
 		}
 
-		~CSourceModelData()
+		~CStudioModelData()
 		{
 			FreeAllocArray(nodes);
 			FreeAllocArray(frames);
@@ -82,7 +93,13 @@ namespace smd
 		void InitFrameBone(const int iframe, const int ibone, const Vector& pos, const RadianEuler& rot) const;
 		void InitTriangle(const char* mat) { triangles.emplace_back(mat); }
 
-		void AddTriangles(const size_t size) { triangles.reserve(triangles.size() + size); }
+		void AddMeshCapacity(const size_t numTriangles)
+		{
+			assertm(triangles.size() == triangles.capacity(), "mismatched indices");
+
+			triangles.reserve(triangles.size() + numTriangles);
+		}
+
 		Triangle* const TopTri() { return &triangles.back(); }
 
 		void SetName(const std::string& name) { exportName = name; }
@@ -91,7 +108,10 @@ namespace smd
 		const size_t FrameCount() const { return numFrames; }
 
 		// so we don't have to re parse nodes
-		void ResetMeshData() { triangles.clear(); }
+		void ResetMeshData()
+		{
+			triangles.clear();
+		}
 		void ResetFrameData(const size_t frameCount)
 		{
 			FreeAllocArray(frames);

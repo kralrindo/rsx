@@ -735,7 +735,7 @@ static void ParseModelVertexData_v16(CPakAsset* const asset, ModelAsset* const m
         case eCompressionType::NONE:
         {
             dcmpBuf = std::make_unique<char[]>(group->dataSizeDecompressed);
-            std::memcpy(dcmpBuf.get(), pStreamed.get() + group->dataOffset, group->dataSizeDecompressed);
+            std::memcpy(dcmpBuf.get(), pDataBuffer + group->dataOffset, group->dataSizeDecompressed);
             break;
         }
         case eCompressionType::PAKFILE:
@@ -743,7 +743,7 @@ static void ParseModelVertexData_v16(CPakAsset* const asset, ModelAsset* const m
         case eCompressionType::OODLE:
         {
             std::unique_ptr<char[]> cmpBuf = std::make_unique<char[]>(group->dataSizeCompressed);
-            std::memcpy(cmpBuf.get(), pStreamed.get() + group->dataOffset, group->dataSizeCompressed);
+            std::memcpy(cmpBuf.get(), pDataBuffer + group->dataOffset, group->dataSizeCompressed);
 
             uint64_t dataSizeDecompressed = group->dataSizeDecompressed; // this is cringe, can't  be const either, so awesome
             dcmpBuf = RTech::DecompressStreamedBuffer(std::move(cmpBuf), dataSizeDecompressed, group->dataCompression);
@@ -1190,24 +1190,24 @@ void PostLoadModelAsset(CAssetContainer* const pak, CAsset* const asset)
     case eMDLVersion::VERSION_14_1:
     case eMDLVersion::VERSION_15:
     {
-        ParseModelSequenceData_Stall<r5::mstudioseqdesc_v8_t, r5::mstudioanimdesc_v12_1_t>(modelAsset->GetParsedData(), reinterpret_cast<char* const>(modelAsset->data), AnimdataFuncType_t::ANIM_FUNC_NOSTALL);
+        ParseModelSequenceData_Stall_V8(modelAsset->GetParsedData(), reinterpret_cast<char* const>(modelAsset->data));
         break;
     }
     case eMDLVersion::VERSION_16:
     case eMDLVersion::VERSION_17:
     {
-        ParseModelSequenceData_Stall<r5::mstudioseqdesc_v16_t, r5::mstudioanimdesc_v16_t>(modelAsset->GetParsedData(), reinterpret_cast<char* const>(modelAsset->data), AnimdataFuncType_t::ANIM_FUNC_STALL);
+        ParseModelSequenceData_Stall_V16(modelAsset->GetParsedData(), reinterpret_cast<char* const>(modelAsset->data));
         break;
     }
     case eMDLVersion::VERSION_18:
     case eMDLVersion::VERSION_19:
     {
-        ParseModelSequenceData_Stall<r5::mstudioseqdesc_v18_t, r5::mstudioanimdesc_v16_t>(modelAsset->GetParsedData(), reinterpret_cast<char* const>(modelAsset->data), AnimdataFuncType_t::ANIM_FUNC_STALL);
+        ParseModelSequenceData_Stall_V18(modelAsset->GetParsedData(), reinterpret_cast<char* const>(modelAsset->data));
         break;
     }
     case eMDLVersion::VERSION_19_1:
     {
-        ParseModelSequenceData_Stall<r5::mstudioseqdesc_v18_t, r5::mstudioanimdesc_v19_1_t>(modelAsset->GetParsedData(), reinterpret_cast<char* const>(modelAsset->data), AnimdataFuncType_t::ANIM_FUNC_STALL_RETAIL);
+        ParseModelSequenceData_Stall_V19_1(modelAsset->GetParsedData(), reinterpret_cast<char* const>(modelAsset->data));
         break;
     }
     default:

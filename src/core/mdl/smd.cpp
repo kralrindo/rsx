@@ -5,7 +5,7 @@
 
 namespace smd
 {
-	void CSourceModelData::InitNode(const char* name, const int index, const int parent) const
+	void CStudioModelData::InitNode(const char* name, const int index, const int parent) const
 	{
 		Node& node = nodes[index];
 
@@ -21,7 +21,7 @@ namespace smd
 		node.parent = parent;
 	}
 
-	void CSourceModelData::InitFrameBone(const int iframe, const int ibone, const Vector& pos, const RadianEuler& rot) const
+	void CStudioModelData::InitFrameBone(const int iframe, const int ibone, const Vector& pos, const RadianEuler& rot) const
 	{
 		assertm(iframe < numFrames, "frame out of range");
 		assertm(ibone < numNodes, "node out of range");
@@ -53,7 +53,7 @@ namespace smd
 
 	// [rika]: this does not round floats to 6 decimal points as required by SMD, HOWEVER studiomdl supports scientific notation so we should be ok! 
 	// [rika]: if this causes any weird issues in tthe future such as messed up skeletons we can change it
-	void CSourceModelData::Write() const
+	void CStudioModelData::Write() const
 	{
 		std::filesystem::path outPath(exportPath);
 		outPath.append(exportName);
@@ -61,7 +61,7 @@ namespace smd
 
 		std::ofstream out(outPath, std::ios::out);
 
-		out << "version 1\n";
+		out << "version " << s_outputVersion << "\n";
 
 		out << "nodes\n";
 		for (size_t i = 0; i < numNodes; i++)
@@ -97,7 +97,7 @@ namespace smd
 
 				out << "" << triangle.material << "\n";
 
-				for (int vertIdx = 0; vertIdx < 3; vertIdx++)
+				for (uint32_t vertIdx = 0u; vertIdx < 3u; vertIdx++)
 				{
 					const Vertex& vert = triangle.vertices[vertIdx];
 
@@ -106,8 +106,20 @@ namespace smd
 					out << vert.normal.x << " " << vert.normal.y << " " << vert.normal.z << " ";
 					out << vert.texcoords[0].x << " " << vert.texcoords[0].y << " " << vert.numBones << " ";
 
-					for (int weightIdx = 0; weightIdx < vert.numBones; weightIdx++)
+					for (uint32_t weightIdx = 0u; weightIdx < vert.numBones; weightIdx++)
+					{
 						out << vert.bone[weightIdx] << " " << vert.weight[weightIdx] << " ";
+					}
+
+					if (s_outputVersion == 3)
+					{
+						out << " " << vert.numTexcoords;
+
+						for (uint32_t texcoordIdx = 0u; texcoordIdx < vert.numTexcoords; texcoordIdx++)
+						{
+							out << " " << vert.texcoords[texcoordIdx].x << " " << vert.texcoords[texcoordIdx].y;
+						}
+					}
 
 					out << "\n";
 				}
@@ -118,7 +130,7 @@ namespace smd
 		out.close();
 	}
 
-	const bool CSourceModelData::Write(char* const buffer, const size_t size) const
+	const bool CStudioModelData::Write(char* const buffer, const size_t size) const
 	{
 		if (!buffer || !size)
 			return false;
@@ -126,7 +138,7 @@ namespace smd
 		CTextBuffer textBuffer(buffer, size);
 		textBuffer.SetTextStart();
 
-		textBuffer.WriteString("version 1\n");
+		textBuffer.WriteFormated("version %i\n", s_outputVersion);
 		textBuffer.WriteString("nodes\n");
 
 		for (size_t i = 0; i < numNodes; i++)
@@ -159,7 +171,7 @@ namespace smd
 
 				textBuffer.WriteFormated("%s\n", triangle.material);
 
-				for (int vertIdx = 0; vertIdx < 3; vertIdx++)
+				for (uint32_t vertIdx = 0u; vertIdx < 3u; vertIdx++)
 				{
 					const Vertex& vert = triangle.vertices[vertIdx];
 
@@ -169,8 +181,20 @@ namespace smd
 						vert.normal.x, vert.normal.y, vert.normal.z,
 						vert.texcoords[0].x, vert.texcoords[0].y, vert.numBones);
 
-					for (int weightIdx = 0; weightIdx < vert.numBones; weightIdx++)
+					for (uint32_t weightIdx = 0u; weightIdx < vert.numBones; weightIdx++)
+					{
 						textBuffer.WriteFormated(" %i %f", vert.bone[weightIdx], vert.weight[weightIdx]);
+					}
+
+					if (s_outputVersion == 3 && vert.numTexcoords > 1)
+					{
+						textBuffer.WriteFormated(" %i", vert.numTexcoords);
+
+						for (uint32_t texcoordIdx = 0u; texcoordIdx < vert.numTexcoords; texcoordIdx++)
+						{
+							textBuffer.WriteFormated(" %f %f", vert.texcoords[texcoordIdx].x, vert.texcoords[texcoordIdx].y);
+						}
+					}
 
 					textBuffer.WriteCharacter('\n');
 				}

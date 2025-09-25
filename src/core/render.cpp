@@ -22,7 +22,7 @@ extern CDXParentHandler* g_dxHandler;
 extern std::atomic<uint32_t> maxConcurrentThreads;
 
 ExportSettings_t g_ExportSettings{ .exportNormalRecalcSetting = eNormalExportRecalc::NML_RECALC_NONE, .exportTextureNameSetting = eTextureExportName::TXTR_NAME_TEXT, .exportMaterialTextures = true,
-    .exportPathsFull = false, .exportAssetDeps = false, .previewedSkinIndex = 0, .qcMajorVersion = 49, .qcMinorVersion = 0, .exportRigSequences = true, .exportModelSkin = false, .exportModelMatsTruncated = false, .exportPhysicsContentsFilter = static_cast<uint32_t>(TRACE_MASK_ALL) };
+    .exportPathsFull = false, .exportAssetDeps = false, .disableCachedNames = false, .previewedSkinIndex = 0, .qcMajorVersion = 49, .qcMinorVersion = 0, .exportRigSequences = true, .exportModelSkin = false, .exportModelMatsTruncated = false, .exportPhysicsContentsFilter = static_cast<uint32_t>(TRACE_MASK_ALL) };
 PreviewSettings_t g_PreviewSettings { .previewCullDistance = PREVIEW_CULL_DEFAULT, .previewMovementSpeed = PREVIEW_SPEED_DEFAULT };
 
 CPreviewDrawData g_currentPreviewDrawData;
@@ -683,6 +683,10 @@ void HandleRenderFrame()
             ImGui::Checkbox("Export asset dependencies", &g_ExportSettings.exportAssetDeps);
             ImGui::SameLine();
             g_pImGuiHandler->HelpMarker("Enables exporting of all dependencies that are associated with any asset that is being exported.");
+            
+            ImGui::Checkbox("Disable CacheDB names", &g_ExportSettings.disableCachedNames);
+            ImGui::SameLine();
+            g_pImGuiHandler->HelpMarker("Disables loading names from the cache file, new names will still be added.");
 
             // texture settings
             ImGui::SeparatorText("Export (Textures)");
