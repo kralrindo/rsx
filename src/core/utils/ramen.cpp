@@ -3,9 +3,10 @@
 #include <core/utils/ramen.h>
 #include <thirdparty/oodle/oodle2.h>
 #include <game/rtech/utils/utils.h>
+
+#include <thirdparty/imgui/misc/imgui_utility.h>
  
 constexpr OodleLZ_Compressor noodleCompressor = OodleLZ_Compressor_Kraken;
-constexpr OodleLZ_CompressionLevel noodleCompressionLevel = OodleLZ_CompressionLevel_VeryFast;
 
 const size_t CRamen::addIdx(const size_t index, char* const buf, const size_t bufSize)
 {
@@ -19,7 +20,7 @@ const size_t CRamen::addIdx(const size_t index, char* const buf, const size_t bu
 
 	const size_t compSizeRequired = OodleLZ_GetCompressedBufferSizeNeeded(noodleCompressor, bufSize); // this will not be the actual compressed size which is not ideal
 	char* const compBuf = new char[compSizeRequired];
-	const size_t compSize = OodleLZ_Compress(noodleCompressor, buf, bufSize, compBuf, noodleCompressionLevel);
+	const size_t compSize = OodleLZ_Compress(noodleCompressor, buf, bufSize, compBuf, static_cast<OodleLZ_CompressionLevel>(UtilsConfig->compressionLevel));
 	if (compSize == OODLELZ_FAILED)
 	{
 		assert(false); // odd, report in debug

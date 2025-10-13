@@ -77,6 +77,7 @@ static void UtilSettings_ReadLine(ImGuiContext* const ctx, ImGuiSettingsHandler*
         uint32_t i;
         ImGuiReadSetting("ExportThreads=%u", cfg->exportThreadCount, i, uint32_t);
         ImGuiReadSetting("ParseThreads=%u", cfg->parseThreadCount, i, uint32_t);
+        ImGuiReadSetting("CompressionLevel=%u", cfg->compressionLevel, i, uint32_t);
     }
 }
 
@@ -88,6 +89,7 @@ static void UtilSettings_WriteAll(ImGuiContext* const ctx, ImGuiSettingsHandler*
     buf->appendf("[%s][utils]\n", handler->TypeName );
     buf->appendf("ExportThreads=%u\n", UtilsConfig->exportThreadCount);
     buf->appendf("ParseThreads=%u\n", UtilsConfig->parseThreadCount);
+    buf->appendf("CompressionLevel=%u\n", UtilsConfig->compressionLevel);
     buf->append("\n");
 }
 
@@ -115,6 +117,7 @@ static void ExportSettings_ReadLine(ImGuiContext* const ctx, ImGuiSettingsHandle
         ImGuiReadSetting("ExportAssetDeps=%i",              settings->exportAssetDeps, i, int);
         ImGuiReadSetting("DisableCacheNames=%i",            settings->disableCachedNames, i, int);
 
+
         ImGuiReadSetting("ExportTextureNameSetting=%u",     settings->exportTextureNameSetting, i, uint32_t);
         ImGuiReadSetting("ExportNormalRecalcSetting=%u",    settings->exportNormalRecalcSetting, i, uint32_t);
         ImGuiReadSetting("ExportMaterialTextures=%i",       settings->exportMaterialTextures, i, int);
@@ -125,6 +128,7 @@ static void ExportSettings_ReadLine(ImGuiContext* const ctx, ImGuiSettingsHandle
         ImGuiReadSetting("ExportRigSequences=%i",           settings->exportRigSequences, i, int);
         ImGuiReadSetting("ExportModelSkin=%i",              settings->exportModelSkin, i, int);
         ImGuiReadSetting("ExportTruncatedMaterials=%i",     settings->exportModelMatsTruncated, i, int);
+        ImGuiReadSetting("ExportQCIFiles=%i",               settings->exportQCIFiles, i, int);
     }
 }
 
@@ -149,9 +153,7 @@ static void ExportSettings_WriteAll(ImGuiContext* const ctx, ImGuiSettingsHandle
     buf->appendf("ExportRigSequences=%i\n",         g_ExportSettings.exportRigSequences);
     buf->appendf("ExportModelSkin=%i\n",            g_ExportSettings.exportModelSkin);
     buf->appendf("ExportTruncatedMaterials=%i\n",   g_ExportSettings.exportModelMatsTruncated);
-
-
-    // [rika]: there is no reason the other settings could not be saved in the future, it just seemed unneeded to save them for now.
+    buf->appendf("ExportQCIFiles=%i\n",             g_ExportSettings.exportQCIFiles);
 
     buf->appendf("\n");
 }
@@ -440,6 +442,9 @@ ImGuiHandler::ImGuiHandler()
     // need at least one thread.
     cfg.exportThreadCount = 1u;
     cfg.parseThreadCount = std::max(totalThreadCount >> 1u, 1u);
+
+    // standard config setting for compression
+    cfg.compressionLevel = eCompressionLevel::CMPR_LVL_VERYFAST;
 
     memset(pbEvents, 0, sizeof(pbEvents));
     for (int8_t i = PB_SIZE - 1; i >= 0; --i) // in reverse order

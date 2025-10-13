@@ -584,7 +584,7 @@ void ParseModelSequenceData_Stall_V18(ModelParsedData_t* const parsedData, char*
 
 	for (int i = 0; i < pStudioHdr->localSequenceCount; i++)
 	{
-		parsedData->sequences[i] = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v16_t* const>(baseptr + pStudioHdr->localSequenceOffset) + i, nullptr);
+		parsedData->sequences[i] = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v18_t* const>(baseptr + pStudioHdr->localSequenceOffset) + i, nullptr, 0u);
 
 		ParseSeqDesc_R5(&parsedData->sequences[i], &parsedData->bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
 	}
@@ -604,7 +604,7 @@ void ParseModelSequenceData_Stall_V19_1(ModelParsedData_t* const parsedData, cha
 
 	for (int i = 0; i < pStudioHdr->localSequenceCount; i++)
 	{
-		parsedData->sequences[i] = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v8_t* const>(baseptr + pStudioHdr->localSequenceOffset) + i, nullptr);
+		parsedData->sequences[i] = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v18_t* const>(baseptr + pStudioHdr->localSequenceOffset) + i, nullptr, 1u);
 
 		ParseAnimSeqDataForSeqdesc(parsedData->sequences + i, parsedData->bones.size());
 
@@ -1832,9 +1832,10 @@ bool ExportModelSMD(const ModelParsedData_t* const parsedData, std::filesystem::
 				const uint16_t* const indices = parsedVertexData->GetIndices();
 				const Vertex_t* const vertices = parsedVertexData->GetVertices();
 				const VertexWeight_t* const weights = parsedVertexData->GetWeights();
+				const Vector2D* const texcoords = parsedVertexData->GetTexcoords();
 
 				// [rika]: add more triangles
-				smd->AddMeshCapacity(meshData.indexCount / 3u);
+				smd->AddMeshCapacity(meshData.vertCount, meshData.indexCount / 3u);
 
 				const ModelMaterialData_t* const materialData = parsedData->pMaterial(meshData.materialId);
 
@@ -1844,14 +1845,22 @@ bool ExportModelSMD(const ModelParsedData_t* const parsedData, std::filesystem::
 
 				material = g_ExportSettings.exportModelMatsTruncated ? material : keepAfterLastSlashOrBackslash(material);
 
+				for (uint32_t vertexIdx = 0; vertexIdx < meshData.vertCount; vertexIdx++)
+				{
+					smd::Vertex vertex;
+					ParseVertexIntoSMD(&vertices[vertexIdx], weights, &vertex, isStaticProp, meshData.texcoordCount, texcoords, vertexIdx);
+
+					smd->InitVertex(&vertex);
+				}
+
 				for (uint32_t indiceIdx = 0; indiceIdx < meshData.indexCount; indiceIdx += 3)
 				{
-					smd->InitTriangle(material);
-					smd::Triangle* const tri = smd->TopTri();
+					const uint16_t indice0 = indices[indiceIdx];
+					const uint16_t indice1 = indices[indiceIdx + 1];
+					const uint16_t indice2 = indices[indiceIdx + 2];
 
-					ParseVertexIntoSMD(&vertices[indices[indiceIdx]], weights, &tri->vertices[0], isStaticProp);
-					ParseVertexIntoSMD(&vertices[indices[indiceIdx + 2]], weights, &tri->vertices[1], isStaticProp);
-					ParseVertexIntoSMD(&vertices[indices[indiceIdx + 1]], weights, &tri->vertices[2], isStaticProp);
+					// order of indices is odd
+					smd->InitLocalTriangle(material, indice0, indice2, indice1);
 				}
 			}
 
@@ -1965,6 +1974,11 @@ void QC_ParseStudioHeader(qc::QCFile* const qc, const ModelParsedData_t* const p
 		CmdParse(qc, QC_CONSTANTDIRECTIONALLIGHT, &pStudioHdr->constdirectionallightdot);
 	}
 	
+	if (version == 54 && pStudioHdr->flags & STUDIOHDR_FLAGS_USES_EXTRA_BONE_WEIGHTS)
+	{
+		CmdParse(qc, QC_USEDETAILEDWEIGHTS, nullptr);
+	}
+
 	// believe this is different later seasons 
 	if (pStudioHdr->flags & STUDIOHDR_FLAGS_AMBIENT_BOOST)
 	{
@@ -1985,6 +1999,16 @@ void QC_ParseStudioHeader(qc::QCFile* const qc, const ModelParsedData_t* const p
 	if (version != 54 && pStudioHdr->flags & STUDIOHDR_FLAGS_SUBDIVISION_SURFACE)
 	{
 		CmdParse(qc, QC_SUBD, nullptr);
+	}
+
+	if (version >= 52 && pStudioHdr->flags & STUDIOHDR_FLAGS_USES_VERTEX_COLOR)
+	{
+		CmdParse(qc, QC_USEVERTEXCOLOR, nullptr);
+	}	
+
+	if (version >= 52 && pStudioHdr->flags & STUDIOHDR_FLAGS_USES_UV2)
+	{
+		CmdParse(qc, QC_USEEXTRATEXCOORD, nullptr);
 	}
 
 	CmdParse(qc, QC_FADEDISTANCE, &pStudioHdr->fadeDistance);
@@ -2025,13 +2049,25 @@ void QC_ParseStudioHeader(qc::QCFile* const qc, const ModelParsedData_t* const p
 		{
 			const int16_t* const skins = pStudioHdr->pSkinref(0);
 			int16_t* const indices = new int16_t[pStudioHdr->numSkinRef]{};
+			const char** names = nullptr;
+
+			if (version == 54)
+			{
+				names = new const char*[pStudioHdr->numSkinFamilies]{};
+
+				for (int i = 0; i < pStudioHdr->numSkinFamilies; i++)
+				{
+					names[i] = pStudioHdr->pSkinName(i);
+				}
+			}
 
 			const uint32_t usedIndices = QC_GetUsedSkinIndices(skins, pStudioHdr->numSkinRef, pStudioHdr->numSkinFamilies, indices);
 
-			const TextureGroupData_t texturegroup(materials, skins, indices, pStudioHdr->numSkinRef, pStudioHdr->numSkinFamilies, usedIndices);
+			const TextureGroupData_t texturegroup(materials, skins, indices, pStudioHdr->numSkinRef, pStudioHdr->numSkinFamilies, usedIndices, names);
 			CmdParse(qc, QC_TEXTUREGROUP, &texturegroup);
 
 			FreeAllocArray(indices);
+			FreeAllocArray(names);
 		}
 
 		if(g_ExportSettings.exportModelMatsTruncated)
@@ -2496,7 +2532,7 @@ bool ExportModelQC(const ModelParsedData_t* const parsedData, std::filesystem::p
 
 	// export qc file
 	qc::QCFile::SetExportVersion(qcTargetVersion);
-	qc.ParseToText(false);
+	qc.ParseToText(g_ExportSettings.exportQCIFiles);
 
 	g_BufferManager.RelieveBuffer(buf);
 

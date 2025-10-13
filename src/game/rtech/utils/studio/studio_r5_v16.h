@@ -407,8 +407,7 @@ namespace r5
 
 		uint16_t meshCountTotal; // total number of meshes in this mesh
 		uint16_t meshCountBase; // number of normal meshes in this model
-		uint16_t meshCountBlends; // number of blend shape meshes, todo how does this play with more than one base mesh?
-
+		uint16_t meshCountBlend; // number of blend shape meshes, todo how does this play with more than one base mesh?
 		uint16_t meshOffset;
 		inline mstudiomesh_v16_t* const pMesh(const uint16_t meshIdx) const { return reinterpret_cast<mstudiomesh_v16_t*>((char*)this + FIX_OFFSET(meshOffset)) + meshIdx; }
 	};

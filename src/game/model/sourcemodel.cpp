@@ -384,7 +384,7 @@ void LoadSourceModelAsset(CAssetContainer* container, CAsset* asset)
 
         CManagedBuffer* buffer = g_BufferManager.ClaimBuffer();
 
-        looseData = new StudioLooseData_t(srcMdlSource->GetFilePath(), pStudioHdr->pszName(), buffer->Buffer());
+        looseData = new StudioLooseData_t(srcMdlSource->GetFilePath(), pStudioHdr->pszName(), buffer->Buffer(), managedBufferSize);
 
         g_BufferManager.RelieveBuffer(buffer);
 

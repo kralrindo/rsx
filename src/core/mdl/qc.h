@@ -1,3 +1,5 @@
+#pragma once
+
 #include <game/rtech/utils/studio/studio.h>
 #include <core/utils/textbuffer.h>
 
@@ -89,7 +91,7 @@ namespace qc
 
 	constexpr Version_t s_QCVersion_OB(QC_VER_48, 0); // orange box
 	constexpr Version_t s_QCVersion_TF2(QC_VER_48, 1); // boing boing
-	constexpr Version_t s_QCVersion_P2(QC_VER_49, 0);
+	constexpr Version_t s_QCVersion_P2(QC_VER_49, 0); // should this be subversion 1? bone count changed between p2 and alien swarm, sfm also uses more bones
 	constexpr Version_t s_QCVersion_CSGO(QC_VER_49, 1);
 	constexpr Version_t s_QCVersion_R1(QC_VER_52, 0);
 	constexpr Version_t s_QCVersion_R2(QC_VER_53, 0);
@@ -195,14 +197,18 @@ namespace qc
 	typedef uint16_t CommandFormat_t;
 	enum CommandFormatOption_t : CommandFormat_t
 	{
+		QC_FMT_NONE			= 0u,		// no formating options
+
 		QC_FMT_ARRAY		= 1 << 0,	// curly brackets around this entry
 		QC_FMT_COMMENT		= 1 << 1,	// comment this entry out
 		QC_FMT_WRITENAME	= 1 << 2,	// write the name of this entry
 		QC_FMT_PARENTLINE	= 1 << 3,	// write this entry on the same line as its parent
-		QC_FMT_NEWLINE		= 1 << 4,	// write this entry on a new line
+		QC_FMT_NEWLINE		= 1 << 4,	// last entry on its line, not to be used with 'QC_FMT_PARENTLINE'
 	};
 
-	constexpr CommandFormat_t s_CommandOptionDefaultFormat = QC_FMT_PARENTLINE;
+	constexpr CommandFormat_t s_CommandOptionFormatDefault = QC_FMT_PARENTLINE; // write this option on the parent line
+	constexpr CommandFormat_t s_CommandOptionFormatNameParentLine = (QC_FMT_WRITENAME | QC_FMT_PARENTLINE); // write this option on the parent line with its name preceeding it
+	constexpr CommandFormat_t s_CommandOptionFormatNameNewLine = (QC_FMT_WRITENAME | QC_FMT_NEWLINE); // write this option on a new line below the command with its name preceeding it
 
 	enum CommentStyle_t
 	{
@@ -214,7 +220,7 @@ namespace qc
 	// static description of an option
 	struct CommandOptionDesc_t
 	{
-		constexpr CommandOptionDesc_t(const CommandOptionType_t typeIn, const char* const nameIn, const CommandFormat_t fmt = s_CommandOptionDefaultFormat, const Version_t min = s_QCVersion_MIN, const Version_t max = s_QCVersion_MAX) : name(nameIn),
+		constexpr CommandOptionDesc_t(const CommandOptionType_t typeIn, const char* const nameIn, const CommandFormat_t fmt = s_CommandOptionFormatDefault, const Version_t min = s_QCVersion_MIN, const Version_t max = s_QCVersion_MAX) : name(nameIn),
 			versionMin(min), versionMax(max), type(typeIn), format(fmt) {}
 
 		const char* const name;
@@ -245,13 +251,14 @@ namespace qc
 		// if used
 		uint32_t count;
 
-		// formatting options, inherits base format from description
+		// formatting options, inherits base format from description. done so we can add comments to options when parsing
 		CommandFormat_t format;
 
-		const bool ParentLine() const { return format & QC_FMT_PARENTLINE; }
-		const bool WriteName() const { return format & QC_FMT_WRITENAME; }
 		const bool ArrayBracket() const { return format & QC_FMT_ARRAY; }
 		const bool IsComment() const { return format & QC_FMT_COMMENT; }
+		const bool WriteName() const { return format & QC_FMT_WRITENAME; }
+		const bool ParentLine() const { return format & QC_FMT_PARENTLINE; }
+		const bool NewLine() const { return format & QC_FMT_NEWLINE; }
 
 		inline void SetPtr(const void* const dataPtr, const uint32_t dataCount = 1u)
 		{
@@ -539,6 +546,9 @@ namespace qc
 
 		// models
 		QC_MAXVERTS,
+		QC_USEDETAILEDWEIGHTS,
+		QC_USEVERTEXCOLOR,
+		QC_USEEXTRATEXCOORD,
 		QC_BODY,
 		QC_BODYGROUP,
 		QC_MODEL,
@@ -659,7 +669,7 @@ namespace qc
 
 		const int contents;
 
-		const bool UseFixups() const { return fixupMatrix ? true : false; }
+		inline const bool UseFixups() const { return fixupMatrix ? true : false; }
 	};
 
 	struct JiggleData_t
@@ -931,7 +941,13 @@ namespace qc
 		const char* localbone;
 		const matrix3x4_t* localmatrix;
 
-		const bool WorldAlign() const { return flags & ATTACHMENT_FLAG_WORLD_ALIGN ? true : false; }
+		// attachment requires ATTACHMENT_FLAG_WORLD_ALIGN
+#ifndef ATTACHMENT_FLAG_WORLD_ALIGN
+		static_assert(false);
+		inline const bool WorldAlign() const { return false; }
+#else
+		inline const bool WorldAlign() const { return flags & ATTACHMENT_FLAG_WORLD_ALIGN ? true : false; }
+#endif
 	};
 
 	struct BodyGroupData_t
@@ -962,17 +978,21 @@ namespace qc
 
 	struct TextureGroupData_t
 	{
-		TextureGroupData_t(const char** skinMaterials, const int16_t* skinGroups, const int16_t* skinIndices, const int skinRef, const int skinFamilies, const uint32_t skinIndex) : materials(skinMaterials), skins(skinGroups), indices(skinIndices),
-			numSkinRef(skinRef), numSkinFamilies(skinFamilies), numIndices(skinIndex) {
+		TextureGroupData_t(const char** skinMaterials, const int16_t* skinGroups, const int16_t* skinIndices, const int skinRef, const int skinFamilies, const uint32_t skinIndex, const char** skinNames = nullptr) : materials(skinMaterials), skins(skinGroups), indices(skinIndices),
+			names(skinNames), numSkinRef(skinRef), numSkinFamilies(skinFamilies), numIndices(skinIndex) {
 		}
 
 		const char** materials;
 		const int16_t* skins; // skingroups
 		const int16_t* indices; // indices of textures to write
 
+		const char** names;
+
 		int numSkinRef;
 		int numSkinFamilies;
 		uint32_t numIndices;
+
+		inline const bool HasNames() const { return names ? true : false; }
 	};
 
 	struct LodData_t
@@ -1063,9 +1083,11 @@ namespace qc
 		// poseparm requires STUDIO_LOOPING
 #ifndef STUDIO_LOOPING
 		static_assert(false);
+		inline const bool IsLooped() const { return false; }
+#else
+		inline const bool IsLooped() const { return flags & STUDIO_LOOPING ? true : false; }
 #endif
-		const bool IsLooped() const { return flags & STUDIO_LOOPING; }
-		const bool IsWrapped() const { return end - start == loop; }
+		inline const bool IsWrapped() const { return end - start == loop; }
 	};
 
 	struct IKChainData_t
@@ -1078,7 +1100,7 @@ namespace qc
 
 		float angleUnknown; // cosine of a degree angle
 
-		const bool UseKnee() const { return (knee->x != 0.0f) || (knee->y != 0.0f) || (knee->z != 0.0f); }
+		inline const bool UseKnee() const { return (knee->x != 0.0f) || (knee->y != 0.0f) || (knee->z != 0.0f); }
 	};
 
 	struct IKLockData_t
@@ -1182,7 +1204,10 @@ namespace qc
 		CommandInfo_t(QC_INCLUDE,					"$include",						QCI_BASE,		&CommandGeneric_Write,	&CommandString_ParseBinary,			nullptr),
 
 		// models
-		CommandInfo_t(QC_MAXVERTS,					"$maxverts",					QCI_MODEL,		&CommandGeneric_Write,	&CommandInt_ParseBinary,			nullptr, s_QCVersion_P2, s_QCVersion_MAX),
+		CommandInfo_t(QC_MAXVERTS,					"$maxverts",					QCI_MODEL,		&CommandGeneric_Write,	&CommandInt_ParseBinary,			nullptr, s_QCVersion_P2, s_QCVersion_MAX), // alien swarm
+		CommandInfo_t(QC_USEDETAILEDWEIGHTS,		"$usedetailedweights",			QCI_MODEL,		&CommandGeneric_Write,	&CommandNone_ParseBinary,			nullptr, s_QCVersion_R1, s_QCVersion_R5_RETAIL),
+		CommandInfo_t(QC_USEVERTEXCOLOR,			"$usevertexcolor",				QCI_MODEL,		&CommandGeneric_Write,	&CommandNone_ParseBinary,			nullptr, s_QCVersion_R1, s_QCVersion_R5_RETAIL),
+		CommandInfo_t(QC_USEEXTRATEXCOORD,			"$useextratexcoords",			QCI_MODEL,		&CommandGeneric_Write,	&CommandNone_ParseBinary,			nullptr, s_QCVersion_R1, s_QCVersion_R5_RETAIL),
 		CommandInfo_t(QC_BODY,						"$body",						QCI_MODEL,		&CommandGeneric_Write,	&CommandPair_ParseBinary,			nullptr),
 		CommandInfo_t(QC_BODYGROUP,					"$bodygroup",					QCI_MODEL,		&CommandGeneric_Write,	&CommandBodyGroup_ParseBinary,		nullptr),
 		CommandInfo_t(QC_MODEL,						"$model",						QCI_MODEL,		&CommandGeneric_Write,	nullptr,							nullptr),

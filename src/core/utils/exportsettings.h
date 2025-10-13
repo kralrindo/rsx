@@ -23,7 +23,7 @@ struct ExportSettings_t
     bool exportRigSequences;        // export sequences with a model or rig
     bool exportModelSkin;           // export the selected skin for a model
     bool exportModelMatsTruncated;  // truncate material names in model files
-    bool _unusedPadModel;
+    bool exportQCIFiles;            // qc will split into multiple include files
 
     // model physics settings
     uint32_t exportPhysicsContentsFilter;
@@ -63,6 +63,26 @@ static const char* s_TextureExportNameSetting[eTextureExportName::TXTR_NAME_COUN
     "Real",
     "Text",
     "Semantic",
+};
+
+enum eCompressionLevel : uint32_t
+{
+    CMPR_LVL_NONE = 0,    // OodleLZ_CompressionLevel_None
+    CMPR_LVL_SUPERFAST,   // OodleLZ_CompressionLevel_SuperFast
+    CMPR_LVL_VERYFAST,    // OodleLZ_CompressionLevel_VeryFast
+    CMPR_LVL_FAST,        // OodleLZ_CompressionLevel_Fast
+    CMPR_LVL_NORMAL,      // OodleLZ_CompressionLevel_Normal
+
+    CMPR_LVL_COUNT,
+};
+
+static const char* s_CompressionLevelSetting[eCompressionLevel::CMPR_LVL_COUNT] =
+{
+    "None",
+    "Super Fast",
+    "Very Fast",
+    "Fast",
+    "Normal"
 };
 
 // preview settings

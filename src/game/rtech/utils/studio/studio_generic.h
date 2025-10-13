@@ -287,27 +287,24 @@ struct studiohdr_generic_t
 	inline const char* const pSkinName(const int i) const
 	{
 		// only stored for index 1 and up
+		// [rika]: in code this actually returns '\0'
 		if (i == 0)
 			return STUDIO_DEFAULT_SKIN_NAME;
 
-		const int index = reinterpret_cast<const int* const>(pSkinFamily(0) + (IALIGN2(numSkinRef * numSkinFamilies)))[i - 1];
+		const char* name = nullptr;
 
-		const char* const name = baseptr + index;
-		if (IsStringZeroLength(name))
-			return STUDIO_NULL_SKIN_NAME;
+		if (smallIndices) LIKELY
+		{
+			const uint16_t index = *(reinterpret_cast<const uint16_t* const>(pSkinFamily(numSkinFamilies)) + (i - 1));
+			name = baseptr + FIX_OFFSET(index);
+		}
+		else
+		{
+			// [rika]: this is actually aligned to four bytes, we just use IALIGN2 because we're getting the number of indices (each having a size of 2 bytes) and not the total size
+			const int index = reinterpret_cast<const int* const>(pSkinFamily(0) + (IALIGN2(numSkinRef * numSkinFamilies)))[i - 1];
+			name = baseptr + index;
+		}
 
-		return name;
-	}
-
-	inline const char* const pSkinName_V16(const int i) const
-	{
-		// only stored for index 1 and up
-		if (i == 0)
-			return STUDIO_DEFAULT_SKIN_NAME;
-
-		const uint16_t index = *(reinterpret_cast<const uint16_t* const>(pSkinFamily(numSkinFamilies)) + (i - 1));
-
-		const char* const name = baseptr + FIX_OFFSET(index);
 		if (IsStringZeroLength(name))
 			return STUDIO_NULL_SKIN_NAME;
 
@@ -384,6 +381,8 @@ struct studiohdr_generic_t
 	inline const uint8_t* const pBoneStates() const { return boneStateCount > 0 ? reinterpret_cast<uint8_t*>((char*)baseptr + boneStateOffset) : nullptr; }
 
 	int bvhOffset;
+
+	bool smallIndices; // this model uses smaller values for structs, v16 and later rmdl
 
 	int groupCount;
 	studio_hw_groupdata_t groups[8]; // early 'vg' will only have one group

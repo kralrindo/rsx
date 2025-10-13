@@ -1,3 +1,4 @@
+#pragma once
 
 // Source Model Data
 namespace smd
@@ -13,7 +14,7 @@ namespace smd
 	static uint32_t s_outputVersion = SMD_V1;
 
 	constexpr uint32_t maxBoneWeights = 3;
-	constexpr uint32_t maxTexcoords = 1;
+	constexpr uint32_t maxTexcoords = 8;
 
 	class Node
 	{
@@ -45,6 +46,16 @@ namespace smd
 	class Vertex
 	{
 	public:
+		Vertex()
+		{
+			memset(this, 0, sizeof(Vertex));
+		}
+
+		Vertex(const Vertex* const vert)
+		{
+			memcpy_s(this, sizeof(Vertex), vert, sizeof(Vertex));
+		}
+
 		Vector position;
 		Vector normal;
 
@@ -54,6 +65,8 @@ namespace smd
 		uint32_t numBones;
 		float weight[maxBoneWeights];
 		int bone[maxBoneWeights];
+
+		const char* text; // temp for writing
 	};
 
 	class Triangle
@@ -62,13 +75,13 @@ namespace smd
 		Triangle(const char* mat) : material(mat), vertices() {}
 
 		const char* material;
-		Vertex vertices[3];
+		size_t vertices[3];
 	};
 
 	class CStudioModelData
 	{
 	public:
-		CStudioModelData(const std::filesystem::path& path, const size_t nodeCount, const size_t frameCount) : exportPath(path), numNodes(nodeCount), nodes(nullptr), numFrames(frameCount), frames(nullptr)
+		CStudioModelData(const std::filesystem::path& path, const size_t nodeCount, const size_t frameCount) : exportPath(path), numNodes(nodeCount), nodes(nullptr), numFrames(frameCount), frames(nullptr), vertexIndex(0ull)
 		{
 			assertm(numNodes, "must have at least one bone");
 			assertm(numFrames, "must have at least one frame");
@@ -91,12 +104,26 @@ namespace smd
 
 		void InitNode(const char* name, const int index, const int parent) const;
 		void InitFrameBone(const int iframe, const int ibone, const Vector& pos, const RadianEuler& rot) const;
-		void InitTriangle(const char* mat) { triangles.emplace_back(mat); }
+		void InitVertex(const Vertex* const vert) { vertices.emplace_back(vert); }
+		// indices local to mesh vertices
+		void InitLocalTriangle(const char* material, const uint32_t indice0, const uint32_t indice1, const uint32_t indice2)
+		{
+			triangles.emplace_back(material);
 
-		void AddMeshCapacity(const size_t numTriangles)
+			Triangle* const topTri = TopTri();
+
+			topTri->vertices[0] = vertexIndex + indice0;
+			topTri->vertices[1] = vertexIndex + indice1;
+			topTri->vertices[2] = vertexIndex + indice2;
+		}
+
+		void AddMeshCapacity(const size_t numVertices, const size_t numTriangles)
 		{
 			//assertm(triangles.size() == triangles.capacity(), "mismatched indices");
 
+			vertexIndex = vertices.size(); // assume we're adding a mesh, so update the index
+
+			vertices.reserve(vertices.size() + numVertices);
 			triangles.reserve(triangles.size() + numTriangles);
 		}
 
@@ -110,6 +137,9 @@ namespace smd
 		// so we don't have to re parse nodes
 		void ResetMeshData()
 		{
+			vertexIndex = 0u;
+
+			vertices.clear();
 			triangles.clear();
 		}
 		void ResetFrameData(const size_t frameCount)
@@ -124,6 +154,8 @@ namespace smd
 		const bool Write(char* const buffer, const size_t size) const;
 		void Write() const;
 
+		static void SetVersion(const StudioModelDataVersion_t version) { s_outputVersion = version; }
+
 	private:
 		size_t numNodes;
 		Node* nodes;
@@ -131,6 +163,8 @@ namespace smd
 		size_t numFrames;
 		Frame* frames;
 
+		size_t vertexIndex; // offset for newly added vertices
+		std::vector<Vertex> vertices;
 		std::vector<Triangle> triangles;
 
 		std::filesystem::path exportPath;

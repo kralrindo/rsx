@@ -3,7 +3,7 @@
 #include <game/rtech/utils/studio/studio_r1.h>
 #include <game/rtech/utils/studio/studio_r2.h>
 
-StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const char* name, char* buffer) : vertexDataBuffer(nullptr), vertexDataOffset(), vertexDataSize(),
+StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const char* name, char* buffer, const size_t bufferSize) : vertexDataBuffer(nullptr), vertexDataOffset(), vertexDataSize(),
     physicsDataBuffer(nullptr), physicsDataOffset(0), physicsDataSize(0)
 {
     std::filesystem::path filePath(path);
@@ -27,8 +27,13 @@ StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const ch
 
         const size_t fileSize = std::filesystem::file_size(filePath);
 
-        StreamIO fileIn(filePath, eStreamIOMode::Read);
-        fileIn.R()->read(curpos, fileSize);
+#ifndef STREAMIO
+        std::ifstream file(filePath, std::ios::binary | std::ios::in);
+        file.read(curpos, fileSize);
+#else
+        StreamIO file(filePath, eStreamIOMode::Read);
+        file.read(curpos, fileSize);
+#endif // !STREAMIO
 
         vertexDataOffset[i] = static_cast<int>(curoff);
         vertexDataSize[i] = static_cast<int>(fileSize);
@@ -36,14 +41,15 @@ StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const ch
         curoff += IALIGN16(fileSize);
         curpos += IALIGN16(fileSize);
 
-        assertm(curoff < managedBufferSize, "overflowed managed buffer");
+        assertm(curoff < bufferSize, "overflowed managed buffer");
     }
 
     // only allocate memory if we have vertex data
     if (curoff)
     {
-        vertexDataBuffer = new char[curoff];
-        memcpy_s(vertexDataBuffer, curoff, buffer, curoff);
+        char* tmp = new char[curoff];
+        memcpy_s(tmp, curoff, buffer, curoff);
+        vertexDataBuffer = tmp;
     }
 
     //
@@ -55,24 +61,30 @@ StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const ch
     {
         const size_t fileSize = std::filesystem::file_size(filePath);
 
-        StreamIO fileIn(filePath, eStreamIOMode::Read);
-        fileIn.R()->read(buffer, fileSize);
+#ifndef STREAMIO
+        std::ifstream file(filePath, std::ios::binary | std::ios::in);
+        file.read(curpos, fileSize);
+#else
+        StreamIO file(filePath, eStreamIOMode::Read);
+        file.read(curpos, fileSize);
+#endif // !STREAMIO
 
         physicsDataOffset = 0;
         physicsDataSize = static_cast<int>(fileSize);
 
-        physicsDataBuffer = new char[physicsDataSize];
-        memcpy_s(physicsDataBuffer, physicsDataSize, buffer, physicsDataSize);
+        char* tmp = new char[physicsDataSize];
+        memcpy_s(tmp, physicsDataSize, buffer, physicsDataSize);
+        physicsDataBuffer = tmp;
     }
 
     // here's where ani will go when I do animations (soontm)
 }
 
-StudioLooseData_t::StudioLooseData_t(char* file) : vertexDataBuffer(file), physicsDataBuffer(file)
+StudioLooseData_t::StudioLooseData_t(const char* const file) : vertexDataBuffer(file), physicsDataBuffer(file)
 {
-    r2::studiohdr_t* const pStudioHdr = reinterpret_cast<r2::studiohdr_t*>(file);
+    const r2::studiohdr_t* const pStudioHdr = reinterpret_cast<const r2::studiohdr_t* const>(file);
 
-    assertm(pStudioHdr->id == MODEL_FILE_ID, "invalid file");
+    assertm(pStudioHdr->id == IDSTUDIOHEADER, "invalid file");
     assertm(pStudioHdr->version == 53, "invalid file");
 
     vertexDataOffset[SLD_VTX] = pStudioHdr->vtxOffset;
@@ -87,6 +99,57 @@ StudioLooseData_t::StudioLooseData_t(char* file) : vertexDataBuffer(file), physi
 
     physicsDataOffset = pStudioHdr->phyOffset;
     physicsDataSize = pStudioHdr->phySize;
+}
+
+// verify all the loose files for a studio model
+const bool StudioLooseData_t::VerifyFileIntegrity(const studiohdr_short_t* const pHdr) const
+{
+    assertm(pHdr, "header should not be nullptr");
+
+    const OptimizedModel::FileHeader_t* const pVTX = GetVTX();
+    const vvd::vertexFileHeader_t* const pVVD = GetVVD();
+    const vvc::vertexColorFileHeader_t* const pVVC = GetVVC();
+    const vvw::vertexBoneWeightsExtraFileHeader_t* const pVVW = GetVVW();
+
+    // we have a vtx and the checksum doesn't match, or version is incorrect
+    if (pVTX && (pHdr->checksum != pVTX->checkSum || pVTX->version != OPTIMIZED_MODEL_FILE_VERSION))
+    {
+        assertm(false, "invalid vtx file");
+        return false;
+    }
+
+    // we have a vvd and the checksum doesn't match, version is incorrect, or id is incorrect
+    if (pVVD && (pHdr->checksum != pVVD->checksum || pVVD->version != MODEL_VERTEX_FILE_VERSION || pVVD->id != MODEL_VERTEX_FILE_ID))
+    {
+        assertm(false, "invalid vvd file");
+        return false;
+    }
+
+    // we have a vvc and the checksum doesn't match, version is incorrect, or id is incorrect
+    if (pVVC && (pHdr->checksum != pVVC->checksum || pVVC->version != MODEL_VERTEX_COLOR_FILE_VERSION || pVVC->id != MODEL_VERTEX_COLOR_FILE_ID))
+    {
+        assertm(false, "invalid vvc file");
+        return false;
+    }
+
+    // we have a vtx and the checksum doesn't match, or version is incorrect
+    if (pVVW && (pHdr->checksum != pVVW->checksum || pVVW->version != MODEL_VERTEX_WEIGHT_FILE_VERSION))
+    {
+        assertm(false, "invalid vvw file");
+        return false;
+    }
+
+    // missing vertex files, if we have a vtx we should have a vvd, and vice versa
+    if ((pVTX && pVVD == nullptr) || (pVTX == nullptr && pVVD))
+    {
+        assertm(false, "not all required vertex files are present");
+        return false;
+    }
+
+    // todo ani
+    // todo phys
+
+    return true;
 }
 
 const char* studiohdr_short_t::pszName() const

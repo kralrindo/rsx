@@ -99,7 +99,7 @@ namespace smd
 
 				for (uint32_t vertIdx = 0u; vertIdx < 3u; vertIdx++)
 				{
-					const Vertex& vert = triangle.vertices[vertIdx];
+					const Vertex& vert = vertices[triangle.vertices[vertIdx]];
 
 					out << "\t" << vert.bone[0] << " ";
 					out << vert.position.x << " " << vert.position.y << " " << vert.position.z << " ";
@@ -136,15 +136,49 @@ namespace smd
 			return false;
 
 		CTextBuffer textBuffer(buffer, size);
+
+		const char** const vertexLines = reinterpret_cast<const char** const>(textBuffer.Writer());
+		textBuffer.AdvanceWriter(sizeof(intptr_t) * vertices.size());
+
+		// pre parse vertex strings
+		for (size_t vertIdx = 0; vertIdx < vertices.size(); vertIdx++)
+		{
+			vertexLines[vertIdx] = textBuffer.Writer();
+			const Vertex& vert = vertices[vertIdx];
+
+			// bone, pos xyz, normal xyz, texcoord xy, weight count 
+			textBuffer.WriteFormatted("%i %f %f %f %f %f %f %f %f %i", vert.bone[0],
+				vert.position.x, vert.position.y, vert.position.z,
+				vert.normal.x, vert.normal.y, vert.normal.z,
+				vert.texcoords[0].x, vert.texcoords[0].y, vert.numBones);
+
+			for (uint32_t weightIdx = 0u; weightIdx < vert.numBones; weightIdx++)
+			{
+				textBuffer.WriteFormatted(" %i %f", vert.bone[weightIdx], vert.weight[weightIdx]);
+			}
+
+			if (s_outputVersion == 3 && vert.numTexcoords > 1)
+			{
+				textBuffer.WriteFormatted(" %i", vert.numTexcoords);
+
+				for (uint32_t texcoordIdx = 0u; texcoordIdx < vert.numTexcoords; texcoordIdx++)
+				{
+					textBuffer.WriteFormatted(" %f %f", vert.texcoords[texcoordIdx].x, vert.texcoords[texcoordIdx].y);
+				}
+			}
+
+			textBuffer.WriteCharacter('\0');
+		}
+
 		textBuffer.SetTextStart();
 
-		textBuffer.WriteFormated("version %i\n", s_outputVersion);
+		textBuffer.WriteFormatted("version %i\n", s_outputVersion);
 		textBuffer.WriteString("nodes\n");
 
 		for (size_t i = 0; i < numNodes; i++)
 		{
 			const Node& node = nodes[i];
-			textBuffer.WriteFormated("\t%i \"%s\" %i\n", node.index, node.name, node.parent);
+			textBuffer.WriteFormatted("\t%i \"%s\" %i\n", node.index, node.name, node.parent);
 		}
 		textBuffer.WriteString("end\n");
 
@@ -153,11 +187,11 @@ namespace smd
 		{
 			const Frame& frame = frames[iframe];
 
-			textBuffer.WriteFormated("\ttime %llu\n", iframe);
+			textBuffer.WriteFormatted("\ttime %llu\n", iframe);
 
 			for (const Bone& bone : frame.bones)
 			{
-				textBuffer.WriteFormated("\t\t%i %f %f %f %f %f %f\n", bone.node, bone.pos.x, bone.pos.y, bone.pos.z, bone.rot.x, bone.rot.y, bone.rot.z);
+				textBuffer.WriteFormatted("\t\t%i %f %f %f %f %f %f\n", bone.node, bone.pos.x, bone.pos.y, bone.pos.z, bone.rot.x, bone.rot.y, bone.rot.z);
 			}
 		}
 		textBuffer.WriteString("end\n");
@@ -169,35 +203,11 @@ namespace smd
 			{
 				const Triangle& triangle = triangles[itriangle];
 
-				textBuffer.WriteFormated("%s\n", triangle.material);
+				textBuffer.WriteFormatted("%s\n", triangle.material);
 
-				for (uint32_t vertIdx = 0u; vertIdx < 3u; vertIdx++)
-				{
-					const Vertex& vert = triangle.vertices[vertIdx];
-
-					// bone, pos xyz, normal xyz, texcoord xy, weight count 
-					textBuffer.WriteFormated("\t%i %f %f %f %f %f %f %f %f %i", vert.bone[0],
-						vert.position.x, vert.position.y, vert.position.z,
-						vert.normal.x, vert.normal.y, vert.normal.z,
-						vert.texcoords[0].x, vert.texcoords[0].y, vert.numBones);
-
-					for (uint32_t weightIdx = 0u; weightIdx < vert.numBones; weightIdx++)
-					{
-						textBuffer.WriteFormated(" %i %f", vert.bone[weightIdx], vert.weight[weightIdx]);
-					}
-
-					if (s_outputVersion == 3 && vert.numTexcoords > 1)
-					{
-						textBuffer.WriteFormated(" %i", vert.numTexcoords);
-
-						for (uint32_t texcoordIdx = 0u; texcoordIdx < vert.numTexcoords; texcoordIdx++)
-						{
-							textBuffer.WriteFormated(" %f %f", vert.texcoords[texcoordIdx].x, vert.texcoords[texcoordIdx].y);
-						}
-					}
-
-					textBuffer.WriteCharacter('\n');
-				}
+				textBuffer.WriteFormatted("\t%s\n", vertexLines[triangle.vertices[0]]);
+				textBuffer.WriteFormatted("\t%s\n", vertexLines[triangle.vertices[1]]);
+				textBuffer.WriteFormatted("\t%s\n", vertexLines[triangle.vertices[2]]);
 			}
 			textBuffer.WriteString("end\n");
 		}

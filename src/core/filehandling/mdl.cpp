@@ -28,11 +28,11 @@ void HandleMDLLoad(std::vector<std::string> filePaths)
         std::unique_ptr<char[]> fileBuf = std::make_unique<char[]>(fileSize);
 
         StreamIO fileIn(path, eStreamIOMode::Read);
-        fileIn.R()->read(fileBuf.get(), fileSize);
+        fileIn.read(fileBuf.get(), fileSize);
 
         const studiohdr_short_t* const pStudioHdr = reinterpret_cast<const studiohdr_short_t* const>(fileBuf.get());
 
-        if (pStudioHdr->id != MODEL_FILE_ID)
+        if (pStudioHdr->id != IDSTUDIOHEADER)
         {
             assertm(false, "invalid file");
             continue;

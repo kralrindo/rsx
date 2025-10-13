@@ -59,7 +59,9 @@ public:
 
 	static const float Dot(const Vector& a, const Vector& b); // add simd option
 
+#ifdef MATH_USE_DX
 	inline XMVECTOR AsXMVector() const { return XMVECTOR{ x,y,z }; };
+#endif // DirectXMath
 };
 
 inline void Vector::Negate()

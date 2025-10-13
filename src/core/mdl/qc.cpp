@@ -107,7 +107,7 @@ namespace qc
 				const size_t fileLength = buffer.TextLength();
 
 				const char* const filename = buffer.Writer();
-				buffer.WriteFormated("%s%s%s\0", stem.c_str(), s_CommandTypeNames[i], s_QCFileExtensions[QCFileExt::QC_EXT_QCI]);
+				buffer.WriteFormatted("%s%s%s\0", stem.c_str(), s_CommandTypeNames[i], s_QCFileExtensions[QCFileExt::QC_EXT_QCI]);
 				qcifile.replace_filename(filename);
 
 				// write the qci file
@@ -178,6 +178,8 @@ namespace qc
 	// parse option formatting and call write function for option data
 	void CommandOption_Write(const CommandOption_t* option, CTextBuffer* const text, const char* const whitespace, const CommentStyle_t commentStyle)
 	{
+		assertm((option->data.ParentLine() && option->data.NewLine()) == false, "'QC_FMT_PARENTLINE' and 'QC_FMT_NEWLINE' are not meant to be used together");
+
 		// add a whitespace
 		text->WriteString(whitespace);
 
@@ -194,7 +196,7 @@ namespace qc
 		// write the name, before curly brackets
 		if (option->data.WriteName())
 		{
-			text->WriteFormated("%s ", option->desc->name);
+			text->WriteFormatted("%s ", option->desc->name);
 		}
 
 		// array contained within curly brackets
@@ -219,6 +221,25 @@ namespace qc
 		{
 			PTEXTBUFFER_WRITE_STRING_CT(text, "*/");
 		}
+
+		// add a new line
+		if (option->data.NewLine())
+		{
+			text->WriteCharacter('\n');
+		}
+	}
+
+	inline const CommandOption_t* const CommandGeneric_LastWritten(const CommandOption_t* options, const uint32_t currentIndex)
+	{
+		if (currentIndex == 0u)
+			return nullptr;
+
+		const CommandOption_t* const option = options + (currentIndex - 1);
+
+		if (option->desc->VersionSupported(g_QCExportVersion))
+			return option;
+
+		return CommandGeneric_LastWritten(options, currentIndex - 1);
 	}
 
 	size_t CommandGeneric_Write(const Command_t* const command, char* buffer, size_t bufferSize)
@@ -243,7 +264,7 @@ namespace qc
 		bool oneLine = true;
 		for (uint32_t i = 0; i < numOptions; i++)
 		{
-			const CommandOption_t* option = options + i;
+			const CommandOption_t* const option = options + i;
 
 			// check if this option is supported on desired qc version
 			if (!option->desc->VersionSupported(g_QCExportVersion))
@@ -278,7 +299,7 @@ namespace qc
 
 		for (uint32_t i = 0; i < numOptions; i++)
 		{
-			const CommandOption_t* option = options + i;
+			const CommandOption_t* const option = options + i;
 
 			// check if this option is supported on desired qc version
 			if (!option->desc->VersionSupported(g_QCExportVersion))
@@ -287,10 +308,17 @@ namespace qc
 			if (option->data.ParentLine())
 				continue;
 
-			CommandOption_Write(option, &text, "\t", formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
+			// here we're checking if the previous command was written on the same line, don't use an indent if that's the case
+			const char* whitespace = "\t";
+			const CommandOption_t* const prevOption = CommandGeneric_LastWritten(options, i);
 
-			// add a new line
-			text.WriteCharacter('\n');
+			// the previous command was written, on the same line (not the parent line), and did not create a new line
+			if (prevOption && !prevOption->data.ParentLine() && !prevOption->data.NewLine())
+			{
+				whitespace = " ";
+			}
+
+			CommandOption_Write(option, &text, whitespace, formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
 		}
 
 		// add a bracket exit
@@ -372,7 +400,7 @@ namespace qc
 				text->WriteCharacter(' ');
 			}
 
-			text->WriteFormated("%f", floats[i]);
+			text->WriteFormatted("%f", floats[i]);
 		}
 	}
 
@@ -397,7 +425,7 @@ namespace qc
 				text->WriteCharacter(' ');
 			}
 
-			text->WriteFormated("%i", bytes[i]);
+			text->WriteFormatted("%i", bytes[i]);
 		}
 	}
 
@@ -422,7 +450,7 @@ namespace qc
 				text->WriteCharacter(' ');
 			}
 
-			text->WriteFormated("%u", bytes[i]);
+			text->WriteFormatted("%u", bytes[i]);
 		}
 	}
 
@@ -447,7 +475,7 @@ namespace qc
 				text->WriteCharacter(' ');
 			}
 
-			text->WriteFormated("%i", integers[i]);
+			text->WriteFormatted("%i", integers[i]);
 		}
 	}
 
@@ -472,7 +500,7 @@ namespace qc
 				text->WriteCharacter(' ');
 			}
 
-			text->WriteFormated("%u", integers[i]);
+			text->WriteFormatted("%u", integers[i]);
 		}
 	}
 
@@ -561,10 +589,21 @@ namespace qc
 			if (option->data.ParentLine())
 				continue;
 
-			CommandOption_Write(option, text, indentation, formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
+			// here we're checking if the previous command was written on the same line, don't use an indent if that's the case
+			const CommandOption_t* const prevOption = CommandGeneric_LastWritten(array->options, i);
 
-			// add a new line
-			text->WriteCharacter('\n');
+			// the previous command was written, on the same line (not the parent line), and did not create a new line
+			if (prevOption && !prevOption->data.ParentLine() && !prevOption->data.NewLine())
+			{
+				indentation[array->numIntendation] = ' '; // use a space
+				CommandOption_Write(option, text, indentation, formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
+				indentation[array->numIntendation] = '\t'; // replace with a tab again
+
+				idx++;
+				continue;
+			}
+
+			CommandOption_Write(option, text, indentation, formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
 
 			idx++;
 		}
@@ -773,7 +812,8 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandGeneric_Option_Bone(QC_OPT_STRING, "bone");
 
 	// materials
-	constexpr CommandOptionDesc_t s_CommandTextureGroup_Option_Skin(QC_OPT_STRING, "skin", QC_FMT_ARRAY);
+	constexpr CommandOptionDesc_t s_CommandTextureGroup_Option_Name(QC_OPT_STRING, "skin_name", QC_FMT_NONE, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandTextureGroup_Option_Skin(QC_OPT_STRING, "skin", (QC_FMT_ARRAY | QC_FMT_NEWLINE));
 
 	// models
 
@@ -787,73 +827,73 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandAttachment_Option_Type(QC_OPT_STRING, "type");
 
 	// jiggly wiggly boing boing
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_IsRigid(QC_OPT_ARRAY, "is_rigid", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_IsFlexible(QC_OPT_ARRAY, "is_flexible", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BaseSpring(QC_OPT_ARRAY, "has_base_spring", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_IsBoing(QC_OPT_ARRAY, "is_boing", QC_FMT_WRITENAME);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_IsRigid(QC_OPT_ARRAY, "is_rigid", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_IsFlexible(QC_OPT_ARRAY, "is_flexible", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BaseSpring(QC_OPT_ARRAY, "has_base_spring", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_IsBoing(QC_OPT_ARRAY, "is_boing", s_CommandOptionFormatNameNewLine);
 
 	// common
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_Length(QC_OPT_FLOAT, "length", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_TipMass(QC_OPT_FLOAT, "tip_mass", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_TipFriction(QC_OPT_FLOAT, "tip_friction", QC_FMT_WRITENAME, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_NoFlex(QC_OPT_NONE, "no_flex", QC_FMT_WRITENAME, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_Length(QC_OPT_FLOAT, "length", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_TipMass(QC_OPT_FLOAT, "tip_mass", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_TipFriction(QC_OPT_FLOAT, "tip_friction", s_CommandOptionFormatNameNewLine, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_NoFlex(QC_OPT_NONE, "no_flex", s_CommandOptionFormatNameNewLine, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
 
 	// constraints
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_AngleConstraint(QC_OPT_FLOAT, "angle_constraint", QC_FMT_WRITENAME);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_AngleConstraint(QC_OPT_FLOAT, "angle_constraint", s_CommandOptionFormatNameNewLine);
 
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawConstraint(QC_OPT_FLOAT, "yaw_constraint", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawFriction(QC_OPT_FLOAT, "yaw_friction", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawBounce(QC_OPT_FLOAT, "yaw_bounce", QC_FMT_WRITENAME);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawConstraint(QC_OPT_FLOAT, "yaw_constraint", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawFriction(QC_OPT_FLOAT, "yaw_friction", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawBounce(QC_OPT_FLOAT, "yaw_bounce", s_CommandOptionFormatNameNewLine);
 
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchConstraint(QC_OPT_FLOAT, "pitch_constraint", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchFriction(QC_OPT_FLOAT, "pitch_friction", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchBounce(QC_OPT_FLOAT, "pitch_bounce", QC_FMT_WRITENAME);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchConstraint(QC_OPT_FLOAT, "pitch_constraint", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchFriction(QC_OPT_FLOAT, "pitch_friction", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchBounce(QC_OPT_FLOAT, "pitch_bounce", s_CommandOptionFormatNameNewLine);
 
 	// flexible
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawStiffness(QC_OPT_FLOAT, "yaw_stiffness", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawDamping(QC_OPT_FLOAT, "yaw_damping", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchStiffness(QC_OPT_FLOAT, "pitch_stiffness", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchDamping(QC_OPT_FLOAT, "pitch_damping", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_AlongStiffness(QC_OPT_FLOAT, "along_stiffness", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_AlongDamping(QC_OPT_FLOAT, "along_damping", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_AllowLengthFlex(QC_OPT_NONE, "allow_length_flex", QC_FMT_WRITENAME);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawStiffness(QC_OPT_FLOAT, "yaw_stiffness", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_YawDamping(QC_OPT_FLOAT, "yaw_damping", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchStiffness(QC_OPT_FLOAT, "pitch_stiffness", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_PitchDamping(QC_OPT_FLOAT, "pitch_damping", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_AlongStiffness(QC_OPT_FLOAT, "along_stiffness", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_AlongDamping(QC_OPT_FLOAT, "along_damping", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_AllowLengthFlex(QC_OPT_NONE, "allow_length_flex", s_CommandOptionFormatNameNewLine);
 
 	// base spring
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BaseStiffness(QC_OPT_FLOAT, "stiffness", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BaseDamping(QC_OPT_FLOAT, "damping", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_LeftConstraint(QC_OPT_FLOAT, "left_constraint", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_LeftFriction(QC_OPT_FLOAT, "left_friction", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_UpConstraint(QC_OPT_FLOAT, "up_constraint", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_UpFriction(QC_OPT_FLOAT, "up_friction", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_ForwardConstraint(QC_OPT_FLOAT, "forward_constraint", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_ForwardFriction(QC_OPT_FLOAT, "forward_friction", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BaseMass(QC_OPT_FLOAT, "base_mass", QC_FMT_WRITENAME);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BaseStiffness(QC_OPT_FLOAT, "stiffness", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BaseDamping(QC_OPT_FLOAT, "damping", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_LeftConstraint(QC_OPT_FLOAT, "left_constraint", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_LeftFriction(QC_OPT_FLOAT, "left_friction", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_UpConstraint(QC_OPT_FLOAT, "up_constraint", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_UpFriction(QC_OPT_FLOAT, "up_friction", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_ForwardConstraint(QC_OPT_FLOAT, "forward_constraint", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_ForwardFriction(QC_OPT_FLOAT, "forward_friction", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BaseMass(QC_OPT_FLOAT, "base_mass", s_CommandOptionFormatNameNewLine);
 
 	// boing
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingImpactSpeed(QC_OPT_FLOAT, "impact_speed", QC_FMT_WRITENAME, s_QCVersion_TF2, s_QCVersion_TF2);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingImpactAngle(QC_OPT_FLOAT, "impact_angle", QC_FMT_WRITENAME, s_QCVersion_TF2, s_QCVersion_TF2);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingDampingRate(QC_OPT_FLOAT, "damping_rate", QC_FMT_WRITENAME, s_QCVersion_TF2, s_QCVersion_TF2);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingFrequency(QC_OPT_FLOAT, "frequency", QC_FMT_WRITENAME, s_QCVersion_TF2, s_QCVersion_TF2);
-	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingAmplitude(QC_OPT_FLOAT, "amplitude", QC_FMT_WRITENAME, s_QCVersion_TF2, s_QCVersion_TF2);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingImpactSpeed(QC_OPT_FLOAT, "impact_speed", s_CommandOptionFormatNameNewLine, s_QCVersion_TF2, s_QCVersion_TF2);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingImpactAngle(QC_OPT_FLOAT, "impact_angle", s_CommandOptionFormatNameNewLine, s_QCVersion_TF2, s_QCVersion_TF2);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingDampingRate(QC_OPT_FLOAT, "damping_rate", s_CommandOptionFormatNameNewLine, s_QCVersion_TF2, s_QCVersion_TF2);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingFrequency(QC_OPT_FLOAT, "frequency", s_CommandOptionFormatNameNewLine, s_QCVersion_TF2, s_QCVersion_TF2);
+	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingAmplitude(QC_OPT_FLOAT, "amplitude", s_CommandOptionFormatNameNewLine, s_QCVersion_TF2, s_QCVersion_TF2);
 
 	// models
-	constexpr CommandOptionDesc_t s_CommandBodyGroup_Option_Studio(QC_OPT_STRING, "studio", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandBodyGroup_Option_Blank(QC_OPT_NONE, "blank", QC_FMT_WRITENAME);
+	constexpr CommandOptionDesc_t s_CommandBodyGroup_Option_Studio(QC_OPT_STRING, "studio", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandBodyGroup_Option_Blank(QC_OPT_NONE, "blank", s_CommandOptionFormatNameNewLine);
 
 	constexpr CommandOptionDesc_t s_CommandLOD_Option_Threshold(QC_OPT_FLOAT, "threshold");
-	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceModel(QC_OPT_PAIR, "replacemodel", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandLOD_Option_RemoveModel(QC_OPT_STRING, "removemodel", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceBone(QC_OPT_PAIR, "replacebone", QC_FMT_WRITENAME);
-	constexpr CommandOptionDesc_t s_CommandLOD_Option_ShadowLODMaterials(QC_OPT_NONE, "use_shadowlod_materials", QC_FMT_WRITENAME);
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceModel(QC_OPT_PAIR, "replacemodel", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_RemoveModel(QC_OPT_STRING, "removemodel", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceBone(QC_OPT_PAIR, "replacebone", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_ShadowLODMaterials(QC_OPT_NONE, "use_shadowlod_materials", s_CommandOptionFormatNameNewLine);
 
 	// animation
 	constexpr CommandOptionDesc_t s_CommandPoseParam_Option_Start(QC_OPT_FLOAT, "start");
 	constexpr CommandOptionDesc_t s_CommandPoseParam_Option_End(QC_OPT_FLOAT, "end");
-	constexpr CommandOptionDesc_t s_CommandPoseParam_Option_Wrap(QC_OPT_NONE, "wrap", (QC_FMT_PARENTLINE | QC_FMT_WRITENAME));
-	constexpr CommandOptionDesc_t s_CommandPoseParam_Option_Loop(QC_OPT_FLOAT, "loop", (QC_FMT_PARENTLINE | QC_FMT_WRITENAME));
+	constexpr CommandOptionDesc_t s_CommandPoseParam_Option_Wrap(QC_OPT_NONE, "wrap", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandPoseParam_Option_Loop(QC_OPT_FLOAT, "loop", s_CommandOptionFormatNameParentLine);
 
-	constexpr CommandOptionDesc_t s_CommandIKChain_Option_Knee(QC_OPT_FLOAT, "knee", (QC_FMT_PARENTLINE | QC_FMT_WRITENAME));
-	constexpr CommandOptionDesc_t s_CommandIKChain_Option_Angle(QC_OPT_FLOAT, "angle_unknown", (QC_FMT_PARENTLINE | QC_FMT_WRITENAME), s_QCVersion_R2, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandIKChain_Option_Knee(QC_OPT_FLOAT, "knee", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandIKChain_Option_Angle(QC_OPT_FLOAT, "angle_unknown", s_CommandOptionFormatNameParentLine, s_QCVersion_R2, s_QCVersion_R5_RETAIL);
 
 	constexpr CommandOptionDesc_t s_CommandIKAutoPlayLock_Option_LockPosition(QC_OPT_FLOAT, "lock_position");
 	constexpr CommandOptionDesc_t s_CommandIKAutoPlayLock_Option_InheritRotation(QC_OPT_FLOAT, "inherit_rotation");
@@ -864,9 +904,9 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandHBox_Option_Group(QC_OPT_INT, "group");
 	constexpr CommandOptionDesc_t s_CommandHBox_Option_Min(QC_OPT_FLOAT, "min");
 	constexpr CommandOptionDesc_t s_CommandHBox_Option_Max(QC_OPT_FLOAT, "max");
-	constexpr CommandOptionDesc_t s_CommandHBox_Option_Angle(QC_OPT_FLOAT, "angle", s_CommandOptionDefaultFormat, s_QCVersion_CSGO, s_QCVersion_CSGO);
-	constexpr CommandOptionDesc_t s_CommandHBox_Option_Radius(QC_OPT_FLOAT, "radius", s_CommandOptionDefaultFormat, s_QCVersion_CSGO, s_QCVersion_CSGO);
-	constexpr CommandOptionDesc_t s_CommandHBox_Option_Crit(QC_OPT_NONE, "force_crit", (QC_FMT_PARENTLINE | QC_FMT_WRITENAME), s_QCVersion_R2, s_QCVersion_R5_150);
+	constexpr CommandOptionDesc_t s_CommandHBox_Option_Angle(QC_OPT_FLOAT, "angle", s_CommandOptionFormatDefault, s_QCVersion_CSGO, s_QCVersion_CSGO);
+	constexpr CommandOptionDesc_t s_CommandHBox_Option_Radius(QC_OPT_FLOAT, "radius", s_CommandOptionFormatDefault, s_QCVersion_CSGO, s_QCVersion_CSGO);
+	constexpr CommandOptionDesc_t s_CommandHBox_Option_Crit(QC_OPT_NONE, "force_crit", s_CommandOptionFormatNameParentLine, s_QCVersion_R2, s_QCVersion_R5_150);
 
 	//
 	// functions
@@ -974,7 +1014,7 @@ namespace qc
 		}
 
 		// entry bracket
-		text->WriteFormated("\n%s{\n", indentation);
+		text->WriteFormatted("\n%s{\n", indentation);
 		indentation[numIndentation] = '\t';
 		numIndentation++;
 
@@ -1065,7 +1105,7 @@ namespace qc
 		// exit bracket
 		numIndentation--;
 		indentation[numIndentation] = '\0';
-		text->WriteFormated("\n%s}", indentation);
+		text->WriteFormatted("\n%s}", indentation);
 
 		return i + 1;
 	}
@@ -1150,8 +1190,9 @@ namespace qc
 		UNUSED(store);
 
 		const TextureGroupData_t* const skinData = reinterpret_cast<const TextureGroupData_t* const>(data);
+		const bool hasNames = skinData->HasNames();
 
-		const uint32_t usedOptions = skinData->numSkinFamilies + 1;
+		const uint32_t usedOptions = skinData->numSkinFamilies + 1 + (hasNames * skinData->numSkinFamilies);
 		CommandOption_t* options = new CommandOption_t[usedOptions];
 
 		options[0].Init(&s_CommandGeneric_Option_Name);
@@ -1159,9 +1200,19 @@ namespace qc
 
 		const char** skinGroup = new const char* [skinData->numIndices];
 		const int16_t* skinFamily = skinData->skins;
+		const char** skinNames = skinData->names;
 
 		for (uint32_t i = 1; i < usedOptions; i++)
 		{
+			if (hasNames)
+			{
+				options[i].Init(&s_CommandTextureGroup_Option_Name);
+				options[i].SetPtr(*skinNames);
+
+				skinNames++;
+				i++;
+			}
+
 			// get the material for a skin
 			for (uint32_t indice = 0; indice < skinData->numIndices; indice++)
 			{
@@ -2181,12 +2232,15 @@ namespace qc
 		return numSorted;
 	}
 
+	inline const bool CommadSortModel_UnsortedCMD(const CommandList_t cmd)
+	{
+		return (cmd == CommandList_t::QC_BODY || cmd == CommandList_t::QC_BODYGROUP || cmd == CommandList_t::QC_MODEL);
+	}
+
 	const uint32_t CommandSortModel(const Command_t* const commands, const Command_t** const sorted, const size_t numCommands, const CommandType_t type)
 	{
 		uint32_t numSorted = 0u;
-
-		bool hasMaxVerts = false;
-		uint32_t maxVertsIndex = 0u;
+		uint32_t numGeneralSorted = 0u;
 
 		for (size_t i = 0ull; i < numCommands; i++)
 		{
@@ -2195,33 +2249,42 @@ namespace qc
 			if (command->GetType() != type)
 				continue;
 
-			if (command->GetCmd() == CommandList_t::QC_MAXVERTS)
+			if (!CommadSortModel_UnsortedCMD(command->GetCmd()))
 			{
-				hasMaxVerts = true;
-				maxVertsIndex = numSorted;
+				numGeneralSorted++;
 			}
 
 			sorted[numSorted] = command;
 			numSorted++;
 		}
 
-		// we want to preserve order, and don't need to parse through again if $maxverts is not present
-		if (numSorted == 0 || !hasMaxVerts)
+		// we want to preserve order, and don't need to parse through again if $maxverts and other commands are not present
+		if (numGeneralSorted == 0u)
 			return numSorted;
 
 		const Command_t** const temp = sorted + numSorted;
 		memcpy_s(temp, sizeof(intptr_t) * numSorted, sorted, sizeof(intptr_t) * numSorted);
 
-		sorted[0] = temp[maxVertsIndex];
-
-		for (uint32_t sortIdx = 1u, tmpIdx = 0u; tmpIdx < numSorted; tmpIdx++)
+		for (uint32_t sortIdx = 0u, copyIdx = numGeneralSorted, i = 0u; i < numSorted; i++)
 		{
-			if (tmpIdx == maxVertsIndex)
-				continue;
+			const Command_t* const command = temp[i];
 
-			sorted[sortIdx] = temp[tmpIdx];
-			sortIdx++;
+			if (!CommadSortModel_UnsortedCMD(command->GetCmd()))
+			{
+				assertm(sortIdx < numSorted, "invalid index");
+
+				sorted[sortIdx] = temp[i];
+				sortIdx++;
+				continue;
+			}
+
+			assertm(copyIdx < numSorted, "invalid index");
+
+			sorted[copyIdx] = temp[i];
+			copyIdx++;
 		}
+
+		qsort(sorted, numGeneralSorted, sizeof(intptr_t), CompareCommand);
 
 		return numSorted;
 	}

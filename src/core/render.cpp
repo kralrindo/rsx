@@ -22,7 +22,7 @@ extern CDXParentHandler* g_dxHandler;
 extern std::atomic<uint32_t> maxConcurrentThreads;
 
 ExportSettings_t g_ExportSettings{ .exportNormalRecalcSetting = eNormalExportRecalc::NML_RECALC_NONE, .exportTextureNameSetting = eTextureExportName::TXTR_NAME_TEXT, .exportMaterialTextures = true,
-    .exportPathsFull = false, .exportAssetDeps = false, .disableCachedNames = false, .previewedSkinIndex = 0, .qcMajorVersion = 49, .qcMinorVersion = 0, .exportRigSequences = true, .exportModelSkin = false, .exportModelMatsTruncated = false, .exportPhysicsContentsFilter = static_cast<uint32_t>(TRACE_MASK_ALL) };
+    .exportPathsFull = false, .exportAssetDeps = false, .disableCachedNames = false, .previewedSkinIndex = 0, .qcMajorVersion = 49, .qcMinorVersion = 0, .exportRigSequences = true, .exportModelSkin = false, .exportModelMatsTruncated = false, .exportQCIFiles = false, .exportPhysicsContentsFilter = static_cast<uint32_t>(TRACE_MASK_ALL) };
 PreviewSettings_t g_PreviewSettings { .previewCullDistance = PREVIEW_CULL_DEFAULT, .previewMovementSpeed = PREVIEW_SPEED_DEFAULT };
 
 CPreviewDrawData g_currentPreviewDrawData;
@@ -718,6 +718,10 @@ void HandleRenderFrame()
             ImGui::SameLine();
             g_pImGuiHandler->HelpMarker("Truncates material names on SMD.");
 
+            ImGui::Checkbox("Enable QCI Files", &g_ExportSettings.exportQCIFiles);
+            ImGui::SameLine();
+            g_pImGuiHandler->HelpMarker("QC file will be split into multiple include files.");
+
             ImGui::PushItemWidth(48.0f);
             ImGui::InputScalar("##QCTargetMajor", ImGuiDataType_U16, reinterpret_cast<uint16_t*>(&g_ExportSettings.qcMajorVersion), nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
             ImGui::SameLine();
@@ -742,7 +746,11 @@ void HandleRenderFrame()
             g_pImGuiHandler->HelpMarker("Filter only physics meshes containing all specified contents.");
 
             // ===============================================================================================================
-            ImGui::SeparatorText("Threads");
+            ImGui::SeparatorText("Parsing");
+
+            ImGui::Combo("Compression Level", reinterpret_cast<int*>(&UtilsConfig->compressionLevel), s_CompressionLevelSetting, static_cast<int>(ARRAYSIZE(s_CompressionLevelSetting)));
+            ImGui::SameLine();
+            g_pImGuiHandler->HelpMarker("Specifies the compression level used when storing parsed assets in memory.\nWARNING: Modify only if you know what you’re doing; otherwise, you may run out of memory.\nNone: no compression.\nSuper Fast: Fastest level with the lowest compression ratio.\nVery Fast: Standard setting; fastest level with a decent compression ratio.\nFast: Fastest level with a good compression ratio.\nNormal: Standard LZ speed with the highest compression ratio.");
 
             ImGui::SliderScalar("Parse Threads", ImGuiDataType_U32, &UtilsConfig->parseThreadCount, &minThreads, reinterpret_cast<int*>(&maxConcurrentThreads));
             ImGui::SameLine();

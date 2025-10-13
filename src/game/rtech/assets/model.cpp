@@ -941,7 +941,7 @@ static void ParseModelTextureData_v16(ModelParsedData_t* const parsedData)
 
     parsedData->skins.reserve(pStudioHdr->numSkinFamilies);
     for (int i = 0; i < pStudioHdr->numSkinFamilies; i++)
-        parsedData->skins.emplace_back(pStudioHdr->pSkinName_V16(i), pStudioHdr->pSkinFamily(i));
+        parsedData->skins.emplace_back(pStudioHdr->pSkinName(i), pStudioHdr->pSkinFamily(i));
 }
 
 void LoadModelAsset(CAssetContainer* const pak, CAsset* const asset)

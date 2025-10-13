@@ -2,7 +2,7 @@
 
 #include <core/math/mathlib.h>
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/mathlib/mathlib_base.cpp#L3466
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/mathlib/mathlib_base.cpp#L3466
 float AngleDiff(float destAngle, float srcAngle)
 {
 	float delta = fmodf(destAngle - srcAngle, 360.0f);
@@ -229,7 +229,7 @@ void QuaternionMult(const Quaternion& p, const Quaternion& q, Quaternion& qt)
 	qt.w = -p.x * q2.x - p.y * q2.y - p.z * q2.z + p.w * q2.w;
 }
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/mathlib/mathlib_base.cpp#L1868
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/mathlib/mathlib_base.cpp#L1868
 void QuaternionMatrix(const Quaternion& q, matrix3x4_t& matrix)
 {
 #ifdef MATH_ASSERTS
@@ -253,7 +253,7 @@ void QuaternionMatrix(const Quaternion& q, matrix3x4_t& matrix)
 	matrix[2][3] = 0.0f;
 }
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/mathlib/mathlib_base.cpp#L1857
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/mathlib/mathlib_base.cpp#L1857
 void QuaternionMatrix(const Quaternion& q, const Vector& pos, matrix3x4_t& matrix)
 {
 #ifdef MATH_ASSERTS

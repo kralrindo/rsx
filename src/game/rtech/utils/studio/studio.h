@@ -15,8 +15,8 @@ static constexpr int s_MaxStudioVerts		= 65536;
 static constexpr int s_MaxStudioTriangles	= 262144; // normal source 131072
 #define MAXSTUDIOSRCVERTS		(8*65536)
 
-#define MODEL_FILE_ID				MAKEFOURCC('I', 'D', 'S', 'T') // little-endian "IDST"
-#define MODEL_ANIM_FILE_ID			MAKEFOURCC('I', 'D', 'A', 'G') // little-endian "IDAG"
+#define IDSTUDIOHEADER				MAKEFOURCC('I', 'D', 'S', 'T') // little-endian "IDST"
+#define IDSTUDIOANIMGROUPHEADER		MAKEFOURCC('I', 'D', 'A', 'G') // little-endian "IDAG"
 
 #define UNPACKWEIGHT(w) static_cast<float>(w / 32767.f) // weights in vvw and vg are packed into a signed 16 bit value that uses the entire number range
 
@@ -24,10 +24,11 @@ static constexpr int s_MaxStudioTriangles	= 262144; // normal source 131072
 // STUDIO VERTEX DATA
 //===================
 
-#define MODEL_VERTEX_FILE_ID			MAKEFOURCC('I', 'D', 'S', 'V') // little-endian "IDSV"
-#define MODEL_VERTEX_FILE_VERSION		4
-#define MODEL_VERTEX_COLOR_FILE_ID		MAKEFOURCC('I', 'D', 'C', 'V') // little-endian "IDCV"
-#define MODEL_VERTEX_COLOR_FILE_VERSION	1
+#define MODEL_VERTEX_FILE_ID				MAKEFOURCC('I', 'D', 'S', 'V') // little-endian "IDSV"
+#define MODEL_VERTEX_FILE_VERSION			4
+#define MODEL_VERTEX_COLOR_FILE_ID			MAKEFOURCC('I', 'D', 'C', 'V') // little-endian "IDCV"
+#define MODEL_VERTEX_COLOR_FILE_VERSION		1
+#define MODEL_VERTEX_WEIGHT_FILE_VERSION	1
 
 namespace vvd
 {
@@ -1055,8 +1056,8 @@ struct studiohdr_short_t
 class StudioLooseData_t
 {
 public:
-	StudioLooseData_t(const std::filesystem::path& path, const char* name, char* buffer); // DO NOT call this without managing the allocated buffers.
-	StudioLooseData_t(char* file);
+	StudioLooseData_t(const std::filesystem::path& path, const char* const name, char* buffer, const size_t bufferSize); // DO NOT call this without managing the allocated buffers.
+	StudioLooseData_t(const char* const file);
 
 	enum LooseDataType : int8_t
 	{
@@ -1068,26 +1069,27 @@ public:
 		SLD_COUNT
 	};
 
-	inline char* const VertBuf() const { return vertexDataBuffer; }
+	inline const char* const VertBuf() const { return vertexDataBuffer; }
 	inline const int VertOffset(const LooseDataType type) const { return vertexDataOffset[type]; }
 	inline const int VertSize(const LooseDataType type) const { return vertexDataSize[type]; }
 
-	inline char* const PhysBuf() const { return physicsDataBuffer; }
+	inline const char* const PhysBuf() const { return physicsDataBuffer; }
 	inline const int PhysOffset() const { return physicsDataOffset; }
 	inline const int PhysSize() const { return physicsDataSize; }
 
-	inline const OptimizedModel::FileHeader_t*				const GetVTX() const { return vertexDataSize[SLD_VTX] ? reinterpret_cast<const OptimizedModel::FileHeader_t*			const>(vertexDataBuffer + vertexDataOffset[SLD_VTX]) : nullptr; }
-	inline const vvd::vertexFileHeader_t*					const GetVVD() const { return vertexDataSize[SLD_VVD] ? reinterpret_cast<const vvd::vertexFileHeader_t*					const>(vertexDataBuffer + vertexDataOffset[SLD_VVD]) : nullptr; }
-	inline const vvc::vertexColorFileHeader_t*				const GetVVC() const { return vertexDataSize[SLD_VVC] ? reinterpret_cast<const vvc::vertexColorFileHeader_t*			const>(vertexDataBuffer + vertexDataOffset[SLD_VVC]) : nullptr; }
-	inline const vvw::vertexBoneWeightsExtraFileHeader_t*	const GetVVW() const { return vertexDataSize[SLD_VVW] ? reinterpret_cast<const vvw::vertexBoneWeightsExtraFileHeader_t*	const>(vertexDataBuffer + vertexDataOffset[SLD_VVW]) : nullptr; }
+	inline const OptimizedModel::FileHeader_t* const GetVTX() const { return vertexDataSize[SLD_VTX] ? reinterpret_cast<const OptimizedModel::FileHeader_t* const>(vertexDataBuffer + vertexDataOffset[SLD_VTX]) : nullptr; }
+	inline const vvd::vertexFileHeader_t* const GetVVD() const { return vertexDataSize[SLD_VVD] ? reinterpret_cast<const vvd::vertexFileHeader_t* const>(vertexDataBuffer + vertexDataOffset[SLD_VVD]) : nullptr; }
+	inline const vvc::vertexColorFileHeader_t* const GetVVC() const { return vertexDataSize[SLD_VVC] ? reinterpret_cast<const vvc::vertexColorFileHeader_t* const>(vertexDataBuffer + vertexDataOffset[SLD_VVC]) : nullptr; }
+	inline const vvw::vertexBoneWeightsExtraFileHeader_t* const GetVVW() const { return vertexDataSize[SLD_VVW] ? reinterpret_cast<const vvw::vertexBoneWeightsExtraFileHeader_t* const>(vertexDataBuffer + vertexDataOffset[SLD_VVW]) : nullptr; }
+
+	const bool VerifyFileIntegrity(const studiohdr_short_t* const pHdr) const;
 
 private:
-
-	char* vertexDataBuffer;
+	const char* vertexDataBuffer;
 	int vertexDataOffset[LooseDataType::SLD_COUNT];
 	int vertexDataSize[LooseDataType::SLD_COUNT];
 
-	char* physicsDataBuffer;
+	const char* physicsDataBuffer;
 	int physicsDataOffset;
 	int physicsDataSize;
 };

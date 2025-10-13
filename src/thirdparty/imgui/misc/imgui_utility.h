@@ -83,6 +83,7 @@ public:
     {
         uint32_t parseThreadCount;
         uint32_t exportThreadCount;
+        uint32_t compressionLevel;
     } cfg;
 
     struct FilterSettings_t

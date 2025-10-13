@@ -1081,12 +1081,11 @@ namespace r5
 
 		int meshCountTotal;
 		int meshCountBase;
-		int meshCountBlends;
-
-		int meshindex;
+		int meshCountBlend;
+		int meshOffset;
 		mstudiomesh_v14_t* pMesh(int i) const
 		{
-			return reinterpret_cast<mstudiomesh_v14_t*>((char*)this + meshindex) + i;
+			return reinterpret_cast<mstudiomesh_v14_t*>((char*)this + meshOffset) + i;
 		}
 
 		// most of these vtx, vvd, vvc, and vg indexes are depreciated after v14.1 (s14)

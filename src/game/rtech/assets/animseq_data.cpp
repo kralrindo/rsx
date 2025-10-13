@@ -40,7 +40,7 @@ bool ExportAnimSeqDataAsset(CAsset* const asset, const int setting)
 
 	if (animSeqDataAsset->dataSize == 0)
 	{
-		Log("animseq data %s had a size of 0, skipping...\n", pakAsset->GetAssetName().c_str());
+		Log("animseq data %llx had a size of 0, skipping...\n", pakAsset->GetAssetGUID());
 		return true;
 	}
 
@@ -90,13 +90,13 @@ void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount
 	{
 		animdesc_t* const animdesc = &seqdesc->anims.at(i);
 
-		if (!animdesc->animDataAsset && animdesc->animData)
+		// [rika]: the animdesc has no animation
+		if (!animdesc->animDataAsset)
 			continue;
 
 		CPakAsset* const dataAsset = g_assetData.FindAssetByGUID<CPakAsset>(animdesc->animDataAsset);
 		if (!dataAsset)
 		{
-			/*assertm(false, "animseq data was not loaded!");*/
 			animdesc->animData = nullptr;
 			continue;
 		}
@@ -110,6 +110,10 @@ void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount
 		}
 
 		animdesc->animData = animSeqDataAsset->data;
+
+		// [rika]: has already been parsed
+		if (animSeqDataAsset->dataSize > 0)
+			continue;
 
 		int index = 0;
 
@@ -135,5 +139,6 @@ void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount
 		}
 
 		animSeqDataAsset->dataSize = reinterpret_cast<const char* const>(panim) - animdesc->animData;
+		assertm(animSeqDataAsset->dataSize, "parsed asqd had a size of 0");
 	}
 }

@@ -34,6 +34,7 @@
 
 #define STREAMIO
 
+#define MATH_USE_DX
 #define MATH_ASSERTS 1
 #define MATH_SIMD 1
 

@@ -21,13 +21,13 @@ void MatrixAngles(const matrix3x4_t& matrix, float* angles); // !!!!
 void MatrixGetColumn(const matrix3x4_t& in, int column, Vector& out);
 void MatrixSetColumn(const Vector& in, int column, matrix3x4_t& out);
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/mathlib/mathlib.h#L857
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/public/mathlib/mathlib.h#L857
 inline void MatrixPosition(const matrix3x4_t& matrix, Vector& position)
 {
 	MatrixGetColumn(matrix, 3, position);
 }
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/mathlib/mathlib.h#L872
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/public/mathlib/mathlib.h#L872
 inline void MatrixAngles(const matrix3x4_t& matrix, QAngle& angles)
 {
 	MatrixAngles(matrix, &angles.x);

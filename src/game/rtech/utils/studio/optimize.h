@@ -90,7 +90,7 @@ namespace OptimizedModel
 		int indexOffset;
 
 		unsigned short* pIndex(int i) const { return reinterpret_cast<unsigned short*>((char*)this + indexOffset) + i; }
-		int Index(int i) { return static_cast<int>(*pIndex(i)); }
+		const int Index(int i) const { return static_cast<int>(*pIndex(i)); }
 
 
 		int numStrips;

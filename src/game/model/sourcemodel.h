@@ -75,10 +75,10 @@ public:
 
 	inline const void* GetInternalAssetData() { return m_assetData; }
 	inline const uint64_t GetAssetGUID() const { return m_assetGuid; }
-	inline char* const GetExtraData(const ExtraData type) { return m_assetDataExtra[type]; }
+	inline const char* const GetExtraData(const ExtraData type) { return m_assetDataExtra[type]; }
 
 	inline void SetAssetGUID(const uint64_t guid) { m_assetGuid = guid; }
-	inline void SetExtraData(char* const data, const ExtraData type) { m_assetDataExtra[type] = data; }
+	inline void SetExtraData(const char* const data, const ExtraData type) { m_assetDataExtra[type] = data; }
 
 	inline void SetParsedData(ModelParsedData_t* const parsedData) { m_modelParsed = parsedData; }
 	inline void SetLooseData(StudioLooseData_t* const looseData) { m_modelLoose = looseData; }
@@ -101,7 +101,7 @@ public:
 
 private:
 	uint64_t m_assetGuid;
-	char* m_assetDataExtra[ExtraData::SRCMDL_COUNT];
+	const char* m_assetDataExtra[ExtraData::SRCMDL_COUNT];
 
 	ModelParsedData_t* m_modelParsed;
 	StudioLooseData_t* m_modelLoose;

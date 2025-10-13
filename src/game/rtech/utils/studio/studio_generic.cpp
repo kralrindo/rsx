@@ -506,7 +506,7 @@ studiohdr_generic_t::studiohdr_generic_t(const r1::studiohdr_t* const pHdr, Stud
 	vtxSize(pData->VertSize(StudioLooseData_t::SLD_VTX)), vvdSize(pData->VertSize(StudioLooseData_t::SLD_VVD)), vvcSize(pData->VertSize(StudioLooseData_t::SLD_VVC)), vvwSize(-1), phySize(pData->PhysSize()), hwDataSize(0),
 	groupCount(0), groups(),
 
-	pad()
+	pad(), smallIndices(false)
 {
 	// update offsets local to studiohdr2_t
 	const int baseOffset = static_cast<int>(reinterpret_cast<const char* const>(pHdr->pStudioHdr2()) - baseptr);
@@ -539,7 +539,7 @@ studiohdr_generic_t::studiohdr_generic_t(const r2::studiohdr_t* const pHdr) : ba
 	vtxSize(pHdr->vtxSize), vvdSize(pHdr->vvdSize), vvcSize(pHdr->vvcSize), vvwSize(-1), phySize(pHdr->phySize), hwDataSize(0),
 	groupCount(0), groups(),
 
-	pad()
+	pad(), smallIndices(false)
 {
 
 };
@@ -568,7 +568,7 @@ studiohdr_generic_t::studiohdr_generic_t(const r5::studiohdr_v8_t* const pHdr) :
 	vtxSize(pHdr->vtxSize), vvdSize(pHdr->vvdSize), vvcSize(pHdr->vvcSize), vvwSize(pHdr->vvwSize), phySize(pHdr->phySize), hwDataSize(0)/*set in vertex parsing*/,
 	groupCount(1), groups(),
 
-	pad()
+	pad(), smallIndices(false)
 {
 
 };
@@ -597,7 +597,7 @@ studiohdr_generic_t::studiohdr_generic_t(const r5::studiohdr_v12_1_t* const pHdr
 	vtxSize(pHdr->vtxSize), vvdSize(pHdr->vvdSize), vvcSize(pHdr->vvcSize), vvwSize(pHdr->vvwSize), phySize(pHdr->phySize), hwDataSize(pHdr->hwDataSize),
 	groupCount(pHdr->groupHeaderCount), groups(),
 
-	pad()
+	pad(), smallIndices(false)
 {
 	assertm(pHdr->groupHeaderCount <= 8, "model has more than 8 lods");
 
@@ -634,7 +634,7 @@ studiohdr_generic_t::studiohdr_generic_t(const r5::studiohdr_v12_2_t* const pHdr
 	vtxSize(pHdr->vtxSize), vvdSize(pHdr->vvdSize), vvcSize(pHdr->vvcSize), vvwSize(pHdr->vvwSize), phySize(pHdr->phySize), hwDataSize(pHdr->hwDataSize),
 	groupCount(pHdr->groupHeaderCount), groups(),
 
-	pad()
+	pad(), smallIndices(false)
 {
 	assertm(pHdr->groupHeaderCount <= 8, "model has more than 8 lods");
 
@@ -672,7 +672,7 @@ studiohdr_generic_t::studiohdr_generic_t(const r5::studiohdr_v12_4_t* const pHdr
 	vtxSize(pHdr->vtxSize), vvdSize(pHdr->vvdSize), vvcSize(pHdr->vvcSize), vvwSize(pHdr->vvwSize), phySize(pHdr->phySize), hwDataSize(pHdr->hwDataSize),
 	groupCount(pHdr->groupHeaderCount), groups(),
 
-	pad()
+	pad(), smallIndices(false)
 {
 	assertm(pHdr->groupHeaderCount <= 8, "model has more than 8 lods");
 
@@ -709,7 +709,7 @@ studiohdr_generic_t::studiohdr_generic_t(const r5::studiohdr_v14_t* const pHdr) 
 	vtxSize(pHdr->vtxSize), vvdSize(pHdr->vvdSize), vvcSize(pHdr->vvcSize), vvwSize(pHdr->vvwSize), phySize(pHdr->phySize), hwDataSize(pHdr->hwDataSize),
 	groupCount(pHdr->groupHeaderCount), groups(),
 
-	pad()
+	pad(), smallIndices(false)
 {
 	assertm(pHdr->groupHeaderCount <= 8, "model has more than 8 lods");
 
@@ -747,7 +747,7 @@ studiohdr_generic_t::studiohdr_generic_t(const r5::studiohdr_v16_t* const pHdr, 
 	vtxSize(-1), vvdSize(-1), vvcSize(-1), vvwSize(-1), phySize(dataSizePhys), hwDataSize(0),
 	groupCount(pHdr->groupHeaderCount), groups(),
 
-	pad()
+	pad(), smallIndices(true)
 {
 	assertm(pHdr->groupHeaderCount <= 8, "model has more than 8 lods");
 
@@ -785,7 +785,7 @@ studiohdr_generic_t::studiohdr_generic_t(const r5::studiohdr_v17_t* const pHdr, 
 	vtxSize(-1), vvdSize(-1), vvcSize(-1), vvwSize(-1), phySize(dataSizePhys), hwDataSize(0),
 	groupCount(pHdr->groupHeaderCount), groups(),
 
-	pad()
+	pad(), smallIndices(true)
 {
 	assertm(pHdr->groupHeaderCount <= 8, "model has more than 8 lods");
 

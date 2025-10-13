@@ -3,7 +3,7 @@
 #include <core/math/matrix.h>
 
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/mathlib/mathlib_base.cpp#L416
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/mathlib/mathlib_base.cpp#L416
 void MatrixGetColumn(const matrix3x4_t& in, int column, Vector& out)
 {
 	out.x = in[0][column];
@@ -11,7 +11,7 @@ void MatrixGetColumn(const matrix3x4_t& in, int column, Vector& out)
 	out.z = in[2][column];
 }
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/mathlib/mathlib_base.cpp#L423
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/mathlib/mathlib_base.cpp#L423
 void MatrixSetColumn(const Vector& in, int column, matrix3x4_t& out)
 {
 	out[0][column] = in.x;
@@ -19,14 +19,14 @@ void MatrixSetColumn(const Vector& in, int column, matrix3x4_t& out)
 	out[2][column] = in.z;
 }
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/mathlib/mathlib_base.cpp#L144
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/mathlib/mathlib_base.cpp#L144
 void MatrixAngles(const matrix3x4_t& matrix, RadianEuler& angles, Vector& position)
 {
 	MatrixGetColumn(matrix, 3, position);
 	MatrixAngles(matrix, angles);
 }
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/mathlib/mathlib_base.cpp#L150
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/mathlib/mathlib_base.cpp#L150
 void MatrixAngles(const matrix3x4_t& matrix, Quaternion& q, Vector& pos)
 {
 	float trace;
@@ -78,7 +78,7 @@ void MatrixAngles(const matrix3x4_t& matrix, Quaternion& q, Vector& pos)
 	MatrixGetColumn(matrix, 3, pos);
 }
 
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/mathlib/mathlib_base.cpp#L208
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/mathlib/mathlib_base.cpp#L208
 void MatrixAngles(const matrix3x4_t& matrix, float* angles)
 {
 	float forward[3];

@@ -1,11 +1,13 @@
 #pragma once
 
+#ifdef MATH_USE_DX
 #include <DirectXMath.h>
 using namespace DirectX;
 
 #ifndef M_PI
 #define M_PI XM_PI
 #endif
+#endif // DirectXMath
 
 
 constexpr float s_DEG2RAD_CONST = (M_PI / 180.f);
@@ -157,6 +159,15 @@ enum Axis_t
 	ROLL		// fall over
 };
 
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/public/mathlib/mathlib.h#L717
+template <class T>
+__forceinline void V_swap(T& x, T& y)
+{
+	T temp = x;
+	x = y;
+	y = temp;
+}
+
 inline void SinCos(float x, float* fsin, float* fcos)
 {
 	*fsin = sin(x);
@@ -197,20 +208,20 @@ class QAngle;
 struct matrix3x4_t;
 
 // lovely chunk of quaternion functions from source
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/mathlib/mathlib.h#L594
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/public/mathlib/mathlib.h#L594
 void QuaternionSlerp(const Quaternion& p, const Quaternion& q, float t, Quaternion& qt);
 void QuaternionSlerpNoAlign(const Quaternion& p, const Quaternion& q, float t, Quaternion& qt);
 void QuaternionBlend(const Quaternion& p, const Quaternion& q, float t, Quaternion& qt);
 void QuaternionBlendNoAlign(const Quaternion& p, const Quaternion& q, float t, Quaternion& qt);
-
-
-
+//void QuaternionIdentityBlend(const Quaternion& p, float t, Quaternion& qt);
+//float QuaternionAngleDiff(const Quaternion& p, const Quaternion& q);
+//void QuaternionScale(const Quaternion& p, float t, Quaternion& q);
 void QuaternionAlign(const Quaternion& p, const Quaternion& q, Quaternion& qt);
-
+//float QuaternionDotProduct(const Quaternion& p, const Quaternion& q);
 void QuaternionConjugate(const Quaternion& p, Quaternion& q);
-
+//void QuaternionInvert(const Quaternion& p, Quaternion& q);
 float QuaternionNormalize(Quaternion& q);
-
+//void QuaternionAdd(const Quaternion& p, const Quaternion& q, Quaternion& qt);
 void QuaternionMult(const Quaternion& p, const Quaternion& q, Quaternion& qt);
 void QuaternionMatrix(const Quaternion& q, matrix3x4_t& matrix);
 void QuaternionMatrix(const Quaternion& q, const Vector& pos, matrix3x4_t& matrix);
@@ -218,6 +229,10 @@ void QuaternionAngles(const Quaternion& q, QAngle& angles);
 void AngleQuaternion(const QAngle& angles, Quaternion& qt);
 void QuaternionAngles(const Quaternion& q, RadianEuler& angles);
 void AngleQuaternion(RadianEuler const& angles, Quaternion& qt);
+//void QuaternionAxisAngle(const Quaternion& q, Vector& axis, float& angle);
+//void AxisAngleQuaternion(const Vector& axis, float angle, Quaternion& q);
+//void BasisToQuaternion(const Vector& vecForward, const Vector& vecRight, const Vector& vecUp, Quaternion& q);
+//void MatrixQuaternion(const matrix3x4_t& mat, Quaternion& q);
 
 // misc vector funcs
 void VectorYawRotate(const Vector& in, float flYaw, Vector& out);

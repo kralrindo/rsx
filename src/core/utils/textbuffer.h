@@ -1,3 +1,5 @@
+#pragma once
+
 #include <pch.h>
 
 class CTextBuffer
@@ -30,12 +32,6 @@ public:
 		if (data >= buffer && data < writer)
 			return data;
 
-		/*const size_t capacity = Capacity();
-
-		assertm(capacity >= dataSize, "ran out of data");
-		if (capacity < dataSize)
-			return nullptr;*/
-
 		if (!VerifyCapcity(dataSize))
 			return nullptr;
 
@@ -67,7 +63,7 @@ public:
 		WriteString(str, length);
 	}
 
-	void WriteFormated(const char* const fmt, ...)
+	void WriteFormatted(const char* const fmt, ...)
 	{
 		va_list args;
 		va_start(args, fmt);
