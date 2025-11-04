@@ -44,6 +44,7 @@
     <ClInclude Include="core\utils\crc32.h" />
     <ClInclude Include="core\utils\exportsettings.h" />
     <ClInclude Include="core\utils\fileio.h" />
+    <ClInclude Include="core\utils\keyvalue_parser.h" />
     <ClInclude Include="core\utils\ramen.h" />
     <ClInclude Include="core\utils\textbuffer.h" />
     <ClInclude Include="core\utils\thread.h" />
@@ -145,6 +146,7 @@
     <ClCompile Include="core\render\dxutils.cpp" />
     <ClCompile Include="core\splash.cpp" />
     <ClCompile Include="core\utils\fileio.cpp" />
+    <ClCompile Include="core\utils\keyvalue_parser.cpp" />
     <ClCompile Include="core\utils\ramen.cpp" />
     <ClCompile Include="core\utils\utils_general.cpp" />
     <ClCompile Include="core\window.cpp" />

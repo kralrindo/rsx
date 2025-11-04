@@ -97,8 +97,10 @@ namespace r2
 		int flags;
 		int proctype;
 		int procindex; // procedural rule offset
-		int physicsbone; // index into physically simulated bone
-		// from what I can tell this is the section that is parented to this bone, and if this bone is not the parent of any sections, it goes up the bone chain to the nearest bone that does and uses that section index
+		inline const void* const pProcedure() const { return procindex ? reinterpret_cast<const char* const>(this) + procindex : nullptr; }
+
+		int physicsbone;	// index into physically simulated bone
+							// from what I can tell this is the section that is parented to this bone, and if this bone is not the parent of any sections, it goes up the bone chain to the nearest bone that does and uses that section index
 		int surfacepropidx; // index into string tablefor property name
 		inline char* const pszSurfaceProp() const { return ((char*)this + surfacepropidx); }
 
@@ -214,6 +216,7 @@ namespace r2
 
 		int forceCritPoint;	// value of one causes this to act as if it was group of 'head', may either be crit override or group override. mayhaps aligned boolean, look into this
 		int hitdataGroupOffset;	// hit_data group in keyvalues this hitbox uses.
+		const char* const pszHitDataGroup() const { return reinterpret_cast<const char* const>(this) + hitdataGroupOffset; }
 
 		int unused[6];
 	};
@@ -611,6 +614,11 @@ namespace r2
 
 		int numhitboxsets;
 		int hitboxsetindex;
+		const mstudiohitboxset_t* const pHitboxSet(const int i) const
+		{
+			assert(i >= 0 && i < numhitboxsets);
+			return reinterpret_cast<const mstudiohitboxset_t* const>((char*)this + hitboxsetindex) + i;
+		};
 
 		int numlocalanim; // animations/poses
 		int localanimindex; // animation descriptions
@@ -634,6 +642,7 @@ namespace r2
 		// raw textures search paths
 		int numcdtextures;
 		int cdtextureindex;
+		inline const char* const pCdtexture(const int i) const { return reinterpret_cast<const char* const>(this) + reinterpret_cast<const int* const>((char*)this + cdtextureindex)[i]; }
 
 		// replaceable textures tables
 		int numskinref;
@@ -646,6 +655,7 @@ namespace r2
 
 		int numlocalattachments;
 		int localattachmentindex;
+		const mstudioattachment_t* const pLocalAttachment(const int i) const { assert(i >= 0 && i < numlocalattachments); return reinterpret_cast<const mstudioattachment_t* const>((char*)this + localattachmentindex) + i; }
 
 		int numlocalnodes;
 		int localnodeindex;
@@ -662,20 +672,25 @@ namespace r2
 
 		int numikchains;
 		int ikchainindex;
+		const mstudioikchain_t* const pIKChain(const int i) const { assert(i >= 0 && i < numikchains); return reinterpret_cast<const mstudioikchain_t* const>((char*)this + ikchainindex) + i; }
 
 		int uiPanelCount;
 		int uiPanelOffset;
 
 		int numlocalposeparameters;
 		int localposeparamindex;
+		const mstudioposeparamdesc_t* const pLocalPoseParameter(const int i) const { assert(i >= 0 && i < numlocalposeparameters); return reinterpret_cast<const mstudioposeparamdesc_t* const>((char*)this + localposeparamindex) + i; }
 
 		int surfacepropindex;
+		inline const char* const pszSurfaceProp() const { return reinterpret_cast<const char* const>(this) + surfacepropindex; }
 
 		int keyvalueindex;
 		int keyvaluesize;
+		inline const char* const KeyValueText() const { return reinterpret_cast<const char* const>(this) + keyvalueindex; }
 
 		int numlocalikautoplaylocks;
 		int localikautoplaylockindex;
+		const mstudioiklock_t* const pLocalIKAutoplayLock(const int i) const { assert(i >= 0 && i < numlocalikautoplaylocks); return reinterpret_cast<const mstudioiklock_t* const>((char*)this + localikautoplaylockindex) + i; }
 
 		float mass;
 		int contents;
@@ -683,6 +698,7 @@ namespace r2
 		// external animations, models, etc.
 		int numincludemodels;
 		int includemodelindex;
+		const mstudiomodelgroup_t* const pModelGroup(const int i) const { assert(i >= 0 && i < numincludemodels); return reinterpret_cast<const mstudiomodelgroup_t* const>((char*)this + includemodelindex) + i; }
 
 		// implementation specific back pointer to virtual data
 		int /* mutable void* */ virtualModel;
@@ -724,6 +740,7 @@ namespace r2
 
 		int numsrcbonetransform;
 		int srcbonetransformindex;
+		const mstudiosrcbonetransform_t* SrcBoneTransform(int i) const { return reinterpret_cast<const mstudiosrcbonetransform_t* const>((char*)this + srcbonetransformindex) + i; }
 
 		int	illumpositionattachmentindex;
 

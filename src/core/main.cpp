@@ -167,6 +167,15 @@ int main(int argc, char* argv[])
     }
 #endif // #if defined(NDEBUG)
 
+    // https://github.com/microsoft/DirectXTex/wiki/DirectXTex#initialization
+    // [rika]: supposed to be done per thread but it Just Works so I'm not messing with it
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    if (FAILED(hr))
+    {
+        assertm(false, "failed to initialize COM");
+        return EXIT_FAILURE;
+    }
+
 #ifdef EXCEPTION_HANDLER
     g_CrashHandler.Init();
 #endif

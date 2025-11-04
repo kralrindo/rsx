@@ -2,10 +2,12 @@
 
 #include <pch.h>
 
+constexpr size_t textBufferMaxIndentation = 32ull;
+
 class CTextBuffer
 {
 public:
-	CTextBuffer(char* const buf, const size_t bufSize) : buffer(buf), writer(buffer), saved(nullptr), size(bufSize)
+	CTextBuffer(char* const buf, const size_t bufSize) : buffer(buf), writer(buffer), saved(nullptr), size(bufSize), indentation(), numIndents(0u)
 	{
 		assertm(buffer && size, "no valid buffer provided");
 	}
@@ -85,6 +87,14 @@ public:
 		AdvanceWriter(1);
 	}
 
+	inline void WriteIndentation()
+	{
+		if (numIndents == 0u)
+			return;
+
+		WriteString(indentation, numIndents);
+	}
+
 	inline void AdvanceWriter(const size_t count)
 	{
 		VerifyCapcity(count);
@@ -101,12 +111,57 @@ public:
 		writer = saved;
 	}
 
+	const uint32_t GetIndentation() const { return numIndents; }
+	void SetIndenation(const uint32_t level)
+	{
+		assertm(level < textBufferMaxIndentation, "exceeded max indentation");
+
+		if (level == numIndents)
+		{
+			return;
+		}
+
+		if (level > numIndents)
+		{
+			memset(indentation, '\t', level);
+		}
+
+		numIndents = level;
+		indentation[numIndents] = '\0';
+	}
+	
+	inline void IncreaseIndenation()
+	{
+		const uint32_t newIndentation = numIndents + 1u;
+		if (newIndentation == textBufferMaxIndentation)
+		{
+			assertm(false, "exceeded max indentation");
+			return;
+		}
+
+		SetIndenation(newIndentation);
+	}
+	inline void DecreaseIndenation()
+	{
+		if (numIndents == 0u)
+		{
+			assertm(false, "cannot decrease any further");
+			return;
+		}
+
+		const uint32_t newIndentation = numIndents - 1u;
+		SetIndenation(newIndentation);
+	}
+
 private:
 	char* const buffer;
 	char* writer;
 	char* saved;
 
 	const size_t size;
+
+	char indentation[textBufferMaxIndentation];
+	uint32_t numIndents;
 };
 
 // reference to CTextBuffer, write string with precomputed length

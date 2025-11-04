@@ -82,7 +82,7 @@ void ParseSourceModelVertexData(ModelParsedData_t* const parsedData, StudioLoose
     Vertex_t* const         parseVertices = reinterpret_cast<Vertex_t*>         (parseBuf->Buffer() + maxVertexBufferSize);
     Vector2D* const         parseTexcoords = reinterpret_cast<Vector2D*>        (&parseVertices[s_MaxStudioVerts]);
     uint16_t* const         parseIndices = reinterpret_cast<uint16_t*>          (&parseTexcoords[s_MaxStudioVerts * 2]);
-    VertexWeight_t* const   parseWeights = reinterpret_cast<VertexWeight_t*>    (&parseIndices[s_MaxStudioTriangles]); // ~8mb for weights
+    VertexWeight_t* const   parseWeights = reinterpret_cast<VertexWeight_t*>    (&parseIndices[s_MaxStudioTriIndices]); // ~8mb for weights
 
     for (int lodIdx = 0; lodIdx < pVTX->numLODs; lodIdx++)
     {
@@ -169,7 +169,7 @@ void ParseSourceModelVertexData(ModelParsedData_t* const parsedData, StudioLoose
                         meshData.indexCount += pStripGrp->numIndices;
                         lodData.indexCount += pStripGrp->numIndices;
 
-                        assertm(s_MaxStudioTriangles >= meshData.indexCount, "too many triangles");
+                        assertm(s_MaxStudioTriIndices >= meshData.indexCount, "too many triangles");
 
                         for (int stripIdx = 0; stripIdx < pStripGrp->numStrips; stripIdx++)
                         {

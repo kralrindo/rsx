@@ -850,10 +850,10 @@ namespace r5
 		int localattachmentindex;
 
 		int numlocalnodes;
-		int localnodeindex;
+		int localnodeindex;			// legacy node data
 		int localnodenameindex;
-		int localNodeUnk; // used sparsely in r2, unused in apex, removed in v16 rmdl
-		int localNodeDataOffset; // offset into an array of int sized offsets that read into the data for each node
+		int localNodeUnk;			// used sparsely in r2, unused in apex, removed in v16 rmdl
+		int localNodeDataOffset;	// offset into an array of int sized offsets that read into the data for each node (note: bad name, this should be named something different to reflect it being a new node storage type)
 
 		int meshOffset; // hard offset to the start of this models meshes
 

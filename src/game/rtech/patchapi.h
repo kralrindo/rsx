@@ -1,3 +1,6 @@
+// This file is made available as part of the reSource Xtractor (RSX) asset extractor
+// Licensed under AGPLv3. Details available at https://github.com/r-ex/rsx/blob/main/LICENSE
+
 #pragma once
 #include <game/rtech/cpakfile.h>
 

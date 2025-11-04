@@ -1,13 +1,11 @@
 #pragma once
 
 #include <game/rtech/utils/studio/studio.h>
-#include <core/utils/textbuffer.h>
 
 // studiomdl QC file
 namespace qc
 {
 	constexpr size_t s_QCMaxPath = _MAX_PATH;
-	constexpr uint16_t s_QCMaxIndentation = 16;
 
 	struct Settings_t
 	{
@@ -254,11 +252,11 @@ namespace qc
 		// formatting options, inherits base format from description. done so we can add comments to options when parsing
 		CommandFormat_t format;
 
-		const bool ArrayBracket() const { return format & QC_FMT_ARRAY; }
-		const bool IsComment() const { return format & QC_FMT_COMMENT; }
-		const bool WriteName() const { return format & QC_FMT_WRITENAME; }
-		const bool ParentLine() const { return format & QC_FMT_PARENTLINE; }
-		const bool NewLine() const { return format & QC_FMT_NEWLINE; }
+		inline const bool ArrayBracket() const { return format & QC_FMT_ARRAY; }
+		inline const bool IsComment() const { return format & QC_FMT_COMMENT; }
+		inline const bool WriteName() const { return format & QC_FMT_WRITENAME; }
+		inline const bool ParentLine() const { return format & QC_FMT_PARENTLINE; }
+		inline const bool NewLine() const { return format & QC_FMT_NEWLINE; }
 
 		inline void SetPtr(const void* const dataPtr, const uint32_t dataCount = 1u)
 		{
@@ -350,16 +348,25 @@ namespace qc
 			type[1] = CommandOptionType_t::QC_OPT_STRING;
 		}
 
+		// min/max pair
 		CommandOptionPair_t(const float* const float0, const float* const float1, const uint32_t count0 = 1, const uint32_t count1 = 1)
 		{
 			SetData(0, float0, count0, CommandOptionType_t::QC_OPT_FLOAT);
 			SetData(1, float1, count1, CommandOptionType_t::QC_OPT_FLOAT);
 		}
 
+		// int key, string value pair
 		CommandOptionPair_t(const int key, const char* const val)
 		{
 			SetData(0, &key, 1, CommandOptionType_t::QC_OPT_INT);
 			SetData(1, val, 1, CommandOptionType_t::QC_OPT_STRING);
+		}
+
+		// string key, float value pair
+		CommandOptionPair_t(const char* const key, const float val)
+		{
+			SetData(0, key, 1, CommandOptionType_t::QC_OPT_STRING);
+			SetData(1, &val, 1, CommandOptionType_t::QC_OPT_FLOAT);
 		}
 
 		CommandOptionData_t data[2];
@@ -414,7 +421,7 @@ namespace qc
 
 	struct CommandOptionArray_t
 	{
-		CommandOptionArray_t(QCFile* const file, const uint32_t optionCount, const uint16_t indentCount = 0u) : options(nullptr), numOptions(optionCount), format(0u), numIntendation(indentCount)
+		CommandOptionArray_t(QCFile* const file, const uint32_t optionCount, const CommandFormat_t fmt = QC_FMT_NONE) : options(nullptr), numOptions(optionCount), format(fmt), numIntendation(0u)
 		{
 			if (numOptions == 0u)
 				return;
@@ -441,6 +448,12 @@ namespace qc
 		// formatting options
 		CommandFormat_t format;
 		uint16_t numIntendation;
+
+		inline const bool ArrayBracket() const { return format & QC_FMT_ARRAY; }
+		inline const bool IsComment() const { return format & QC_FMT_COMMENT; }
+		inline const bool WriteName() const { return format & QC_FMT_WRITENAME; }
+		inline const bool ParentLine() const { return format & QC_FMT_PARENTLINE; }
+		inline const bool NewLine() const { return format & QC_FMT_NEWLINE; }
 	};
 
 	typedef void(*CommandOptionDataFunc_t)(const CommandOptionData_t* const, CTextBuffer* const);
@@ -588,6 +601,9 @@ namespace qc
 		// collision
 		QC_CONTENTS,
 		QC_SURFACEPROP,
+		QC_COLLISIONMODEL,
+		QC_COLLISIONJOINTS,
+		QC_COLLISIONTEXT,
 
 		// 
 		QC_COMMANDCOUNT,
@@ -922,7 +938,7 @@ namespace qc
 
 	struct AttachmentData_t
 	{
-		AttachmentData_t(const char* const attachName, const char* const attachBone, const int attachFlags, const matrix3x4_t* const attachMatrix) : name(attachName), flags(attachFlags), localbone(attachBone), localmatrix(attachMatrix) {}
+		AttachmentData_t(const char* const attachName, const char* const attachBone, const uint32_t attachFlags, const matrix3x4_t* const attachMatrix) : name(attachName), flags(attachFlags), localbone(attachBone), localmatrix(attachMatrix) {}
 
 		enum Type_t
 		{
@@ -936,7 +952,7 @@ namespace qc
 		};
 
 		const char* name;
-		int flags;
+		uint32_t flags;
 
 		const char* localbone;
 		const matrix3x4_t* localmatrix;
@@ -1124,30 +1140,130 @@ namespace qc
 
 	struct Hitbox_t
 	{
-		Hitbox_t(const char* const boxBone, const int boxGroup, const Vector* const boxMin, const Vector* const boxMax, const char* const boxName, const int boxForceCrit = 0, const float boxRadius = 0.0f, const QAngle* const boxAngle = nullptr) :
-			bone(boxBone), group(boxGroup), bbmin(boxMin), bbmax(boxMax), name(boxName), forceCritPoint(boxForceCrit), flRadius(boxRadius), bbangle(boxAngle), pad(0u) {}
+		// source/reSource
+		Hitbox_t(const char* const boxBone, const int boxGroup, const Vector* const boxMin, const Vector* const boxMax, const char* const boxName, const char* const boxHitDataGroup = nullptr, const int boxForceCrit = 0) :
+			bone(boxBone), group(boxGroup), bbmin(boxMin), bbmax(boxMax), name(boxName), hitDataGroup(boxHitDataGroup), forceCritPoint(boxForceCrit), flRadius(0.0f), bbangle(nullptr) { }
+		// csgo
+		Hitbox_t(const char* const boxBone, const int boxGroup, const Vector* const boxMin, const Vector* const boxMax, const char* const boxName, const float boxRadius = 0.0f, const QAngle* const boxAngle = nullptr) :
+			bone(boxBone), group(boxGroup), bbmin(boxMin), bbmax(boxMax), name(boxName), hitDataGroup(nullptr), forceCritPoint(0), flRadius(boxRadius), bbangle(boxAngle) {}
 
 		const char* bone;
-		uint32_t pad;
-		//int bone;
 		int group;
+
 		const Vector* bbmin;
 		const Vector* bbmax;
 		const char* name;
-		const bool HasName() const { return strncmp(name, "", 1) == 0 ? false : true; } // bleehh
+		inline const bool HasName() const { return strncmp(name, "", 1) == 0 ? false : true; } // bleehh
 
+		// reSource
+		const char* hitDataGroup;
 		int forceCritPoint;
+		inline const bool HasHitDataGroup() const
+		{
+			if (hitDataGroup == nullptr)
+				return false;
+
+			return strncmp(hitDataGroup, "", 1) == 0 ? false : true;
+		}
 
 		// csgo
 		float flRadius;
 		const QAngle* bbangle; // "boundingBoxPitchYawRoll" (crowbar)
 
-		const bool IsCSGO() const { return bbangle ? true : false; }
+		inline const bool IsCSGO() const { return bbangle ? true : false; }
 	};
+
+#ifdef HAS_PHYSICSMODEL_PARSER
+	struct PhysicsData_t
+	{
+		PhysicsData_t(const char* const name, const PhysicsModel::CParsedPhys* const phys) : filename(name), parsed(phys) {}
+
+		enum AnimFricOrder_t
+		{
+			ANIMFRIC_TIMEIN,
+			ANIMFRIC_TIMEOUT,
+			ANIMFRIC_TIMEHOLD,
+			ANIMFRIC_MIN,
+			ANIMFRIC_MAX,
+
+			ANIMFRIC_COUNT,
+		};
+
+		enum JointConType_t
+		{
+			JOINCON_FREE,
+			JOINCON_FIXED,
+			JOINCON_LIMIT,
+
+			JOINTCON_COUNT,
+		};
+
+		const char* filename;
+		const PhysicsModel::CParsedPhys* parsed;
+
+		const JointConType_t TypeFromJointConstraint(const PhysicsModel::RagdollConstraint::Constraint_t* const constraint) const
+		{
+			using namespace PhysicsModel;
+
+			const float min = constraint->min;
+			const float max = constraint->max;
+			const float fric = constraint->friction;
+
+			if (min == -360.0f && max == 360.0f)
+			{
+				return JOINCON_FREE;
+			}
+
+			if (min == 0.0f && max == 0.0f && fric == 0.0f)
+			{
+				return JOINCON_FIXED;
+			}
+
+			return JOINCON_LIMIT;
+		}
+
+		// get the rough amount of required options, with excess
+		const uint32_t EstimateOptionCount() const
+		{
+			// basic allows for all the non jointed options, and jointed options
+			uint32_t numOptions = 24u + (8u * parsed->GetSolidCount());
+
+			const PhysicsModel::EditParam* const editParam = parsed->GetEditParam();
+			if (editParam)
+			{
+				numOptions += editParam->GetJointMergeCount();
+			}
+
+			const PhysicsModel::CollisionRule* const collisionRule = parsed->GetCollisionRule();
+			if (collisionRule)
+			{
+				numOptions += collisionRule->GetCollisionPairCount();
+			}
+
+			return numOptions;
+		}
+	};
+
+	constexpr const char* const s_CollModel_JointConstraintAxis[PhysicsModel::RagdollConstraint::CONAXIS_COUNT]
+	{
+		"x",
+		"y",
+		"z",
+	};
+
+	constexpr const char* const s_CollModel_JointConstraintType[PhysicsModel::RagdollConstraint::CONAXIS_COUNT]
+	{
+		"free",
+		"fixed",
+		"limit",
+	};
+#endif // HAS_PHYSICSMODEL_PARSER
+	
 
 	// custom commands
 	// misc
 	size_t CommandKeyvalues_Write(const Command_t* const command, char* buffer, size_t bufferSize);
+	size_t CommandCollText_Write(const Command_t* const command, char* buffer, size_t bufferSize);
 
 	CommandOption_t* CommandConstDirectLight_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandIllumPosition_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
@@ -1176,6 +1292,7 @@ namespace qc
 	// collision
 	CommandOption_t* CommandContents_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandHBox_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
+	CommandOption_t* CommandCollModel_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 
 
 	static const CommandInfo_t s_CommandList[CommandList_t::QC_COMMANDCOUNT] =
@@ -1247,6 +1364,9 @@ namespace qc
 		// collision
 		CommandInfo_t(QC_CONTENTS,					"$contents",					QCI_COLLISON,	&CommandGeneric_Write,	&CommandContents_ParseBinary,		nullptr),
 		CommandInfo_t(QC_SURFACEPROP,				"$surfaceprop",					QCI_COLLISON,	&CommandGeneric_Write,	&CommandString_ParseBinary,			nullptr),
+		CommandInfo_t(QC_COLLISIONMODEL,			"$collisionmodel",				QCI_COLLISON,	&CommandGeneric_Write,	&CommandCollModel_ParseBinary,		nullptr),
+		CommandInfo_t(QC_COLLISIONJOINTS,			"$collisionjoints",				QCI_COLLISON,	&CommandGeneric_Write,	&CommandCollModel_ParseBinary,		nullptr),
+		CommandInfo_t(QC_COLLISIONTEXT,				"$collisiontext",				QCI_COLLISON,	&CommandCollText_Write,	&CommandString_ParseBinary,			nullptr),
 
 	};
 
@@ -1316,7 +1436,11 @@ namespace qc
 		inline const CommandType_t GetType() const { return info->type; }
 		inline const CommandList_t GetCmd() const { return info->id; }
 
-		inline const bool IsComment() const { return format & QC_FMT_COMMENT ? true : false; }
+		inline const bool ArrayBracket() const { return format & QC_FMT_ARRAY; }
+		inline const bool IsComment() const { return format & QC_FMT_COMMENT; }
+		inline const bool WriteName() const { return format & QC_FMT_WRITENAME; }
+		inline const bool ParentLine() const { return format & QC_FMT_PARENTLINE; }
+		inline const bool NewLine() const { return format & QC_FMT_NEWLINE; }
 	};
 
 	inline void CmdParse(QCFile* const qc, const CommandList_t cmd, const void* const data, const int count = 1, const bool store = false, const bool comment = false)

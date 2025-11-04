@@ -399,6 +399,9 @@
     <ClInclude Include="core\utils\crc32.h">
       <Filter>core\utils</Filter>
     </ClInclude>
+    <ClInclude Include="core\utils\keyvalue_parser.h">
+      <Filter>core\utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -671,6 +674,9 @@
     <ClCompile Include="core\render\dxutils.cpp" />
     <ClCompile Include="game\rtech\assets\animseq_data.cpp">
       <Filter>game\rtech\assets</Filter>
+    </ClCompile>
+    <ClCompile Include="core\utils\keyvalue_parser.cpp">
+      <Filter>core\utils</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

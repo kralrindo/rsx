@@ -1,7 +1,6 @@
 #include <pch.h>
 
 #include <core/mdl/smd.h>
-#include <core/utils/textbuffer.h>
 
 namespace smd
 {

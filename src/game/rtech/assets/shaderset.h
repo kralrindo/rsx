@@ -4,7 +4,7 @@
 #include <game/rtech/assets/shader.h>
 
 #define MAX_SHADERS_PER_ASSET_R2 32
-// not a lot known about these structs
+
 struct ShaderSetAssetHeader_v8_t
 {
 	uint64_t reserved_vftable;
@@ -105,6 +105,28 @@ struct ShaderSetAssetHeader_v13_t
 };
 static_assert(sizeof(ShaderSetAssetHeader_v13_t) == 112);
 
+struct ShaderSetAssetHeader_v14_t
+{
+	uint64_t reserved_vftable;
+
+	char* name;
+
+	uint16_t textureInputCounts[2];
+
+	uint16_t numSamplers;
+
+	uint8_t firstResourceBindPoint;
+	uint8_t numResources;
+
+	uint8_t unk_28[16];
+
+	uint64_t unk_38; // 0x200
+
+	uint64_t vertexShader;
+	uint64_t pixelShader;
+};
+static_assert(sizeof(ShaderSetAssetHeader_v14_t) == 64);
+
 
 class ShaderSetAsset
 {
@@ -117,6 +139,8 @@ public:
 	ShaderSetAsset(ShaderSetAssetHeader_v12_t* const hdr) : name(hdr->name), numVertexShaderTextures(hdr->textureInputCounts[1] - hdr->textureInputCounts[0]), numPixelShaderTextures(hdr->textureInputCounts[0]), numSamplers(hdr->numSamplers), firstResourceBindPoint(hdr->firstResourceBindPoint), numResources(hdr->numResources), vertexShader(hdr->vertexShader), pixelShader(hdr->pixelShader), vertexShaderAsset(nullptr), pixelShaderAsset(nullptr)
 	{ };
 	ShaderSetAsset(ShaderSetAssetHeader_v13_t* const hdr) : name(hdr->name), numVertexShaderTextures(hdr->textureInputCounts[1] - hdr->textureInputCounts[0]), numPixelShaderTextures(hdr->textureInputCounts[0]), numSamplers(hdr->numSamplers), firstResourceBindPoint(hdr->firstResourceBindPoint), numResources(hdr->numResources), vertexShader(hdr->vertexShader), pixelShader(hdr->pixelShader), vertexShaderAsset(nullptr), pixelShaderAsset(nullptr)
+	{ };
+	ShaderSetAsset(ShaderSetAssetHeader_v14_t* const hdr) : name(hdr->name), numVertexShaderTextures(hdr->textureInputCounts[1] - hdr->textureInputCounts[0]), numPixelShaderTextures(hdr->textureInputCounts[0]), numSamplers(hdr->numSamplers), firstResourceBindPoint(hdr->firstResourceBindPoint), numResources(hdr->numResources), vertexShader(hdr->vertexShader), pixelShader(hdr->pixelShader), vertexShaderAsset(nullptr), pixelShaderAsset(nullptr)
 	{ };
 
 	char* name;

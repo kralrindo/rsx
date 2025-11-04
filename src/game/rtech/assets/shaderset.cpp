@@ -45,9 +45,15 @@ void LoadShaderSetAsset(CAssetContainer* const pak, CAsset* const asset)
 			break;
 		}
 
-		assertm(pakAsset->data()->headerStructSize == sizeof(ShaderSetAssetHeader_v13_t), "incorrect header");
-
 		ShaderSetAssetHeader_v13_t* hdr = reinterpret_cast<ShaderSetAssetHeader_v13_t*>(pakAsset->header());
+		shdsAsset = new ShaderSetAsset(hdr);
+		break;
+	}
+	case 14: 
+	{
+		assertm(pakAsset->data()->headerStructSize == sizeof(ShaderSetAssetHeader_v14_t), "incorrect header");
+
+		ShaderSetAssetHeader_v14_t* hdr = reinterpret_cast<ShaderSetAssetHeader_v14_t*>(pakAsset->header());
 		shdsAsset = new ShaderSetAsset(hdr);
 		break;
 	}
@@ -85,6 +91,7 @@ void PostLoadShaderSetAsset(CAssetContainer* const pak, CAsset* const asset)
 	case 11:
 	case 12:
 	case 13:
+	case 14:
 		break;
 	default:
 		return;

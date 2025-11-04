@@ -91,7 +91,12 @@ struct ShaderAssetCPU_t
 {
     char* data;
     int dataSize;
-    int unk_C; // varies between shaders?
+
+    //int unk_C; // varies between shaders?
+
+    // vertex shaders have a dxbc with the vertex layout
+    //int vertexLayoutSize;
+    //char* vertexLayoutBlob;
 };
 
 struct ShaderBufEntry_t
@@ -184,6 +189,7 @@ public:
     };
     ShaderAsset(ShaderAssetHeader_v15_t* const hdr, ShaderAssetCPU_t* const cpu) : name(hdr->name), type(hdr->type), inputFlags(hdr->shaderInputFlags), shaderFeatures{}, data(cpu->data), dataSize(cpu->dataSize), numShaders(-1)
     {
+        // [rika]: definitely different on v16
         int shaderCount = hdr->unk_9[0];
         if (shaderCount == -1)
         {

@@ -42,6 +42,7 @@ void LoadShaderAsset(CAssetContainer* pak, CAsset* asset)
 		break;
 	}
 	case 15:
+	case 16:
 	{
 		// [rika]: switch headerStructSize == 48, switch shaders in general are very odd
 		assertm(pakAsset->data()->headerStructSize == sizeof(ShaderAssetHeader_v15_t), "incorrect header");

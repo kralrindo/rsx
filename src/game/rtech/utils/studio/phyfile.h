@@ -9,6 +9,13 @@
 
 namespace ivps
 {
+	struct compactpoint_t
+	{
+		Vector pos;
+
+		int pad;
+	};
+
 	// taken from volt physics
 	struct compactedge_t
 	{
@@ -45,12 +52,13 @@ namespace ivps
 		short for_future_use;
 
 		inline compacttriangle_t* const pTri(short i) const { assert(i >= 0 && i < n_triangles); return reinterpret_cast<compacttriangle_t*>((char*)this + sizeof(compactledge_t)) + i; }
-		inline const Vector* pPoint(int i) const { return reinterpret_cast<const Vector*>((char*)this + c_point_offset + (static_cast<size_t>(16) * static_cast<size_t>(i))); } // aligned
-		inline Vector GetPoint(int i) const { return *pPoint(i); }
+		inline const compactpoint_t* const pPoint(int i) const { return reinterpret_cast<compactpoint_t*>((char*)this + c_point_offset + (sizeof(compactpoint_t) * static_cast<size_t>(i))); } // aligned
+		inline const compactpoint_t& GetPoint(int i) const { return *pPoint(i); }
 
 		inline const compactledgenode_t* const pParentNode() const { return has_chilren_flag ? reinterpret_cast<compactledgenode_t*>((char*)this + ledgetree_node_offset) : nullptr; } // this should return parent node
 
-		inline const int ClientData() const { return -1; } // recursively check children for this?
+		inline const bool HasChildren() const { return has_chilren_flag ? true : false; }
+		inline const int ClientData() const { return HasChildren() ? -1 : client_data; } // recursively check children for this?
 	};
 
 	struct compactledgenode_t
@@ -62,12 +70,15 @@ namespace ivps
 		unsigned char box_sizes[IVPS_MAX_DIRECTIONS];
 		unsigned char free_0;
 
-		inline compactledge_t* const pLedge() const { return offset_compact_ledge ? reinterpret_cast<compactledge_t*>((char*)this + offset_compact_ledge) : nullptr; }
+		inline compactledge_t* const pLEdge() const { return offset_compact_ledge ? reinterpret_cast<compactledge_t*>((char*)this + offset_compact_ledge) : nullptr; }
 
 		inline const compactledgenode_t* const pLeftNode() const { return offset_right_node ? this + 1 : nullptr; }
 		inline const compactledgenode_t* const pRightNode() const { return offset_right_node ? (compactledgenode_t*)((char*)this + offset_right_node) : nullptr; }
 
-		inline const bool HasChildren() const { return pLedge()->has_chilren_flag ? true : false; }
+		inline const bool HasChildren() const
+		{
+			return offset_right_node ? true : false;
+		}
 
 	};
 	// end from volt physics
@@ -84,7 +95,7 @@ namespace ivps
 		int		dummy[3]; // 16byte memory align
 
 		// the the first 'ledge'
-		compactledge_t* const pFirstLedge() const { return reinterpret_cast<compactledge_t*>((char*)this + sizeof(legacysurfaceheader_t)); }
+		compactledge_t* const pFirstLEdge() const { return reinterpret_cast<compactledge_t*>((char*)this + sizeof(legacysurfaceheader_t)); }
 		compactledgenode_t* const pRootNode() const { return reinterpret_cast<compactledgenode_t*>((char*)this + offset_ledgetree_root); }
 		compactledgenode_t* const pNode(int i) const { return pRootNode() + i; }
 
@@ -122,7 +133,17 @@ namespace ivps
 		int		solidCount; // number of surface headers
 		int		checkSum;	// checksum of source .mdl file
 
-		compactsurfaceheader_t* const pFirstSurface() const { return reinterpret_cast<compactsurfaceheader_t*>((char*)this + size); }
+		inline const compactsurfaceheader_t* const pFirstSurface() const { return reinterpret_cast<compactsurfaceheader_t*>((char*)this + size); }
+		inline const char* const pszProperties() const
+		{
+			const compactsurfaceheader_t* pSurface = pFirstSurface();
+			for (int i = 0; i < solidCount; i++)
+			{
+				pSurface = pSurface->pNextSurface();
+			}
+
+			return reinterpret_cast<const char* const>(pSurface);
+		}
 	};
 }
 
@@ -196,7 +217,7 @@ namespace irps
 		__int64 solidSize;		// size of all surfaces
 	};
 
-	struct phyheader_v8_t
+	struct phyheader_t
 	{
 		int size;		// size of this data structure
 		int id;			// 0 for valve, 1 for apex's new type

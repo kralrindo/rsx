@@ -36,13 +36,19 @@ namespace qc
 		// sort commands
 		// grouped by command in groups of the same type
 		const size_t numCommands = NumCommands();
+		
+		// make sure we don't allocate more memory after being sorted for include commands
+		if (useIncludeFiles)
+		{
+			commands.reserve(numCommands + CommandType_t::QCI_COUNT);
+		}
 
 		const Command_t** const sorted = reinterpret_cast<const Command_t** const>(buffer.Writer());
 		const size_t sortedSize = sizeof(intptr_t) * (numCommands + (CommandType_t::QCI_COUNT * useIncludeFiles));
 		buffer.AdvanceWriter(sortedSize);
 
 		const Command_t** temp = reinterpret_cast<const Command_t** const>(buffer.Writer());
-		 assertm(buffer.Capacity() >= (sizeof(intptr_t) * numCommands * 2), "out of space!");
+		assertm(buffer.Capacity() >= (sizeof(intptr_t) * numCommands * 2), "out of space!");
 
 		size_t numSortedTotal = 0ull;
 		for (uint16_t i = 0; i < CommandType_t::QCI_COUNT; i++)
@@ -176,12 +182,15 @@ namespace qc
 	//
 
 	// parse option formatting and call write function for option data
-	void CommandOption_Write(const CommandOption_t* option, CTextBuffer* const text, const char* const whitespace, const CommentStyle_t commentStyle)
+	void CommandOption_Write(const CommandOption_t* option, CTextBuffer* const text, const bool writeSpace, const CommentStyle_t commentStyle)
 	{
 		assertm((option->data.ParentLine() && option->data.NewLine()) == false, "'QC_FMT_PARENTLINE' and 'QC_FMT_NEWLINE' are not meant to be used together");
 
 		// add a whitespace
-		text->WriteString(whitespace);
+		if (writeSpace)
+		{
+			text->WriteCharacter(' ');
+		}
 
 		// file comments
 		if (option->data.IsComment() && commentStyle == QC_COMMENT_ONELINE)
@@ -276,7 +285,7 @@ namespace qc
 				continue;
 			}
 
-			CommandOption_Write(option, &text, " ", formatComment ? QC_COMMENT_NONE : QC_COMMENT_MULTILINE);
+			CommandOption_Write(option, &text, true, formatComment ? QC_COMMENT_NONE : QC_COMMENT_MULTILINE);
 		}
 
 		// add a new line
@@ -297,6 +306,7 @@ namespace qc
 		// add a bracket entry
 		TEXTBUFFER_WRITE_STRING_CT(text, "{\n");
 
+		text.IncreaseIndenation();
 		for (uint32_t i = 0; i < numOptions; i++)
 		{
 			const CommandOption_t* const option = options + i;
@@ -309,17 +319,19 @@ namespace qc
 				continue;
 
 			// here we're checking if the previous command was written on the same line, don't use an indent if that's the case
-			const char* whitespace = "\t";
+			bool writeSpace = true;
 			const CommandOption_t* const prevOption = CommandGeneric_LastWritten(options, i);
 
-			// the previous command was written, on the same line (not the parent line), and did not create a new line
-			if (prevOption && !prevOption->data.ParentLine() && !prevOption->data.NewLine())
+			// the previous command was the last on its line or there was no previous command
+			if (prevOption == nullptr || prevOption->data.NewLine() || prevOption->data.ParentLine())
 			{
-				whitespace = " ";
+				text.WriteIndentation();
+				writeSpace = false;
 			}
 
-			CommandOption_Write(option, &text, whitespace, formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
+			CommandOption_Write(option, &text, writeSpace, formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
 		}
+		text.DecreaseIndenation();
 
 		// add a bracket exit
 		TEXTBUFFER_WRITE_STRING_CT(text, "}\n");
@@ -542,29 +554,25 @@ namespace qc
 				continue;
 			}
 
-			CommandOption_Write(option, text, " ", formatComment ? QC_COMMENT_NONE : QC_COMMENT_MULTILINE);
+			CommandOption_Write(option, text, true, formatComment ? QC_COMMENT_NONE : QC_COMMENT_MULTILINE);
 		}
-
-		text->WriteCharacter('\n');
 
 		if (numInBracket == 0u)
 		{
+			// new line for option/command if desired
+			if (array->NewLine())
+			{
+				text->WriteCharacter('\n');
+			}
+
 			return;
 		}
 
-		constexpr uint16_t bufferSize = s_QCMaxIndentation * 2;
-		char indentation[bufferSize]{};
-		assertm(s_QCMaxIndentation >= array->numIntendation, "array was nested to deeply");
-		if (array->numIntendation >= s_QCMaxIndentation)
-			return;
-
-		for (uint16_t i = 0; i < array->numIntendation; i++)
-		{
-			indentation[i] = '\t';
-		}
+		//  new line for array
+		text->WriteCharacter('\n');
 
 		// add a bracket entry
-		text->WriteString(indentation);
+		text->WriteIndentation();
 
 		// comment out this comand?
 		if (formatComment)
@@ -574,7 +582,7 @@ namespace qc
 
 		PTEXTBUFFER_WRITE_STRING_CT(text, "{\n");
 
-		indentation[array->numIntendation] = '\t'; // indent once more!
+		text->IncreaseIndenation(); // indent once more!
 		for (uint32_t i = 0u, idx = 0u; idx < numInBracket; i++)
 		{
 			if (i >= array->numOptions)
@@ -590,36 +598,37 @@ namespace qc
 				continue;
 
 			// here we're checking if the previous command was written on the same line, don't use an indent if that's the case
+			bool writeSpace = true;
 			const CommandOption_t* const prevOption = CommandGeneric_LastWritten(array->options, i);
 
-			// the previous command was written, on the same line (not the parent line), and did not create a new line
-			if (prevOption && !prevOption->data.ParentLine() && !prevOption->data.NewLine())
+			// the previous command was the last on its line or there was no previous command
+			if (prevOption == nullptr || prevOption->data.NewLine() || prevOption->data.ParentLine())
 			{
-				indentation[array->numIntendation] = ' '; // use a space
-				CommandOption_Write(option, text, indentation, formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
-				indentation[array->numIntendation] = '\t'; // replace with a tab again
-
-				idx++;
-				continue;
+				text->WriteIndentation();
+				writeSpace = false;
 			}
 
-			CommandOption_Write(option, text, indentation, formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
+			CommandOption_Write(option, text, writeSpace, formatComment ? QC_COMMENT_NONE : QC_COMMENT_ONELINE);
 
 			idx++;
 		}
-		indentation[array->numIntendation] = '\0'; // we're outside, remove it
+		text->DecreaseIndenation(); // we're outside, remove it
 
 		// add a bracket exit
-		text->WriteString(indentation);
-		PTEXTBUFFER_WRITE_STRING_CT(text, "}\n");
+		text->WriteIndentation();
+		text->WriteCharacter('}');
 
 		// comment out this comand?
 		if (formatComment)
 		{
-			text->WriteString(indentation);
 			PTEXTBUFFER_WRITE_STRING_CT(text, "*/");
 		}
 
+		// new line for option/command if desired
+		if (array->NewLine())
+		{
+			text->WriteCharacter('\n');
+		}
 	}
 
 	constexpr CommandOptionDesc_t s_CommandGeneric_Option_None(QC_OPT_NONE, "value");
@@ -810,12 +819,21 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandGeneric_Option_Pos(QC_OPT_FLOAT, "pos");
 	constexpr CommandOptionDesc_t s_CommandGeneric_Option_Rot(QC_OPT_FLOAT, "rot");
 	constexpr CommandOptionDesc_t s_CommandGeneric_Option_Bone(QC_OPT_STRING, "bone");
+	constexpr CommandOptionDesc_t s_CommandGeneric_Option_BlankLine(QC_OPT_NONE, "blank", QC_FMT_NEWLINE); // just write a new line
 
 	// materials
 	constexpr CommandOptionDesc_t s_CommandTextureGroup_Option_Name(QC_OPT_STRING, "skin_name", QC_FMT_NONE, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
 	constexpr CommandOptionDesc_t s_CommandTextureGroup_Option_Skin(QC_OPT_STRING, "skin", (QC_FMT_ARRAY | QC_FMT_NEWLINE));
 
 	// models
+	constexpr CommandOptionDesc_t s_CommandBodyGroup_Option_Studio(QC_OPT_STRING, "studio", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandBodyGroup_Option_Blank(QC_OPT_NONE, "blank", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_Threshold(QC_OPT_FLOAT, "threshold");
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceModel(QC_OPT_PAIR, "replacemodel", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_RemoveModel(QC_OPT_STRING, "removemodel", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceBone(QC_OPT_PAIR, "replacebone", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_ShadowLODMaterials(QC_OPT_NONE, "use_shadowlod_materials", s_CommandOptionFormatNameNewLine);
 
 	// bones
 	constexpr CommandOptionDesc_t s_CommandDefineBone_Option_Parent(QC_OPT_STRING, "parent");
@@ -876,16 +894,6 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingFrequency(QC_OPT_FLOAT, "frequency", s_CommandOptionFormatNameNewLine, s_QCVersion_TF2, s_QCVersion_TF2);
 	constexpr CommandOptionDesc_t s_CommandJiggleBone_Option_BoingAmplitude(QC_OPT_FLOAT, "amplitude", s_CommandOptionFormatNameNewLine, s_QCVersion_TF2, s_QCVersion_TF2);
 
-	// models
-	constexpr CommandOptionDesc_t s_CommandBodyGroup_Option_Studio(QC_OPT_STRING, "studio", s_CommandOptionFormatNameNewLine);
-	constexpr CommandOptionDesc_t s_CommandBodyGroup_Option_Blank(QC_OPT_NONE, "blank", s_CommandOptionFormatNameNewLine);
-
-	constexpr CommandOptionDesc_t s_CommandLOD_Option_Threshold(QC_OPT_FLOAT, "threshold");
-	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceModel(QC_OPT_PAIR, "replacemodel", s_CommandOptionFormatNameNewLine);
-	constexpr CommandOptionDesc_t s_CommandLOD_Option_RemoveModel(QC_OPT_STRING, "removemodel", s_CommandOptionFormatNameNewLine);
-	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceBone(QC_OPT_PAIR, "replacebone", s_CommandOptionFormatNameNewLine);
-	constexpr CommandOptionDesc_t s_CommandLOD_Option_ShadowLODMaterials(QC_OPT_NONE, "use_shadowlod_materials", s_CommandOptionFormatNameNewLine);
-
 	// animation
 	constexpr CommandOptionDesc_t s_CommandPoseParam_Option_Start(QC_OPT_FLOAT, "start");
 	constexpr CommandOptionDesc_t s_CommandPoseParam_Option_End(QC_OPT_FLOAT, "end");
@@ -906,6 +914,7 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandHBox_Option_Max(QC_OPT_FLOAT, "max");
 	constexpr CommandOptionDesc_t s_CommandHBox_Option_Angle(QC_OPT_FLOAT, "angle", s_CommandOptionFormatDefault, s_QCVersion_CSGO, s_QCVersion_CSGO);
 	constexpr CommandOptionDesc_t s_CommandHBox_Option_Radius(QC_OPT_FLOAT, "radius", s_CommandOptionFormatDefault, s_QCVersion_CSGO, s_QCVersion_CSGO);
+	constexpr CommandOptionDesc_t s_CommandHBox_Option_HitData(QC_OPT_STRING, "hitdata_group", s_CommandOptionFormatNameParentLine, s_QCVersion_R2, s_QCVersion_R5_RETAIL);
 	constexpr CommandOptionDesc_t s_CommandHBox_Option_Crit(QC_OPT_NONE, "force_crit", s_CommandOptionFormatNameParentLine, s_QCVersion_R2, s_QCVersion_R5_150);
 
 	//
@@ -987,129 +996,6 @@ namespace qc
 		return options;
 	}
 
-	// for formating keyvalues strings properly
-	const size_t CommandKeyvalues_ParseArray(CTextBuffer* const text, const char* const keyvalues, const size_t keyvalueSize, char* const indentation, uint16_t numIndentation)
-	{
-		assertm(numIndentation < s_QCMaxIndentation, "nested too deeply");
-		assertm(keyvalues[0] == '{', "invalid start");
-
-		size_t i = 0ull;
-
-		// seek past any whitespace
-		for (; i < keyvalueSize;)
-		{
-			switch (keyvalues[i])
-			{
-			case '\t':
-			case '\n':
-			case ' ':
-			case '{':
-			{
-				i++;
-				continue;
-			}
-			}
-
-			break;
-		}
-
-		// entry bracket
-		text->WriteFormatted("\n%s{\n", indentation);
-		indentation[numIndentation] = '\t';
-		numIndentation++;
-
-		bool inStart = true;
-		bool inWhitespace = false;
-		bool inQuote = false;
-		bool inKey = true;
-		bool inValue = false;
-
-		// parse each character, one by one. lovely
-		for (; i < keyvalueSize;)
-		{
-			if (keyvalues[i] == '}')
-				break;
-
-			assertm(inKey != inValue, "in key and value at the same time?");
-
-			char character = keyvalues[i];
-
-			switch (character)
-			{
-			case '\"':
-			{
-				inQuote = !inQuote;
-				break;
-			}
-			case '\t':
-			case '\n':
-			case ' ':
-			{
-				if (inQuote)
-				{
-					break;
-				}
-
-				inWhitespace = true;
-				i++;
-				continue;
-			}
-			case '{':
-			{
-				if (inQuote)
-				{
-					break;
-				}
-
-				assertm(inKey && !inValue, "value was key ?");
-
-				i += CommandKeyvalues_ParseArray(text, keyvalues + i, keyvalueSize - i, indentation, numIndentation);
-
-				inStart = true;
-				inWhitespace = false;
-				inKey = false;
-				inValue = true;
-
-				continue;
-			}
-			}
-
-			if (inWhitespace)
-			{
-				if (inKey)
-				{
-					text->WriteCharacter(' ');
-				}
-
-				if (inValue)
-				{
-					text->WriteCharacter('\n');
-					inStart = true;
-				}
-
-				inWhitespace = false;
-				inKey = !inKey;
-				inValue = !inValue;
-			}
-
-			if (inStart)
-			{
-				text->WriteString(indentation);
-				inStart = false;
-			}
-
-			text->WriteCharacter(character);
-			i++;
-		}
-
-		// exit bracket
-		numIndentation--;
-		indentation[numIndentation] = '\0';
-		text->WriteFormatted("\n%s}", indentation);
-
-		return i + 1;
-	}
-
 	// write function for qc because the string requires some post processing
 	size_t CommandKeyvalues_Write(const Command_t* const command, char* buffer, size_t bufferSize)
 	{
@@ -1135,40 +1021,67 @@ namespace qc
 		text.WriteString(info->name);
 
 		const char* keyvalues = reinterpret_cast<const char*>(options[0].data.value.ptr);
-		size_t keyvalueSize = strnlen_s(keyvalues, bufferSize);
 
-		// skip 'mdlkeyvalue' and any trailing whitespace
-		for (size_t i = 0; i < keyvalueSize; i++)
+#ifdef _DEBUG
+		constexpr const char* const basekey = "mdlkeyvalue";
+
+		const char* const result = strstr(keyvalues, basekey);
+		assertm(result == keyvalues, "keyvalues did not start with 'mdlkeyvalue'");
+#endif // _DEBUG
+
+		kv_parser::Token_t rootToken(&keyvalues, kv_parser::TOKEN_KEY);
+		rootToken.ReplaceToken(nullptr, kv_parser::TOKEN_NONE); // discard mdlkeyvalue
+
+		rootToken.Serialize(&text);
+
+		// comment out this comand?
+		if (formatComment)
 		{
-			const char character = keyvalues[i];
-
-			if (character == '\0')
-			{
-				assertm(false, "contained no entry bracket");
-
-				// comment out this comand?
-				if (formatComment)
-				{
-					TEXTBUFFER_WRITE_STRING_CT(text, "*/");
-				}
-
-				text.WriterToText();
-				return text.Capacity();
-			}
-
-			if (character != '{')
-				continue;
-
-			keyvalues += i;
-			keyvalueSize -= i;
-			break;
+			TEXTBUFFER_WRITE_STRING_CT(text, "*/");
 		}
 
-		uint16_t numIndentation = 0u;
-		constexpr uint16_t indentBufferSize = s_QCMaxIndentation * 2;
-		char indentation[indentBufferSize]{};
+		// add a new line
+		text.WriteCharacter('\n');
 
-		CommandKeyvalues_ParseArray(&text, keyvalues, keyvalueSize, indentation, numIndentation);
+		text.WriterToText();
+		return text.Capacity();
+	}
+
+	size_t CommandCollText_Write(const Command_t* const command, char* buffer, size_t bufferSize)
+	{
+		const CommandInfo_t* const info = command->info;
+		const CommandOption_t* const options = command->options;
+		const uint32_t numOptions = command->numOptions;
+
+		assertm(info->id == CommandList_t::QC_COLLISIONTEXT, "command was not $collisiontext");
+		assertm(numOptions == 1u, "$collisiontext can only have one option");
+		assertm(options[0].desc->type == CommandOptionType_t::QC_OPT_STRING, "option was not the correct type");
+
+		const bool formatComment = command->IsComment(); // are we using comment formatting on this command?
+
+		CTextBuffer text(buffer, bufferSize);
+		text.SetTextStart();
+
+		// comment out this comand?
+		if (formatComment)
+		{
+			TEXTBUFFER_WRITE_STRING_CT(text, "/*");
+		}
+
+		text.WriteString(info->name);
+		TEXTBUFFER_WRITE_STRING_CT(text, "\n{\n");
+
+		const char* properties = reinterpret_cast<const char* const>(options[0].data.value.ptr);
+
+		text.IncreaseIndenation();
+		while (properties[0])
+		{
+			kv_parser::Token_t token(&properties, kv_parser::TOKEN_KEY);
+			token.Serialize(&text);
+		}
+		text.DecreaseIndenation();
+
+		text.WriteCharacter('}');
 
 		// comment out this comand?
 		if (formatComment)
@@ -1452,7 +1365,7 @@ namespace qc
 			uint32_t flexibleOptionIndex = 0u;
 
 			const uint32_t numFlexibleOptions = jiggleData->CommonJiggleOptionCount() + jiggleData->FlexibleOptionCount();
-			CommandOptionArray_t is_flexible(file, numFlexibleOptions, 1u);
+			CommandOptionArray_t is_flexible(file, numFlexibleOptions);
 
 			// stiffness defaults to 100.0f
 			if (jiggleData->yawStiffness != 100.0f)
@@ -1529,7 +1442,7 @@ namespace qc
 		{
 			uint32_t rigidOptionIndex = 0u;
 
-			CommandOptionArray_t is_rigid(file, jiggleData->CommonJiggleOptionCount(), 1u);
+			CommandOptionArray_t is_rigid(file, jiggleData->CommonJiggleOptionCount());
 			rigidOptionIndex = CommandJiggleBone_ParseCommonOptions(jiggleData, &is_rigid, rigidOptionIndex);
 
 			// truncate because we allow for the max number of jiggle parameters it could have, options are stored in the QCFile's buffer so this is okay
@@ -1546,7 +1459,7 @@ namespace qc
 		{			
 			uint32_t springOptionIndex = 0u;
 
-			CommandOptionArray_t has_spring_base(file, jiggleData->BaseSpringOptionCount(), 1u);
+			CommandOptionArray_t has_spring_base(file, jiggleData->BaseSpringOptionCount());
 
 			// stiffness defaults to 100.0f
 			if (jiggleData->baseStiffness != 100.0f)
@@ -1649,7 +1562,7 @@ namespace qc
 
 			uint32_t boingOptionIndex = 0u;
 
-			CommandOptionArray_t is_boing(file, jiggleData->BaseSpringOptionCount(), 1u);
+			CommandOptionArray_t is_boing(file, jiggleData->BaseSpringOptionCount());
 
 			// impact_speed defaults to 100.0f
 			if (jiggleData->boingImpactSpeed != 100.0f)
@@ -2094,7 +2007,8 @@ namespace qc
 		assertm(hitboxGroupData->forceCritPoint < 2, "invalid forceCritPoint value");
 		const bool isCSGO = hitboxGroupData->IsCSGO();
 		const bool hasName = hitboxGroupData->HasName();
-		const uint32_t usedOptions = 4 + (isCSGO ? 2 : 0) + hasName + hitboxGroupData->forceCritPoint;
+		const bool hasHitDatGroup = hitboxGroupData->HasHitDataGroup();
+		const uint32_t usedOptions = 4 + (isCSGO ? 2 : 0) + hasName + hasHitDatGroup + hitboxGroupData->forceCritPoint;
 		CommandOption_t* options = new CommandOption_t[usedOptions];
 
 		uint32_t optionsIndex = 0;
@@ -2116,6 +2030,7 @@ namespace qc
 			optionsIndex += 4;
 		}
 
+		// box supports capsules
 		if (isCSGO && (optionsIndex + 2) <= usedOptions)
 		{
 			QAngle ang(hitboxGroupData->bbangle->z, hitboxGroupData->bbangle->x, hitboxGroupData->bbangle->y);
@@ -2128,6 +2043,7 @@ namespace qc
 			optionsIndex += 2;
 		}
 
+		// box has name
 		if (hasName && (optionsIndex + 1) <= usedOptions)
 		{
 			options[optionsIndex].Init(&s_CommandGeneric_Option_Name);
@@ -2136,6 +2052,16 @@ namespace qc
 			optionsIndex += 1;
 		}
 
+		// box has hitgroup
+		if (hasHitDatGroup && (optionsIndex + 1) <= usedOptions)
+		{
+			options[optionsIndex].Init(&s_CommandHBox_Option_HitData);
+			options[optionsIndex].SetPtr(hitboxGroupData->hitDataGroup);
+
+			optionsIndex += 1;
+		}
+
+		// force box as crit
 		if (hitboxGroupData->forceCritPoint && (optionsIndex + 1) <= usedOptions)
 		{
 			options[optionsIndex].Init(&s_CommandHBox_Option_Crit);
@@ -2146,6 +2072,303 @@ namespace qc
 		*numOptions = usedOptions;
 
 		return options;
+	}
+
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_Mass(QC_OPT_FLOAT, "$mass", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_Concave(QC_OPT_NONE, "$concave", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_ConcavePerJoint(QC_OPT_NONE, "$concaveperjoint", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_MaxConvexPieces(QC_OPT_INT, "$maxconvexpieces", s_CommandOptionFormatNameNewLine, s_QCVersion_OB, s_QCVersion_MAX);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_Inertia(QC_OPT_FLOAT, "$inertia", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_Damping(QC_OPT_FLOAT, "$damping", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_RotDamping(QC_OPT_FLOAT, "$rotdamping", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_Drag(QC_OPT_FLOAT, "$drag", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_RollingDrag(QC_OPT_FLOAT, "$rollingDrag", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointMerge(QC_OPT_PAIR, "$jointmerge", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointInertia(QC_OPT_PAIR, "$jointinertia", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointDamping(QC_OPT_PAIR, "$jointdamping", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointRotDamping(QC_OPT_PAIR, "$jointrotdamping", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointMassBias(QC_OPT_PAIR, "$jointmassbias", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointCollide(QC_OPT_PAIR, "$jointcollide", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraint(QC_OPT_ARRAY, "$jointconstrain", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraintAxis(QC_OPT_STRING, "jointconstrain_axis");
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraintAllowOption(QC_OPT_STRING, "jointconstrain_allow_option");
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraintMinAngle(QC_OPT_FLOAT, "jointconstrain_minangle");
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraintMaxAngle(QC_OPT_FLOAT, "jointconstrain_maxangle");
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraintFriction(QC_OPT_FLOAT, "jointconstrain_friction");
+
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_RootBone(QC_OPT_STRING, "$rootbone", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_NoSelfCollisions(QC_OPT_FLOAT, "$noselfcollisions", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandCollModel_Option_AnimatedFriction(QC_OPT_FLOAT, "$animatedfriction", s_CommandOptionFormatNameNewLine);
+
+	CommandOption_t* CommandCollModel_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store)
+	{
+		UNUSED(count);
+		UNUSED(store);
+
+#ifdef HAS_PHYSICSMODEL_PARSER
+		using namespace PhysicsModel;
+
+		const PhysicsData_t* const physData = reinterpret_cast<const PhysicsData_t* const>(data);
+		const CParsedPhys* const parsedPhys = physData->parsed;
+
+		const uint32_t usedOptions = physData->EstimateOptionCount();
+		CommandOption_t* options = new CommandOption_t[usedOptions];
+		uint32_t optionsIndex = 0u;
+
+		// filepath to the mesh data
+		options[optionsIndex].Init(&s_CommandGeneric_Option_Name);
+		options[optionsIndex].SaveStr(file, physData->filename);
+		optionsIndex++;
+
+		// edit params data
+		const EditParam* const editParam = parsedPhys->GetEditParam();
+		if (editParam)
+		{
+			const float totalMass = editParam->GetTotalMass();
+			options[optionsIndex].Init(&s_CommandCollModel_Option_Mass);
+			options[optionsIndex].SetRaw(&totalMass, 1, sizeof(float));
+			optionsIndex++;
+
+			if (editParam->IsConcave())
+			{
+				options[optionsIndex].Init(&s_CommandCollModel_Option_Concave);
+				optionsIndex++;
+			}
+
+			const char* const rootName = editParam->GetRootName();
+			if (rootName && rootName[0])
+			{
+				options[optionsIndex].Init(&s_CommandCollModel_Option_RootBone);
+				options[optionsIndex].SetPtr(rootName);
+				optionsIndex++;
+			}
+		}
+
+		if (parsedPhys->ConcavePerJoint())
+		{
+			options[optionsIndex].Init(&s_CommandCollModel_Option_ConcavePerJoint);
+			optionsIndex++;
+		}
+
+		int maxConvexPieces = parsedPhys->MaxConvexPieces();
+		if (maxConvexPieces >= defaultAllowedConvexPieces)
+		{
+			options[optionsIndex].Init(&s_CommandCollModel_Option_MaxConvexPieces);
+			options[optionsIndex].SetRaw(&maxConvexPieces, 1, sizeof(int));
+			optionsIndex++;
+		}
+
+		// default commands
+		if (true)
+		{
+			const ParamFlags_t defaultFlags = parsedPhys->GetFlags();
+
+			const Solid* const solid = parsedPhys->GetSolid(0);
+			const ParamFlags_t solidFlags = solid->GetFlags();
+
+			if (defaultFlags & PHYSPARAM_FLAG_HAS_INERTIA)
+			{
+				const float inertia = parsedPhys->GetInertia();
+				options[optionsIndex].Init(&s_CommandCollModel_Option_Inertia);
+				options[optionsIndex].SetRaw(&inertia, 1, sizeof(float));
+				optionsIndex++;
+			}
+
+			if (defaultFlags & PHYSPARAM_FLAG_HAS_DAMPING)
+			{
+				const float damping = parsedPhys->GetDamping();
+				options[optionsIndex].Init(&s_CommandCollModel_Option_Damping);
+				options[optionsIndex].SetRaw(&damping, 1, sizeof(float));
+				optionsIndex++;
+			}
+
+			if (defaultFlags & PHYSPARAM_FLAG_HAS_ROTDAMPING)
+			{
+				const float rotdamping = parsedPhys->GetRotDamping();
+				options[optionsIndex].Init(&s_CommandCollModel_Option_RotDamping);
+				options[optionsIndex].SetRaw(&rotdamping, 1, sizeof(float));
+				optionsIndex++;
+			}
+
+			if (solidFlags & PHYSPARAM_FLAG_HAS_DRAG)
+			{
+				const float drag = solid->GetDrag();
+				options[optionsIndex].Init(&s_CommandCollModel_Option_Drag);
+				options[optionsIndex].SetRaw(&drag, 1, sizeof(float));
+				optionsIndex++;
+			}
+
+			if (solidFlags & PHYSPARAM_FLAG_HAS_ROLLINGDRAG)
+			{
+				const float rollingDrag = solid->GetRollingDrag();
+				options[optionsIndex].Init(&s_CommandCollModel_Option_RollingDrag);
+				options[optionsIndex].SetRaw(&rollingDrag, 1, sizeof(float));
+				optionsIndex++;
+			}
+		}
+
+		// joint merge commands
+		if (editParam && editParam->GetJointMergeCount())
+		{
+			options[optionsIndex].Init(&s_CommandGeneric_Option_BlankLine);
+			optionsIndex++;
+
+			for (int i = 0; i < editParam->GetJointMergeCount(); i++)
+			{
+				const EditParam::JointMerge_t* const jointMerge = editParam->GetJointMerge(i);
+
+				const CommandOptionPair_t jointMergePair(jointMerge->origin, jointMerge->destination);
+				options[optionsIndex].Init(&s_CommandCollModel_Option_JointMerge);
+				options[optionsIndex].SavePtr(file, &jointMergePair, 1, sizeof(CommandOptionPair_t));
+				optionsIndex++;
+			}
+
+		}
+
+		// per joint commands
+		for (uint32_t i = 0u; i < parsedPhys->GetSolidCount(); i++)
+		{
+			const Solid* const solid = parsedPhys->GetSolid(i);
+			const ParamFlags_t solidFlags = solid->GetFlags();
+
+			constexpr ParamFlags_t desiredFlags = (PHYSPARAM_FLAG_HAS_INERTIA | PHYSPARAM_FLAG_HAS_DAMPING | PHYSPARAM_FLAG_HAS_ROTDAMPING | PHYSPARAM_FLAG_HAS_MASSBIAS | PHYSOLID_FLAG_HAS_RAGDOLLCONSTRAINT);
+
+			if ((solidFlags & desiredFlags) == false)
+			{
+				continue;
+			}
+
+			assertm(parsedPhys->GetSolidCount() > 1, "single solid physics models should have no per joint data");
+
+			options[optionsIndex].Init(&s_CommandGeneric_Option_BlankLine);
+			optionsIndex++;
+
+			if (solidFlags & PHYSPARAM_FLAG_HAS_INERTIA)
+			{
+				const CommandOptionPair_t dataPair(solid->GetName(), solid->GetInertia());
+				options[optionsIndex].Init(&s_CommandCollModel_Option_JointInertia);
+				options[optionsIndex].SavePtr(file, &dataPair, 1, sizeof(CommandOptionPair_t));
+				optionsIndex++;
+			}
+
+			if (solidFlags & PHYSPARAM_FLAG_HAS_DAMPING)
+			{
+				const CommandOptionPair_t dataPair(solid->GetName(), solid->GetDamping());
+				options[optionsIndex].Init(&s_CommandCollModel_Option_JointDamping);
+				options[optionsIndex].SavePtr(file, &dataPair, 1, sizeof(CommandOptionPair_t));
+				optionsIndex++;
+			}
+
+			if (solidFlags & PHYSPARAM_FLAG_HAS_ROTDAMPING)
+			{
+				const CommandOptionPair_t dataPair(solid->GetName(), solid->GetRotDamping());
+				options[optionsIndex].Init(&s_CommandCollModel_Option_JointRotDamping);
+				options[optionsIndex].SavePtr(file, &dataPair, 1, sizeof(CommandOptionPair_t));
+				optionsIndex++;
+			}
+
+			if (solidFlags & PHYSPARAM_FLAG_HAS_MASSBIAS)
+			{
+				const CommandOptionPair_t dataPair(solid->GetName(), solid->GetMassBias());
+				options[optionsIndex].Init(&s_CommandCollModel_Option_JointMassBias);
+				options[optionsIndex].SavePtr(file, &dataPair, 1, sizeof(CommandOptionPair_t));
+				optionsIndex++;
+			}
+
+			if (solidFlags & PHYSOLID_FLAG_HAS_RAGDOLLCONSTRAINT)
+			{
+				const RagdollConstraint* const ragdollConstraint = solid->GetRagdollConstraint();
+
+				for (int axis = 0; axis < RagdollConstraint::CONAXIS_COUNT; axis++)
+				{
+					const RagdollConstraint::Constraint_t* const constraint = ragdollConstraint->GetConstraint(axis);
+					CommandOptionArray_t constraintArray(file, 6);
+
+					constraintArray.options[0].Init(&s_CommandGeneric_Option_Bone);
+					constraintArray.options[0].SetPtr(solid->GetName());
+
+					constraintArray.options[1].Init(&s_CommandCollModel_Option_JointConstraintAxis);
+					constraintArray.options[1].SetPtr(s_CollModel_JointConstraintAxis[axis]);
+
+					const PhysicsData_t::JointConType_t type = physData->TypeFromJointConstraint(constraint);
+					constraintArray.options[2].Init(&s_CommandCollModel_Option_JointConstraintAllowOption);
+					constraintArray.options[2].SetPtr(s_CollModel_JointConstraintType[type]);
+
+					constraintArray.options[3].Init(&s_CommandCollModel_Option_JointConstraintMinAngle);
+					constraintArray.options[3].SetRaw(&constraint->min, 1, sizeof(float));
+
+					constraintArray.options[4].Init(&s_CommandCollModel_Option_JointConstraintMaxAngle);
+					constraintArray.options[4].SetRaw(&constraint->max, 1, sizeof(float));
+
+					const float fric = constraint->friction * 5.0f; // normalized to 1.0f (0.20f on disk)
+					constraintArray.options[5].Init(&s_CommandCollModel_Option_JointConstraintFriction);
+					constraintArray.options[5].SetRaw(&fric, 1, sizeof(float));
+
+					options[optionsIndex].Init(&s_CommandCollModel_Option_JointConstraint);
+					options[optionsIndex].SavePtr(file, &constraintArray, 1, sizeof(CommandOptionArray_t));
+					optionsIndex++;
+				}
+			}
+		}
+
+		// joint collision
+		const CollisionRule* const collisionRule = parsedPhys->GetCollisionRule();
+		if (collisionRule)
+		{
+			options[optionsIndex].Init(&s_CommandGeneric_Option_BlankLine);
+			optionsIndex++;
+
+			if (collisionRule->NoSelfCollisions())
+			{
+				options[optionsIndex].Init(&s_CommandCollModel_Option_NoSelfCollisions);
+				optionsIndex++;
+			}
+
+			for (int i = 0; i < collisionRule->GetCollisionPairCount(); i++)
+			{
+				const CollisionRule::CollisionPair_t* const collisionPair = collisionRule->GetCollisionPair(i);
+
+				const CommandOptionPair_t collisionPairPair(parsedPhys->GetSolid(collisionPair->solid0)->GetName(), parsedPhys->GetSolid(collisionPair->solid1)->GetName());
+				options[optionsIndex].Init(&s_CommandCollModel_Option_JointCollide);
+				options[optionsIndex].SavePtr(file, &collisionPairPair, 1, sizeof(CommandOptionPair_t));
+				optionsIndex++;
+			}
+		}
+
+		// $animatedfriction
+		const AnimatedFriction* const animFric = parsedPhys->GetAnimatedFriction();
+		if (animFric)
+		{
+			options[optionsIndex].Init(&s_CommandGeneric_Option_BlankLine);
+			optionsIndex++;
+
+			float values[PhysicsData_t::ANIMFRIC_COUNT]{};
+
+			values[PhysicsData_t::ANIMFRIC_TIMEIN] = animFric->GetFrictionTimeIn();
+			values[PhysicsData_t::ANIMFRIC_TIMEOUT] = animFric->GetFrictionTimeOut();
+			values[PhysicsData_t::ANIMFRIC_TIMEHOLD] = animFric->GetFrictionTimeHold();
+			values[PhysicsData_t::ANIMFRIC_MIN] = animFric->GetFrictionMin();
+			values[PhysicsData_t::ANIMFRIC_MAX] = animFric->GetFrictionMax();
+
+			options[optionsIndex].Init(&s_CommandCollModel_Option_AnimatedFriction);
+			options[optionsIndex].SavePtr(file, values, PhysicsData_t::ANIMFRIC_COUNT, sizeof(float) * PhysicsData_t::ANIMFRIC_COUNT);
+			optionsIndex++;
+		}
+
+		// I don't see a reason to shrink this buffer, it will just be deallocated once we're done writing anyway
+		assertm(optionsIndex < usedOptions, "exceeded max usable options");
+		*numOptions = optionsIndex;
+
+		return options;
+#else
+	UNUSED(data);
+	UNUSED(file);
+
+	*numOptions = 0u;
+	return nullptr;
+#endif // HAS_PHYSICSMODEL_PARSER
 	}
 
 

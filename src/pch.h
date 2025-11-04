@@ -93,6 +93,8 @@
 // [rika]: uses some of the above defines
 #include <core/utils/buffermanager.h>
 #include <core/utils/exportsettings.h>
+#include <core/utils/textbuffer.h>
+#include <core/utils/keyvalue_parser.h>
 
 #define PAKLOAD_DEBUG_VERBOSE 2
 #define PAKLOAD_DEBUG PAKLOAD_DEBUG_LOG

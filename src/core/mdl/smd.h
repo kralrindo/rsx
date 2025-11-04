@@ -130,6 +130,7 @@ namespace smd
 		Triangle* const TopTri() { return &triangles.back(); }
 
 		void SetName(const std::string& name) { exportName = name; }
+		void SetPath(const std::filesystem::path& path) { exportPath = path; }
 
 		const size_t NodeCount() const { return numNodes; }
 		const size_t FrameCount() const { return numFrames; }

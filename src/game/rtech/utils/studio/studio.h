@@ -12,7 +12,8 @@ constexpr const char* STUDIO_DEFAULT_SKIN_NAME = "default";
 constexpr const char* STUDIO_NULL_SKIN_NAME = "null";
 
 static constexpr int s_MaxStudioVerts		= 65536;
-static constexpr int s_MaxStudioTriangles	= 262144; // normal source 131072
+static constexpr int s_MaxStudioTriangles	= 65536; // normal source 131072
+static constexpr int s_MaxStudioTriIndices	= s_MaxStudioTriangles * 3; // max number of indices, because a triangle is three indices, and the above value is just triangles
 #define MAXSTUDIOSRCVERTS		(8*65536)
 
 #define IDSTUDIOHEADER				MAKEFOURCC('I', 'D', 'S', 'T') // little-endian "IDST"
@@ -1081,6 +1082,9 @@ public:
 	inline const vvd::vertexFileHeader_t* const GetVVD() const { return vertexDataSize[SLD_VVD] ? reinterpret_cast<const vvd::vertexFileHeader_t* const>(vertexDataBuffer + vertexDataOffset[SLD_VVD]) : nullptr; }
 	inline const vvc::vertexColorFileHeader_t* const GetVVC() const { return vertexDataSize[SLD_VVC] ? reinterpret_cast<const vvc::vertexColorFileHeader_t* const>(vertexDataBuffer + vertexDataOffset[SLD_VVC]) : nullptr; }
 	inline const vvw::vertexBoneWeightsExtraFileHeader_t* const GetVVW() const { return vertexDataSize[SLD_VVW] ? reinterpret_cast<const vvw::vertexBoneWeightsExtraFileHeader_t* const>(vertexDataBuffer + vertexDataOffset[SLD_VVW]) : nullptr; }
+
+	inline const ivps::phyheader_t* const GetPHYS_VALVE() const { return physicsDataSize ? reinterpret_cast<const ivps::phyheader_t* const>(physicsDataBuffer + physicsDataOffset) : nullptr; }
+	inline const irps::phyheader_t* const GetPHYS_RESPAWN() const { return physicsDataSize ? reinterpret_cast<const irps::phyheader_t* const>(physicsDataBuffer + physicsDataOffset) : nullptr; }
 
 	const bool VerifyFileIntegrity(const studiohdr_short_t* const pHdr) const;
 

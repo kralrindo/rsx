@@ -63,7 +63,7 @@ static void ParseModelVertexData_v8(CPakAsset* const asset, ModelAsset* const mo
     Vertex_t* const         parseVertices   = reinterpret_cast<Vertex_t*>       (parseBuf->Buffer() + maxVertexBufferSize);
     Vector2D* const         parseTexcoords  = reinterpret_cast<Vector2D*>       (&parseVertices[s_MaxStudioVerts]);
     uint16_t* const         parseIndices    = reinterpret_cast<uint16_t*>       (&parseTexcoords[s_MaxStudioVerts * 2]);
-    VertexWeight_t* const   parseWeights    = reinterpret_cast<VertexWeight_t*> (&parseIndices[s_MaxStudioTriangles]); // ~8mb for weights
+    VertexWeight_t* const   parseWeights    = reinterpret_cast<VertexWeight_t*> (&parseIndices[s_MaxStudioTriIndices]); // ~8mb for weights
 
     for (int lodIdx = 0; lodIdx < pVTX->numLODs; lodIdx++)
     {
@@ -145,7 +145,7 @@ static void ParseModelVertexData_v8(CPakAsset* const asset, ModelAsset* const mo
                         meshData.indexCount += pStripGrp->numIndices;
                         lodData.indexCount += pStripGrp->numIndices;
 
-                        assertm(s_MaxStudioTriangles >= meshData.indexCount, "too many triangles");
+                        assertm(s_MaxStudioTriIndices >= meshData.indexCount, "too many triangles");
 
                         for (int stripIdx = 0; stripIdx < pStripGrp->numStrips; stripIdx++)
                         {
@@ -1633,7 +1633,7 @@ bool ExportModelAsset(CAsset* const asset, const int setting)
             if (modelAsset->version >= eMDLVersion::VERSION_16)
                 return ExportPhysicsModelPhy<irps::phyheader_v16_t>(modelAsset, exportPath);
             else
-                return ExportPhysicsModelPhy<irps::phyheader_v8_t>(modelAsset, exportPath);
+                return ExportPhysicsModelPhy<irps::phyheader_t>(modelAsset, exportPath);
         }
         case eModelExportSetting::MODEL_STL_RESPAWN_PHYSICS:
         {

@@ -135,6 +135,14 @@ void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount
 
 		for (size_t bone = 0; bone < boneCount; bone++)
 		{
+			const uint8_t boneFlags = ANIM_BONEFLAGS_FLAG(boneFlagArray, bone);
+
+			// no header for this bone
+			if ((boneFlags & r5::RleBoneFlags_t::STUDIO_ANIM_MASK) == false)
+			{
+				continue;
+			}
+
 			panim = panim->pNext();
 		}
 
