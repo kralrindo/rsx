@@ -358,7 +358,7 @@ void* PreviewUIImageAtlasAsset(CAsset* const asset, const bool firstFrameForAsse
 
             if (ImGui::TableSetColumnIndex(UITexturePreviewData_t::eColumnID::TPC_Index))
             {
-                if (ImGui::Selectable(std::to_string(item->index).c_str(), isRowSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap, ImVec2(0.f, 0.f)) || (firstFrameForAsset && isRowSelected))
+                if (ImGui::Selectable(std::to_string(item->index).c_str(), isRowSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap, ImVec2(0.f, 0.f)) || (firstFrameForAsset && isRowSelected))
                 {
                     selectedUIImage = *item;
                     lastSelectedTexture = item->index;

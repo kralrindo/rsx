@@ -128,8 +128,9 @@ bool ExportLocalisationAsset(CAsset* const asset, const int setting)
         const std::wstring wideString = &loclAsset->strings[entry->stringStartIndex];
 
         std::string multiByteString;
-        multiByteString.resize(wideString.length() * 2);    // some utf-8 characters are actually more than one byte, up to four bytes. if we don't have enough space, WideCharToMultiByte will not finish its conversion, causing their to be incomplete strings.
-                                                            // only allowing for characters up to two bytes currently as it seems to be sufficient
+        multiByteString.resize(wideString.length() * 4);    // some utf-8 characters are actually more than one byte, up to four bytes. if we don't have enough space, WideCharToMultiByte will not finish its conversion, causing their to be incomplete strings.
+                                                            // this is horrific but i can't think of a better way of doing it than just giving the string 4 bytes for every char
+                                                            // the string gets cleaned up very quickly though, so it shouldn't be too much of a problem
 
         // windows utf-16 support sucks so convert to multibyte utf8
         WideCharToMultiByte(CP_UTF8, 0, wideString.c_str(), static_cast<int>(wideString.length()), &multiByteString[0], static_cast<int>(multiByteString.length()), (LPCCH)NULL, NULL);

@@ -477,7 +477,7 @@ namespace r5
 	//#define STUDIO_HAS_ANIM			0x20000 // if not set there is no useable anim data
 	//#define STUDIO_FRAMEMOVEMENT    0x40000 // framemovements are only read if this flag is present
 	//#define STUDIO_SINGLE_FRAME		0x80000 // this animation/sequence only has one frame of animation data
-	// 0x100000
+	//#define STUDIO_ANIM_UNK100000	0x100000	// reactive animations? seemingly only used on sequences for reactive skins, speicifcally the idle sequence
 	//#define STUDIO_DATAPOINTANIM	0x200000
 
 	struct mstudioanimdesc_v8_t
@@ -599,12 +599,12 @@ namespace r5
 		const mstudioanimdesc_v8_t* const pAnimDescV8(const int i) const { return reinterpret_cast<const mstudioanimdesc_v8_t* const>((char*)this + AnimIndex(i)); }
 		const mstudioanimdesc_v12_1_t* const pAnimDescV12_1(const int i) const;
 
-		int movementindex; // [blend] float array for blended movement
-		int groupsize[2];
-		int paramindex[2]; // X, Y, Z, XR, YR, ZR
-		float paramstart[2]; // local (0..1) starting value
-		float paramend[2]; // local (0..1) ending value
-		int paramparent;
+		int movementindex;	// unused as of v49
+		int groupsize[2];	// width x height of blends
+		int paramindex[2];	// X, Y, Z, XR, YR, ZR
+		float paramstart[2];// local (0..1) starting value
+		float paramend[2];	// local (0..1) ending value
+		int paramparent;	// unused as of v49
 
 		float fadeintime; // ideal cross fate in time (0.2 default)
 		float fadeouttime; // ideal cross fade out time (0.2 default)
@@ -643,11 +643,8 @@ namespace r5
 		int activitymodifierindex;
 		int numactivitymodifiers;
 
-		int ikResetMask;	// new in v52
-		// titan_buddy_mp_core.mdl
-		// reset all ikrules with this type???
-		int unk_C4;	// previously 'unk1'
-		// mayhaps this is the ik type applied to the mask if what's above it true
+		int ikResetMask; // mask this ik rule type for reset, can't find the code for this, but it would either prevent reset of this type, or only allow reset of this time. only ever observed as IK_GROUND
+		int unk_C4;
 
 		// for adjusting bone weights, mostly used for procbones (jiggle)
 		int weightFixupOffset;

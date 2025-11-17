@@ -508,119 +508,123 @@ void* PreviewMaterialAsset(CAsset* const asset, const bool firstFrameForAsset)
     {
         if (ImGui::BeginTabItem("Textures"))
         {
-            if (ImGui::BeginChild("##PropertiesTab", ImVec2(0, 0), false, ImGuiWindowFlags_NoBackground))
+            if (ImGui::BeginChild("##TexturesTab", ImVec2(0, 0), false, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysVerticalScrollbar))
             {
                 ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
-                if (ImGui::BeginTable("Material Table", NUM_MATERIAL_TEXTURE_TABLE_COLUMNS, tableFlags, outerSize))
+                if (ImGui::CollapsingHeader("Textures", ImGuiTreeNodeFlags_DefaultOpen))
                 {
-                    ImGui::TableSetupColumn("IDX", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_ResBindPoint);
-                    ImGui::TableSetupColumn("GUID", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_DefaultHide, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_TextureGUID);
-                    ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_TextureName);
-                    ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_ResBindingName);
-                    ImGui::TableSetupColumn("Dimensions", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoSort, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_Dimensions);
-                    ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoSort, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_Status);
-                    ImGui::TableSetupScrollFreeze(1, 1);
-
-                    ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs();
-
-                    if (sortSpecs && (firstFrameForAsset || sortSpecs->SpecsDirty) && previewTextures.size() > 1)
+                    if (ImGui::BeginTable("Material Table", NUM_MATERIAL_TEXTURE_TABLE_COLUMNS, tableFlags, outerSize))
                     {
-                        std::sort(previewTextures.begin(), previewTextures.end(), MatTexCompare_t(sortSpecs));
-                        sortSpecs->SpecsDirty = false;
-                    }
+                        ImGui::TableSetupColumn("IDX", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_ResBindPoint);
+                        ImGui::TableSetupColumn("GUID", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_DefaultHide, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_TextureGUID);
+                        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_TextureName);
+                        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_ResBindingName);
+                        ImGui::TableSetupColumn("Dimensions", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoSort, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_Dimensions);
+                        ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoSort, 0.f, MaterialTexturePreviewData_t::eColumnID::MTPC_Status);
+                        ImGui::TableSetupScrollFreeze(1, 1);
 
-                    ImGui::TableHeadersRow();
+                        ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs();
 
-                    for (size_t i = 0; i < previewTextures.size(); ++i)
-                    {
-                        const MaterialTexturePreviewData_t* const item = &previewTextures[i];
-
-                        // if row is last selected, or if we have just swapped asset and this texture has the same bind point as the last selected asset
-                        const bool isRowSelected = selectedResource == item || (firstFrameForAsset && item->resourceBindPoint == lastSelectedResourceBindPoint);
-
-                        ImGui::PushID(item->resourceBindPoint);
-
-                        ImGui::TableNextRow(ImGuiTableRowFlags_None, 0.f);
-
-                        ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_ResBindPoint);
+                        if (sortSpecs && (firstFrameForAsset || sortSpecs->SpecsDirty) && previewTextures.size() > 1)
                         {
-                            if (ImGui::Selectable(std::to_string(item->resourceBindPoint).c_str(), isRowSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap, ImVec2(0.f, 0.f))
-                                || (firstFrameForAsset && isRowSelected))
+                            std::sort(previewTextures.begin(), previewTextures.end(), MatTexCompare_t(sortSpecs));
+                            sortSpecs->SpecsDirty = false;
+                        }
+
+                        ImGui::TableHeadersRow();
+
+                        for (size_t i = 0; i < previewTextures.size(); ++i)
+                        {
+                            const MaterialTexturePreviewData_t* const item = &previewTextures[i];
+
+                            // if row is last selected, or if we have just swapped asset and this texture has the same bind point as the last selected asset
+                            const bool isRowSelected = selectedResource == item || (firstFrameForAsset && item->resourceBindPoint == lastSelectedResourceBindPoint);
+
+                            ImGui::PushID(item->resourceBindPoint);
+
+                            ImGui::TableNextRow(ImGuiTableRowFlags_None, 0.f);
+
+                            ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_ResBindPoint);
                             {
-                                selectedResource = *item;
-                                lastSelectedResourceBindPoint = item->resourceBindPoint;
-
-                                if (item->IsTextureLoaded())
+                                if (ImGui::Selectable(std::to_string(item->resourceBindPoint).c_str(), isRowSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap, ImVec2(0.f, 0.f))
+                                    || (firstFrameForAsset && isRowSelected))
                                 {
-                                    const TextureAssetEntry_t* const textureEntry = &materialAsset->txtrAssets.at(item->materialTextureIndex);
-                                    CPakAsset* const texturePakAsset = textureEntry->asset;
+                                    selectedResource = *item;
+                                    lastSelectedResourceBindPoint = item->resourceBindPoint;
 
-                                    const TextureAsset* const textureAssetData = reinterpret_cast<const TextureAsset*>(texturePakAsset->extraData());
-
-                                    if (textureAssetData)
+                                    if (item->IsTextureLoaded())
                                     {
-                                        selectedTexture = texturePakAsset;// CreateTextureFromMip(texturePakAsset, &textureAssetData->mipArray.back(), s_PakToDxgiFormat[textureAssetData->imgFormat]);
-                                        firstFrameForTxtrAsset = true;
+                                        const TextureAssetEntry_t* const textureEntry = &materialAsset->txtrAssets.at(item->materialTextureIndex);
+                                        CPakAsset* const texturePakAsset = textureEntry->asset;
+
+                                        const TextureAsset* const textureAssetData = reinterpret_cast<const TextureAsset*>(texturePakAsset->extraData());
+
+                                        if (textureAssetData)
+                                        {
+                                            selectedTexture = texturePakAsset;// CreateTextureFromMip(texturePakAsset, &textureAssetData->mipArray.back(), s_PakToDxgiFormat[textureAssetData->imgFormat]);
+                                            firstFrameForTxtrAsset = true;
+                                        }
+                                        else
+                                            selectedTexture = NULL;
+                                        //  selectedTexture.reset();
                                     }
                                     else
+                                    {
+                                        //selectedTexture.reset();
                                         selectedTexture = NULL;
-                                    //  selectedTexture.reset();
+                                    }
+                                }
+                            }
+
+                            //ImGui::PushFont(g_pImGuiHandler->GetMonospaceFont());
+                            if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_TextureGUID))
+                                ImGui::TextUnformatted(std::format("0x{:X}", item->textureAssetGuid).c_str());
+
+                            if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_TextureName))
+                                ImGui::TextUnformatted(item->textureName.c_str());
+                            //ImGui::PopFont();
+
+                            if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_ResBindingName))
+                            {
+                                ImGui::TextUnformatted(item->resourceBindingName.c_str());
+
+                                if (!item->HasResourceType())
+                                {
+                                    ImGui::SameLine();
+                                    g_pImGuiHandler->HelpMarker("The material asset does not provide any resource type information for this texture entry");
+                                }
+                            }
+
+                            if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_Dimensions))
+                            {
+                                if (item->width > 0 && item->height > 0)
+                                    ImGui::Text("%i x %i", item->width, item->height);
+                                else
+                                    ImGui::TextUnformatted("N/A");
+                            }
+
+                            if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_Status))
+                            {
+                                if (item->IsTextureLoaded())
+                                {
+                                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 1.f, 0.f, 1.f));
+                                    ImGui::TextUnformatted("Loaded");
+                                    ImGui::PopStyleColor();
                                 }
                                 else
                                 {
-                                    //selectedTexture.reset();
-                                    selectedTexture = NULL;
+                                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.f, 0.f, 1.f));
+                                    ImGui::TextUnformatted("Not Loaded");
+                                    ImGui::PopStyleColor();
                                 }
                             }
+
+                            ImGui::PopID();
                         }
 
-                        //ImGui::PushFont(g_pImGuiHandler->GetMonospaceFont());
-                        if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_TextureGUID))
-                            ImGui::TextUnformatted(std::format("0x{:X}", item->textureAssetGuid).c_str());
-
-                        if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_TextureName))
-                            ImGui::TextUnformatted(item->textureName.c_str());
-                        //ImGui::PopFont();
-
-                        if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_ResBindingName))
-                        {
-                            ImGui::TextUnformatted(item->resourceBindingName.c_str());
-
-                            if (!item->HasResourceType())
-                            {
-                                ImGui::SameLine();
-                                g_pImGuiHandler->HelpMarker("The material asset does not provide any resource type information for this texture entry");
-                            }
-                        }
-
-                        if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_Dimensions))
-                        {
-                            if (item->width > 0 && item->height > 0)
-                                ImGui::Text("%i x %i", item->width, item->height);
-                            else
-                                ImGui::TextUnformatted("N/A");
-                        }
-
-                        if (ImGui::TableSetColumnIndex(MaterialTexturePreviewData_t::eColumnID::MTPC_Status))
-                        {
-                            if (item->IsTextureLoaded())
-                            {
-                                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 1.f, 0.f, 1.f));
-                                ImGui::TextUnformatted("Loaded");
-                                ImGui::PopStyleColor();
-                            }
-                            else
-                            {
-                                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.f, 0.f, 1.f));
-                                ImGui::TextUnformatted("Not Loaded");
-                                ImGui::PopStyleColor();
-                            }
-                        }
-
-                        ImGui::PopID();
+                        ImGui::EndTable();
                     }
 
-                    ImGui::EndTable();
                 }
 
                 if (selectedTexture)

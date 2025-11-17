@@ -51,9 +51,11 @@ namespace smd
 			memset(this, 0, sizeof(Vertex));
 		}
 
-		Vertex(const Vertex* const vert)
+		Vertex(const Vertex* const vert) : position(vert->position), normal(vert->normal), texcoords(), numTexcoords(vert->numTexcoords), numBones(vert->numBones), weight(), bone()
 		{
-			memcpy_s(this, sizeof(Vertex), vert, sizeof(Vertex));
+			memcpy_s(texcoords, sizeof(texcoords), vert->texcoords, sizeof(vert->texcoords));
+			memcpy_s(weight, sizeof(weight), vert->weight, sizeof(vert->weight));
+			memcpy_s(bone, sizeof(bone), vert->bone, sizeof(vert->bone));
 		}
 
 		Vector position;
@@ -65,8 +67,6 @@ namespace smd
 		uint32_t numBones;
 		float weight[maxBoneWeights];
 		int bone[maxBoneWeights];
-
-		const char* text; // temp for writing
 	};
 
 	class Triangle
@@ -104,6 +104,7 @@ namespace smd
 
 		void InitNode(const char* name, const int index, const int parent) const;
 		void InitFrameBone(const int iframe, const int ibone, const Vector& pos, const RadianEuler& rot) const;
+		void UpdateFrameBone(const int iframe, const int ibone, const Vector& pos, const RadianEuler& rot) const;
 		void InitVertex(const Vertex* const vert) { vertices.emplace_back(vert); }
 		// indices local to mesh vertices
 		void InitLocalTriangle(const char* material, const uint32_t indice0, const uint32_t indice1, const uint32_t indice2)

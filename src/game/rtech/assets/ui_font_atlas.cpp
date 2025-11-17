@@ -633,7 +633,7 @@ void* PreviewUIFontAtlasAsset(CAsset* const asset, const bool firstFrameForAsset
 
                 if (ImGui::TableSetColumnIndex(UICharacterPreviewData_t::eColumnID::TPC_Index))
                 {
-                    if (ImGui::Selectable(std::to_string(item->localIndex).c_str(), isRowSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap, ImVec2(0.f, 0.f)) || (firstFrameForAsset && isRowSelected))
+                    if (ImGui::Selectable(std::to_string(item->localIndex).c_str(), isRowSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap, ImVec2(0.f, 0.f)) || (firstFrameForAsset && isRowSelected))
                     {
                         selectedFontCharacter = *item;
                         lastSelectedTexture = item->index;

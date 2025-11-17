@@ -3,8 +3,8 @@
 #include <game/rtech/utils/studio/studio_r1.h>
 #include <game/rtech/utils/studio/studio_r2.h>
 
-StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const char* name, char* buffer, const size_t bufferSize) : vertexDataBuffer(nullptr), vertexDataOffset(), vertexDataSize(),
-    physicsDataBuffer(nullptr), physicsDataOffset(0), physicsDataSize(0)
+StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const char* name, char* buffer, const size_t bufferSize, const bool hasIDCV, const char* const aniname) : vertexDataBuffer(nullptr), vertexDataOffset(), vertexDataSize(),
+physicsDataBuffer(nullptr), physicsDataOffset(0), physicsDataSize(0), animDataBuffer(nullptr), animDataOffset(0), animDataSize(0), vertexBufAllocated(false), physicsBufAllocated(false), animBufAllocated(false)
 {
     std::filesystem::path filePath(path);
 
@@ -44,12 +44,20 @@ StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const ch
         assertm(curoff < bufferSize, "overflowed managed buffer");
     }
 
+    // file exists but is not used (looking at you ogre_titan.mdl)
+    if (hasIDCV == false)
+    {
+        vertexDataOffset[SLD_VVC] = 0;
+        vertexDataSize[SLD_VVC] = 0;
+    }
+
     // only allocate memory if we have vertex data
     if (curoff)
     {
         char* tmp = new char[curoff];
         memcpy_s(tmp, curoff, buffer, curoff);
         vertexDataBuffer = tmp;
+        vertexBufAllocated = true;
     }
 
     //
@@ -63,7 +71,7 @@ StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const ch
 
 #ifndef STREAMIO
         std::ifstream file(filePath, std::ios::binary | std::ios::in);
-        file.read(curpos, fileSize);
+        file.read(buffer, fileSize);
 #else
         StreamIO file(filePath, eStreamIOMode::Read);
         file.read(curpos, fileSize);
@@ -75,12 +83,40 @@ StudioLooseData_t::StudioLooseData_t(const std::filesystem::path& path, const ch
         char* tmp = new char[physicsDataSize];
         memcpy_s(tmp, physicsDataSize, buffer, physicsDataSize);
         physicsDataBuffer = tmp;
+        physicsBufAllocated = true;
     }
 
-    // here's where ani will go when I do animations (soontm)
+    // ani file
+    if (aniname == nullptr)
+    {
+        return;
+    }
+
+    filePath.replace_filename(aniname);
+
+    if (std::filesystem::exists(filePath))
+    {
+        const size_t fileSize = std::filesystem::file_size(filePath);
+
+#ifndef STREAMIO
+        std::ifstream file(filePath, std::ios::binary | std::ios::in);
+        file.read(buffer, fileSize);
+#else
+        StreamIO file(filePath, eStreamIOMode::Read);
+        file.read(curpos, fileSize);
+#endif // !STREAMIO
+
+        animDataOffset = 0;
+        animDataSize = static_cast<int>(fileSize);
+
+        char* tmp = new char[animDataSize];
+        memcpy_s(tmp, animDataSize, buffer, animDataSize);
+        animDataBuffer = tmp;
+        animBufAllocated = true;
+    }
 }
 
-StudioLooseData_t::StudioLooseData_t(const char* const file) : vertexDataBuffer(file), physicsDataBuffer(file)
+StudioLooseData_t::StudioLooseData_t(const char* const file) : vertexDataBuffer(file), physicsDataBuffer(file), animDataBuffer(nullptr), animDataOffset(0), animDataSize(0), vertexBufAllocated(false), physicsBufAllocated(false), animBufAllocated(false)
 {
     const r2::studiohdr_t* const pStudioHdr = reinterpret_cast<const r2::studiohdr_t* const>(file);
 
@@ -110,6 +146,8 @@ const bool StudioLooseData_t::VerifyFileIntegrity(const studiohdr_short_t* const
     const vvd::vertexFileHeader_t* const pVVD = GetVVD();
     const vvc::vertexColorFileHeader_t* const pVVC = GetVVC();
     const vvw::vertexBoneWeightsExtraFileHeader_t* const pVVW = GetVVW();
+
+    const studiohdr_short_t* const pANI = reinterpret_cast<const studiohdr_short_t* const>(GetANI());
 
     // we have a vtx and the checksum doesn't match, or version is incorrect
     if (pVTX && (pHdr->checksum != pVTX->checkSum || pVTX->version != OPTIMIZED_MODEL_FILE_VERSION))
@@ -146,8 +184,13 @@ const bool StudioLooseData_t::VerifyFileIntegrity(const studiohdr_short_t* const
         return false;
     }
 
-    // todo ani
-    // todo phys
+    if (pANI && (pANI->id != IDSTUDIOANIMGROUPHEADER || pANI->version != pHdr->version || pANI->checksum != pHdr->checksum))
+    {
+        assertm(false, "invalid ani file");
+        return false;
+    }
+
+    // hard to check phys because two different versions, and later apex versions lack features to check if it's apex
 
     return true;
 }

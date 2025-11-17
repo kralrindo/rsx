@@ -53,6 +53,13 @@ namespace rmax
 		weights.reserve(count * maxWeights);
 	}
 
+    void RMAXExporter::AllocMeshData(const size_t meshCount, const size_t indiceCount, const size_t vertexCount, const int16_t maxTexcoords, const int16_t maxWeights)
+    {
+        ReserveMeshes(meshCount);
+        ReserveIndices(indiceCount);
+        ReserveVertices(vertexCount, maxTexcoords, maxWeights);
+    }
+
 	void RMAXExporter::AddMesh(const int16_t collectionIndex, const int16_t materialIndex, const int16_t uvCount, const int16_t uvIndices, const bool useColor)
 	{
 		meshes.emplace_back(this, collectionIndex, materialIndex);
@@ -72,21 +79,8 @@ namespace rmax
 
 	}
 
-    void RMAXExporter::ResetMeshData()
-    {
-        materials.clear();
-        collections.clear();
-        meshes.clear();
-        vertices.clear();
-        colors.clear();
-        texcoords.clear();
-        weights.clear();
-        indices.clear();
-    }
-
-	bool RMAXExporter::ToFile() const
+	bool RMAXExporter::ToFile(char* const buffer) const
 	{
-        char* buffer = new char[maxFileSize];
         char* const baseptr = buffer;
         char* curpos = baseptr;
 
@@ -98,8 +92,8 @@ namespace rmax
         hdr->id = rmaxFileId;
         hdr->version = curFmtVersion;
         hdr->version_min = curFmtVersionMin;
-        stringtable.AddString(reinterpret_cast<char*>(hdr), &hdr->nameOffset, name);
-        stringtable.AddString(reinterpret_cast<char*>(hdr), &hdr->skelNameOffset, nameSkel);
+        stringtable.AddString(reinterpret_cast<char*>(hdr), &hdr->fileNameOffset, exportName);
+        stringtable.AddString(reinterpret_cast<char*>(hdr), &hdr->skelNameOffset, rigName);
 
         curpos += sizeof(Hdr_t);
 
@@ -267,16 +261,32 @@ namespace rmax
         std::filesystem::path outPath(exportPath);
         outPath.append(exportName);
         outPath.replace_extension(".rmax");
-        
+
         if (!CreateDirectories(exportPath))
         {
             assertm(false, "failed to create directory.");
             return false;
         }
 
+#ifdef STREAMIO
         StreamIO rmaxOut(outPath.string(), eStreamIOMode::Write);
         rmaxOut.write(buffer, IALIGN16(static_cast<int>(curpos - baseptr)));
+#else
+        std::ofstream rmaxOut(outPath.string(), std::ios::beg | std::ios::binary);
+        rmaxOut.write(buffer, IALIGN16(static_cast<int>(curpos - baseptr)));
+#endif // STREAMIO
 
         return true;
+	}
+
+	bool RMAXExporter::ToFile() const
+	{
+        char* buffer = new char[maxFileSize];
+
+        const bool success = ToFile(buffer);
+
+        FreeAllocArray(buffer);
+
+        return success;
 	}
 }

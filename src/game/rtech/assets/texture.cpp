@@ -606,7 +606,7 @@ void* PreviewTextureAsset(CAsset* const asset, const bool firstFrameForAsset)
 
                 if (ImGui::TableSetColumnIndex(TexturePreviewData_t::eColumnID::TPC_Level))
                 {
-                    if (ImGui::Selectable(std::to_string(item->level).c_str(), isRowSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap, ImVec2(0.f, 0.f)) || (firstFrameForAsset && isRowSelected))
+                    if (ImGui::Selectable(std::to_string(item->level).c_str(), isRowSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap, ImVec2(0.f, 0.f)) || (firstFrameForAsset && isRowSelected))
                     {
                         selectedMip = *item;
                         lastSelectedMip = item->level;

@@ -15,6 +15,8 @@ constexpr float s_RAD2DEG_CONST = (180.f / M_PI);
 #define DEG2RAD(x) (static_cast<float>(x) * s_DEG2RAD_CONST)
 #define RAD2DEG(x) (static_cast<float>(x) * s_RAD2DEG_CONST)
 
+constexpr float s_MetersToInches = (1 / 0.0254f);
+
 #if MATH_SIMD
 
 // static defines
@@ -22,10 +24,17 @@ static constexpr __m128 simd_Four_Zeros = { 0.0f, 0.0f, 0.0f, 0.0f };
 static constexpr __m128 simd_Four_NegZeroes = { -0.0f, -0.0f, -0.0f, -0.0f };
 static constexpr __m128 simd_Four_PointFives = { 0.5f, 0.5f, 0.5f, 0.5f };
 static constexpr __m128 simd_Four_Ones = { 1.0f, 1.0f, 1.0f, 1.0f };
+static constexpr __m128 simd_Four_Twos = { 2.0f, 2.0f, 2.0f, 2.0f };
 static constexpr __m128 simd_Four_Threes = { 3.0f, 3.0f, 3.0f, 3.0f };
 
 static constexpr __m128 simd_NegativeMask = { .m128_u32 = { 0x80000000, 0x80000000, 0x80000000, 0x80000000 } };
 
+// custom implementation eventually tm
+template<typename T>
+inline T clamp(T val, T min, T max)
+{
+	return std::clamp(val, min, max);
+}
 
 // source engine macros
 // [rika]: I do not like these
@@ -149,6 +158,15 @@ __forceinline __m128 Dot4SIMD(const __m128& a, const __m128& b)
 	return ReplicateX4(flDot);
 }
 
+inline __m128 SimpleSpline(const __m128& value)
+{
+	// Arranged to avoid a data dependency between these two MULs:
+	__m128 valueDoubled = MulSIMD(value, simd_Four_Twos);
+	__m128 valueSquared = MulSIMD(value, value);
+
+	// Nice little ease-in, ease-out spline-like curve
+	return SubSIMD(MulSIMD(simd_Four_Threes, valueSquared), MulSIMD(valueDoubled, valueSquared));
+}
 #endif // MATH_SIMD
 
 
@@ -199,6 +217,16 @@ static __forceinline float __vectorcall FastRSqrtFast(const __m128& x)
 	return _mm_cvtss_f32(rroot);
 };
 
+inline const float SimpleSpline(const float flVal)
+{
+#ifdef  MATH_SIMD
+	__m128 val = ReplicateX4(flVal);
+	return SimpleSpline(val).m128_f32[0];
+#else
+	return 0.0f;
+#endif //  MATH_SIMD
+}
+
 float AngleDiff(float destAngle, float srcAngle);
 
 class Vector;
@@ -208,7 +236,7 @@ class QAngle;
 struct matrix3x4_t;
 
 // lovely chunk of quaternion functions from source
-// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/public/mathlib/mathlib.h#L594
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/mathlib/mathlib/mathlib.h#L594
 void QuaternionSlerp(const Quaternion& p, const Quaternion& q, float t, Quaternion& qt);
 void QuaternionSlerpNoAlign(const Quaternion& p, const Quaternion& q, float t, Quaternion& qt);
 void QuaternionBlend(const Quaternion& p, const Quaternion& q, float t, Quaternion& qt);

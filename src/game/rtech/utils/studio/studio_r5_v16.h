@@ -327,11 +327,9 @@ namespace r5
 		const int AnimCount() const { return  groupsize[0] * groupsize[1]; }
 		mstudioanimdesc_v16_t* pAnimDesc(const uint16_t i) const { return reinterpret_cast<mstudioanimdesc_v16_t*>((char*)this + AnimIndex(i)); }
 
-		//short movementindex; // [blend] float array for blended movement
 		short paramindex[2]; // X, Y, Z, XR, YR, ZR
 		float paramstart[2]; // local (0..1) starting value
 		float paramend[2]; // local (0..1) ending value
-		//short paramparent;
 
 		float fadeintime; // ideal cross fate in time (0.2 default)
 		float fadeouttime; // ideal cross fade out time (0.2 default)
@@ -347,7 +345,7 @@ namespace r5
 
 		uint16_t weightlistindex;
 
-		uint8_t groupsize[2];
+		uint8_t groupsize[2]; // width x height of blends
 
 		// animseq/humans/class/medium/mp_pilot_medium_core/medium_bow_charge_pose.rseq
 		uint16_t posekeyindex;
@@ -365,8 +363,8 @@ namespace r5
 		uint16_t activitymodifierindex;
 		uint16_t numactivitymodifiers;
 
-		int ikResetMask; // new in v52
-		int unk1;
+		int ikResetMask; // mask this ik rule type for reset, can't find the code for this, but it would either prevent reset of this type, or only allow reset of this time. only ever observed as IK_GROUND
+		int unk_68;	// unk_C4
 
 		uint16_t weightFixupOffset;
 		uint16_t weightFixupCount;
@@ -746,11 +744,9 @@ namespace r5
 		const mstudioanimdesc_v16_t* const pAnimDesc(const uint16_t i) const { return reinterpret_cast<const mstudioanimdesc_v16_t* const>((char*)this + AnimIndex(i)); }
 		const mstudioanimdesc_v19_1_t* const pAnimDesc_V19_1(const uint16_t i) const;
 
-		//short movementindex; // [blend] float array for blended movement
 		short paramindex[2]; // X, Y, Z, XR, YR, ZR
 		float paramstart[2]; // local (0..1) starting value
 		float paramend[2]; // local (0..1) ending value
-		//short paramparent;
 
 		float fadeintime; // ideal cross fate in time (0.2 default)
 		float fadeouttime; // ideal cross fade out time (0.2 default)
@@ -766,7 +762,7 @@ namespace r5
 
 		uint16_t weightlistindex;
 
-		uint8_t groupsize[2];
+		uint8_t groupsize[2]; // width x height of blends
 
 		// animseq/humans/class/medium/mp_pilot_medium_core/medium_bow_charge_pose.rseq
 		uint16_t posekeyindex;
@@ -784,8 +780,8 @@ namespace r5
 		uint16_t activitymodifierindex;
 		uint16_t numactivitymodifiers;
 
-		int ikResetMask;
-		int unk1;
+		int ikResetMask; // mask this ik rule type for reset, can't find the code for this, but it would either prevent reset of this type, or only allow reset of this time. only ever observed as IK_GROUND
+		int unk_68;	// unk_C4
 
 		uint16_t weightFixupOffset;
 		uint16_t weightFixupCount;

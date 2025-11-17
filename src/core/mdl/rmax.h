@@ -123,6 +123,7 @@ namespace rmax
 		int type;
 	};
 
+
 	struct Material_t
 	{
 		int nameOffset;
@@ -153,8 +154,8 @@ namespace rmax
 		int8_t version;
 		int8_t version_min;
 		int16_t reserved;
-		int nameOffset; // name of the skeleton (derived from base model)
-		int skelNameOffset;
+		int fileNameOffset;	// name of this specific file
+		int skelNameOffset;	// name of the studio file this was derived from
 
 		int boneCount;
 		int boneOffset;
@@ -192,6 +193,7 @@ namespace rmax
 		int animOffset;
 	};
 
+
 	// exporting stuffzz
 	class RMAXExporter;
 
@@ -219,7 +221,7 @@ namespace rmax
 
 	struct RMAXMaterial
 	{
-		RMAXMaterial(const char* nameIn) :  name(nameIn) {};
+		RMAXMaterial(const char* nameIn) : name(nameIn) {};
 
 		inline void AddTexture(const char* nameIn, const TextureType_t typeIn)
 		{
@@ -231,6 +233,7 @@ namespace rmax
 		std::vector<RMAXTexture> textures;
 	};
 
+
 	struct RMAXCollection
 	{
 		RMAXCollection(const char* nameIn, const int meshCountIn) : name(nameIn), meshCount(meshCountIn) {};
@@ -239,6 +242,9 @@ namespace rmax
 		int meshCount;
 	};
 
+	constexpr int16_t s_UVIndice0 = 1 << 0;
+	constexpr int16_t s_UVIndice2 = 1 << 2;
+	constexpr int16_t s_UVIndice3 = 1 << 3;
 	struct RMAXMesh
 	{
 		RMAXMesh(RMAXExporter* const baseFile, const int16_t collectionIndexIn, const int16_t materialIndexIn) : base(baseFile), collectionIndex(collectionIndexIn), materialIndex(materialIndexIn), vertexCount(0), vertexIndex(0), colorIndex(0), uvIndex(0), uvCount(0), uvIndices(0),
@@ -316,6 +322,26 @@ namespace rmax
 			tracks = new RMAXAnimTrack[trackCount];
 			trackData = new char[(maxFrameSize * frameCount) * trackCount];
 		};
+		~RMAXAnim()
+		{
+			FreeAllocArray(tracks);
+			FreeAllocArray(trackData);
+		}
+
+		RMAXAnim& operator()(const RMAXAnim&&) = delete;
+		RMAXAnim& operator()(RMAXAnim&& anim) noexcept
+		{
+			if (this != &anim)
+			{
+				memcpy_s(this, sizeof(RMAXAnim), &anim, sizeof(RMAXAnim));
+
+				tracks = anim.tracks;
+				trackData = anim.trackData;
+
+				tracks = nullptr;
+				trackData = nullptr;
+			}
+		}
 
 		const uint16_t GetFlags() const { return flags; };
 		RMAXAnimTrack* const GetTrack(const size_t index) const { return &tracks[index]; };
@@ -339,7 +365,37 @@ namespace rmax
 	class RMAXExporter
 	{
 	public:
-		RMAXExporter(const std::filesystem::path& pathIn, const char* const nameIn, const char* const nameSkelIn) : exportPath(pathIn), name(nameIn), nameSkel(nameSkelIn) {};
+		RMAXExporter(const std::filesystem::path& pathIn, const char* const nameIn, const char* const rigNameIn) : exportPath(pathIn), exportName(nameIn), rigName(rigNameIn) {};
+
+		// cannot change skeleton name, as that means it's not the same model
+		inline void SetPath(const std::filesystem::path& path) { exportPath = path; }
+		inline void SetName(const char* const str) { exportName = str; }
+
+		// reset the file for a new file with the same skeleton
+		inline void ResetMeshData()
+		{
+			collections.clear();
+			meshes.clear();
+
+			vertices.clear();
+			colors.clear();
+			texcoords.clear();
+			weights.clear();
+			indices.clear();
+		}
+
+		inline void ResetAnimData()
+		{
+			animations.clear();
+		}
+
+		inline void ResetData()
+		{
+			materials.clear();
+
+			ResetMeshData();
+			ResetAnimData();
+		}
 
 		// to reduce allocations, not required for proper function
 		inline void ReserveBones(const size_t count) { bones.reserve(count); };
@@ -348,6 +404,7 @@ namespace rmax
 		inline void ReserveMeshes(const size_t count) { meshes.reserve(count); };
 		void ReserveVertices(const size_t count, const int16_t maxTexcoords, const int16_t maxWeights);
 		inline void ReserveIndices(const size_t count) { indices.reserve(count); };
+		void AllocMeshData(const size_t meshCount, const size_t indiceCount, const size_t vertexCount, const int16_t maxTexcoords, const int16_t maxWeights);
 
 		inline void AddBone(const char* nameIn, const int parentIn, const Vector& posIn, const Quaternion& quatIn, const Vector& scaleIn) { bones.emplace_back(nameIn, parentIn, posIn, quatIn, scaleIn); };
 		inline void AddMaterial(const char* nameIn) { materials.emplace_back(nameIn); };
@@ -362,8 +419,6 @@ namespace rmax
 
 		inline void AddAnim(const char* nameIn, const uint16_t frameCountIn, const float frameRateIn, const uint16_t flagsIn, const size_t boneCountIn) { animations.emplace_back(this, nameIn, frameCountIn, frameRateIn, flagsIn, boneCountIn); };
 
-		inline void SetName(const std::string& str) { exportName = str; }
-
 		inline RMAXMaterial* const GetMaterialLast() { return &materials.back(); };
 		inline RMAXMesh* const GetMeshLast() { return &meshes.back(); };
 		inline Vertex_t* const GetVertexLast() { return &vertices.back(); };
@@ -374,16 +429,14 @@ namespace rmax
 		inline const size_t CollectionCount() const { return collections.size(); };
 		inline const size_t WeightCount() const { return weights.size(); };
 
-		void ResetMeshData();
-
+		bool ToFile(char* const buffer) const;
 		bool ToFile() const;
 
 	private:
 		std::filesystem::path exportPath;
-		std::string exportName;
+		const char* exportName;
 
-		const char* const name;
-		const char* const nameSkel; // name of the parent skeleton
+		const char* rigName; // name of the parent skeleton
 
 		// can we get uhhhhhh custom containter class ?
 		std::vector<RMAXBone> bones;

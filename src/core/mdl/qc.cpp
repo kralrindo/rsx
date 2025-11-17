@@ -205,7 +205,13 @@ namespace qc
 		// write the name, before curly brackets
 		if (option->data.WriteName())
 		{
-			text->WriteFormatted("%s ", option->desc->name);
+			text->WriteString(option->desc->name);
+
+			// we don't want a white space without options
+			if (option->desc->type != QC_OPT_NONE)
+			{
+				text->WriteCharacter(' ');
+			}
 		}
 
 		// array contained within curly brackets
@@ -288,11 +294,12 @@ namespace qc
 			CommandOption_Write(option, &text, true, formatComment ? QC_COMMENT_NONE : QC_COMMENT_MULTILINE);
 		}
 
-		// add a new line
-		text.WriteCharacter('\n');
-
 		if (oneLine)
 		{
+			// add a new line
+			text.WriteCharacter('\n');
+
+			// set our buffer for read
 			text.WriterToText();
 			return text.Capacity();
 		}
@@ -301,6 +308,16 @@ namespace qc
 		if (formatComment)
 		{
 			TEXTBUFFER_WRITE_STRING_CT(text, "/*");
+		}
+
+		// where do we want to place the curly bracket for our other options?
+		if (command->BracketStyle())
+		{
+			text.WriteCharacter(' ');
+		}
+		else
+		{
+			text.WriteCharacter('\n');
 		}
 
 		// add a bracket entry
@@ -833,6 +850,7 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceModel(QC_OPT_PAIR, "replacemodel", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandLOD_Option_RemoveModel(QC_OPT_STRING, "removemodel", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceBone(QC_OPT_PAIR, "replacebone", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandLOD_Option_ReplaceMaterial(QC_OPT_PAIR, "replacematerial", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandLOD_Option_ShadowLODMaterials(QC_OPT_NONE, "use_shadowlod_materials", s_CommandOptionFormatNameNewLine);
 
 	// bones
@@ -905,6 +923,11 @@ namespace qc
 
 	constexpr CommandOptionDesc_t s_CommandIKAutoPlayLock_Option_LockPosition(QC_OPT_FLOAT, "lock_position");
 	constexpr CommandOptionDesc_t s_CommandIKAutoPlayLock_Option_InheritRotation(QC_OPT_FLOAT, "inherit_rotation");
+
+	constexpr CommandOptionDesc_t s_CommandSectionFrames_Option_FrameCount(QC_OPT_INT, "frame_count");
+	constexpr CommandOptionDesc_t s_CommandSectionFrames_Option_MinFrames(QC_OPT_INT, "min_frames");
+
+	constexpr CommandOptionDesc_t s_CommandWeightList_Option_Weight(QC_OPT_PAIR, "weight", QC_FMT_NEWLINE);
 
 	// collision
 	constexpr CommandOptionDesc_t s_CommandContents_Option_Flag(QC_OPT_STRING, "flag");
@@ -1164,7 +1187,7 @@ namespace qc
 		const uint32_t usedOptions = boneData->UseFixups() ? 6 : 4;
 		CommandOption_t* options = new CommandOption_t[usedOptions];
 
-		options[0].Init(&s_CommandGeneric_Option_Name);
+		options[0].Init(&s_CommandGeneric_Option_Bone);
 		options[0].SetPtr(boneData->name);
 
 		options[1].Init(&s_CommandDefineBone_Option_Parent);
@@ -1205,37 +1228,99 @@ namespace qc
 		const BoneData_t* const boneData = reinterpret_cast<const BoneData_t* const>(data);
 		const int contents = boneData->contents;
 
-		int usedFlags = static_cast<int>(__popcnt(contents));
+		uint32_t usedFlags = __popcnt(contents);
+		if (usedFlags == 0u)
+		{
+			usedFlags = 1u;
+		}
 
-		if (!usedFlags)
-			usedFlags = 1;
-
-		const uint32_t usedOptions = static_cast<uint32_t>(usedFlags) + 1;
+		const uint32_t usedOptions = usedFlags + 1;
 		CommandOption_t* options = new CommandOption_t[usedOptions];
 
+		uint32_t optionsIndex = 0u;
+
 		// set bone name
-		options[0].Init(&s_CommandGeneric_Option_Name);
-		options[0].SetPtr(boneData->name);
+		options[optionsIndex].Init(&s_CommandGeneric_Option_Bone);
+		options[optionsIndex].SetPtr(boneData->name);
+		optionsIndex++;
 
-		// parse contents flags
-		for (int i = 0, bitIdx = 0; bitIdx < 32; bitIdx++)
+		CommandContents_ParseOptions(options, usedOptions, optionsIndex, contents);
+
+		*numOptions = usedOptions;
+
+		return options;
+	}
+
+	CommandOption_t* CommandScreenAlign_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store)
+	{
+		UNUSED(count);
+
+		const BoneData_t* const boneData = reinterpret_cast<const BoneData_t* const>(data);
+
+		const uint32_t usedOptions = 2u;
+		CommandOption_t* options = new CommandOption_t[usedOptions];
+
+		uint32_t optionsIndex = 0u;
+
+		// set bone name
+		options[optionsIndex].Init(&s_CommandGeneric_Option_Bone);
+		if (store)
 		{
-			if (i == usedFlags)
-				break;
+			options[optionsIndex].SaveStr(file, boneData->name);
+		}
+		else
+		{
+			options[optionsIndex].SetPtr(boneData->name);
+		}
+		optionsIndex++;
 
-			// shift here to get the content flag for this bit
-			const int content = 1 << bitIdx;
-			if (!(contents & content) && contents)
-				continue;
+		options[optionsIndex].Init(&s_CommandGeneric_Option_Name);
+		options[optionsIndex].SetPtr(s_ScreenAlignType[boneData->ScreenAlignShape()]);
+		optionsIndex++;
 
-			// silly warning h
-			if (static_cast<uint32_t>(i + 1) >= usedOptions)
-				break;
+		*numOptions = usedOptions;
 
-			options[1 + i].Init(&s_CommandContents_Option_Flag);
-			options[1 + i].SetPtr(StudioContentFlagString(contents & content));
+		return options;
+	}
 
-			i++;
+	CommandOption_t* CommandBoneSaveFrame_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store)
+	{
+		UNUSED(count);
+
+		const BoneData_t* const boneData = reinterpret_cast<const BoneData_t* const>(data);
+
+		const bool savePosition = boneData->flags & BoneData_t::QCB_HAS_SAVEFRAME_POS;
+		const bool saveRotation = boneData->flags & (BoneData_t::QCB_HAS_SAVEFRAME_ROT64 | BoneData_t::QCB_HAS_SAVEFRAME_ROT32);
+
+		const uint32_t usedOptions = 1u + savePosition + saveRotation;
+		CommandOption_t* options = new CommandOption_t[usedOptions];
+
+		uint32_t optionsIndex = 0u;
+
+		// set bone name
+		options[optionsIndex].Init(&s_CommandGeneric_Option_Bone);
+		if (store)
+		{
+			options[optionsIndex].SaveStr(file, boneData->name);
+		}
+		else
+		{
+			options[optionsIndex].SetPtr(boneData->name);
+		}
+		optionsIndex++;
+
+		if (savePosition)
+		{
+			options[optionsIndex].Init(&s_CommandGeneric_Option_Name);
+			options[optionsIndex].SetPtr(s_BoneSaveFrameType[BoneData_t::BONESAVE_POS]);
+			optionsIndex++;
+		}
+
+		if (saveRotation)
+		{
+			options[optionsIndex].Init(&s_CommandGeneric_Option_Name);
+			options[optionsIndex].SetPtr(s_BoneSaveFrameType[BoneData_t::BONESAVE_ROT]);
+			optionsIndex++;
 		}
 
 		*numOptions = usedOptions;
@@ -1729,7 +1814,7 @@ namespace qc
 
 		const LodData_t* const lodGroupData = reinterpret_cast<const LodData_t* const>(data);
 
-		const uint32_t usedOptions = lodGroupData->numModels + lodGroupData->numBoneUsed + lodGroupData->UseThreshold() + lodGroupData->useShadowLODMaterials;
+		const uint32_t usedOptions = lodGroupData->numModels + lodGroupData->numBoneUsed + lodGroupData->UseThreshold() + lodGroupData->useShadowLODMaterials + lodGroupData->numReplacementMaterials;
 		CommandOption_t* options = new CommandOption_t[usedOptions];
 
 		uint32_t optionsIndex = 0;
@@ -1742,6 +1827,7 @@ namespace qc
 			optionsIndex++;
 		}
 
+		// parse potential model options
 		for (uint32_t i = 0; i < lodGroupData->numModels; i++)
 		{
 			if (optionsIndex + i >= usedOptions)
@@ -1753,43 +1839,44 @@ namespace qc
 			// model is ignored
 			if (!baseName)
 			{
-				options[optionsIndex + i].Init(&s_CommandGeneric_Option_None);
 				continue;
 			}
 
 			// model is removed
 			if (!replaceName)
 			{
-				options[optionsIndex + i].Init(&s_CommandLOD_Option_RemoveModel);
+				options[optionsIndex].Init(&s_CommandLOD_Option_RemoveModel);
 
 				if (store)
-					options[optionsIndex + i].SaveStr(file, baseName);
+					options[optionsIndex].SaveStr(file, baseName);
 				else
-					options[optionsIndex + i].SetPtr(baseName);
+					options[optionsIndex].SetPtr(baseName);
 
+				optionsIndex++;
 				continue;
 			}
 
 			// model is replaced
-			options[optionsIndex + i].Init(&s_CommandLOD_Option_ReplaceModel);
+			options[optionsIndex].Init(&s_CommandLOD_Option_ReplaceModel);
 
 			if (store)
 			{
 				CommandOptionPair_t replaceModel(file, baseName, replaceName);
-				options[optionsIndex + i].SavePtr(file, &replaceModel, 1, sizeof(CommandOptionPair_t));
+				options[optionsIndex].SavePtr(file, &replaceModel, 1, sizeof(CommandOptionPair_t));
 			}
 			else
 			{
 				CommandOptionPair_t replaceModel(baseName, replaceName);
-				options[optionsIndex + i].SavePtr(file, &replaceModel, 1, sizeof(CommandOptionPair_t));
+				options[optionsIndex].SavePtr(file, &replaceModel, 1, sizeof(CommandOptionPair_t));
 			}
+
+			optionsIndex++;
 		}
 
-		optionsIndex += lodGroupData->numModels;
-
-		for (uint32_t i = 0, slot = 0; slot < lodGroupData->numBoneSlots; slot++)
+		// parse potential bone options
+		for (uint32_t slot = 0; slot < lodGroupData->numBoneSlots; slot++)
 		{
-			if (optionsIndex + i >= usedOptions)
+			if (optionsIndex >= usedOptions)
 				break;
 
 			const char* const baseName = lodGroupData->boneBaseNames[slot];
@@ -1800,29 +1887,57 @@ namespace qc
 				continue;
 
 			// bone is replaced
-			options[optionsIndex + i].Init(&s_CommandLOD_Option_ReplaceBone);
+			options[optionsIndex].Init(&s_CommandLOD_Option_ReplaceBone);
 
 			if (store)
 			{
 				CommandOptionPair_t replaceBone(file, baseName, replaceName);
-				options[optionsIndex + i].SavePtr(file, &replaceBone, 1, sizeof(CommandOptionPair_t));
+				options[optionsIndex].SavePtr(file, &replaceBone, 1, sizeof(CommandOptionPair_t));
 			}
 			else
 			{
 				CommandOptionPair_t replaceBone(baseName, replaceName);
-				options[optionsIndex + i].SavePtr(file, &replaceBone, 1, sizeof(CommandOptionPair_t));
+				options[optionsIndex].SavePtr(file, &replaceBone, 1, sizeof(CommandOptionPair_t));
 			}
 
-			i++;
+			optionsIndex++;
 		}
 
-		optionsIndex += lodGroupData->numBoneUsed;
+		// do replacement materials, if there are any
+		for (uint32_t i = 0; i < lodGroupData->numReplacementMaterials; i++)
+		{
+			if (optionsIndex >= usedOptions)
+				break;
+
+			const char* const baseName = lodGroupData->materialBaseNames[i];
+			const char* const replaceName = lodGroupData->materialReplaceNames[i];
+
+			// bone is replaced
+			options[optionsIndex].Init(&s_CommandLOD_Option_ReplaceMaterial);
+
+			if (store)
+			{
+				CommandOptionPair_t replaceMaterial(file, baseName, replaceName);
+				options[optionsIndex].SavePtr(file, &replaceMaterial, 1, sizeof(CommandOptionPair_t));
+			}
+			else
+			{
+				CommandOptionPair_t replaceMaterial(baseName, replaceName);
+				options[optionsIndex].SavePtr(file, &replaceMaterial, 1, sizeof(CommandOptionPair_t));
+			}
+
+			optionsIndex++;
+		}
 
 		// to be tested
-		if (lodGroupData->useShadowLODMaterials)
+		if (lodGroupData->useShadowLODMaterials && optionsIndex < usedOptions)
+		{
 			options[optionsIndex].Init(&s_CommandLOD_Option_ShadowLODMaterials);
+			optionsIndex++;
+		}
 
-		*numOptions = usedOptions;
+		assertm(usedOptions >= optionsIndex, "exceeded max usable options");
+		*numOptions = optionsIndex;
 
 		return options;
 	}
@@ -1932,6 +2047,28 @@ namespace qc
 		return options;
 	}
 
+	void CommandIKAutoPlayLock_ParseOptions(QCFile* const file, CommandOption_t* const options, const uint32_t usedOptions, const bool store, const IKLockData_t* const ikLockData)
+	{
+		UNUSED(usedOptions);
+
+		options[0].Init(&s_CommandGeneric_Option_Name);
+
+		if (store)
+		{
+			options[0].SaveStr(file, ikLockData->chain);
+		}
+		else
+		{
+			options[0].SetPtr(ikLockData->chain);
+		}
+
+		options[1].Init(&s_CommandIKAutoPlayLock_Option_LockPosition);
+		options[1].SetRaw(&ikLockData->flPosWeight, 1, sizeof(float));
+
+		options[2].Init(&s_CommandIKAutoPlayLock_Option_InheritRotation);
+		options[2].SetRaw(&ikLockData->flLocalQWeight, 1, sizeof(float));
+	}
+
 	CommandOption_t* CommandIKAutoPlayLock_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store = false)
 	{
 		UNUSED(count);
@@ -1941,18 +2078,1070 @@ namespace qc
 		const uint32_t usedOptions = 3u;
 		CommandOption_t* options = new CommandOption_t[usedOptions];
 
-		options[0].Init(&s_CommandGeneric_Option_Name);
+		CommandIKAutoPlayLock_ParseOptions(file, options, usedOptions, store, ikLockData);
 
-		if (store)
-			options[0].SaveStr(file, ikLockData->chain);
+		*numOptions = usedOptions;
+
+		return options;
+	}
+
+	CommandOption_t* CommandSectionFrames_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store = false)
+	{
+		UNUSED(file);
+		UNUSED(count);
+		UNUSED(store);
+
+		const SectionFrameData_t* const sectionFrameData = reinterpret_cast<const SectionFrameData_t* const>(data);
+
+		const uint32_t usedOptions = 2u;
+		CommandOption_t* options = new CommandOption_t[usedOptions];
+
+		options[0].Init(&s_CommandSectionFrames_Option_FrameCount);
+		options[0].SetRaw(&sectionFrameData->sectionFrameCount, 1, sizeof(int));
+
+		options[1].Init(&s_CommandSectionFrames_Option_MinFrames);
+		options[1].SetRaw(&sectionFrameData->minFramesForSections, 1, sizeof(int));
+
+		*numOptions = usedOptions;
+
+		return options;
+	}
+
+	constexpr CommandOptionDesc_t s_CommandAnimBlockSize_Option_Size(QC_OPT_INT, "blocksize", s_CommandOptionFormatDefault);
+	constexpr CommandOptionDesc_t s_CommandAnimBlockSize_Option_NoStall(QC_OPT_NONE, "nostall", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimBlockSize_Option_HighRes(QC_OPT_NONE, "highres", s_CommandOptionFormatNameParentLine, s_QCVersion_L4D, s_QCVersion_R1);
+	constexpr CommandOptionDesc_t s_CommandAnimBlockSize_Option_LowRes(QC_OPT_NONE, "lowres", s_CommandOptionFormatNameParentLine, s_QCVersion_L4D, s_QCVersion_R1);
+	constexpr CommandOptionDesc_t s_CommandAnimBlockSize_Option_NumFrames(QC_OPT_INT, "numframes", s_CommandOptionFormatNameParentLine, s_QCVersion_L4D2, s_QCVersion_R1);
+	constexpr CommandOptionDesc_t s_CommandAnimBlockSize_Option_CacheHighRes(QC_OPT_NONE, "cachehighres", s_CommandOptionFormatNameParentLine, s_QCVersion_L4D2, s_QCVersion_R1);
+
+	CommandOption_t* CommandAnimBlockSize_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store = false)
+	{
+		UNUSED(file);
+		UNUSED(count);
+		UNUSED(store);
+
+		const AnimBlockData_t* const animBlockData = reinterpret_cast<const AnimBlockData_t* const>(data);
+
+		// align block size to nice numbers
+		int blockSizeInKB = (animBlockData->maxBlockSizeInBytes >> 10);
+		if (blockSizeInKB > 32)
+		{
+			blockSizeInKB = 64;
+		}
+		else if (blockSizeInKB > 16)
+		{
+			blockSizeInKB = 32;
+		}
 		else
-			options[0].SetPtr(ikLockData->chain);
+		{
+			blockSizeInKB = 16;
+		}
 
-		options[1].Init(&s_CommandIKAutoPlayLock_Option_LockPosition);
-		options[1].SetRaw(&ikLockData->flPosWeight, 1, sizeof(float));
+		const uint32_t usedOptions = animBlockData->EstimateOptionCount();
+		CommandOption_t* options = new CommandOption_t[usedOptions];
 
-		options[2].Init(&s_CommandIKAutoPlayLock_Option_InheritRotation);
-		options[2].SetRaw(&ikLockData->flLocalQWeight, 1, sizeof(float));
+		uint32_t optionsIndex = 0u;
+
+		options[optionsIndex].Init(&s_CommandAnimBlockSize_Option_Size);
+		options[optionsIndex].SetRaw(&blockSizeInKB, 1, sizeof(int));
+		optionsIndex++;
+
+		if (animBlockData->noStall)
+		{
+			options[optionsIndex].Init(&s_CommandAnimBlockSize_Option_NoStall);
+			optionsIndex++;
+		}
+
+		if (animBlockData->highRes)
+		{
+			options[optionsIndex].Init(&s_CommandAnimBlockSize_Option_HighRes);
+			optionsIndex++;
+		}
+
+		if (animBlockData->lowRes)
+		{
+			options[optionsIndex].Init(&s_CommandAnimBlockSize_Option_LowRes);
+			optionsIndex++;
+		}
+
+		if (animBlockData->UseNumFrames())
+		{
+			options[optionsIndex].Init(&s_CommandAnimBlockSize_Option_NumFrames);
+			options[optionsIndex].SetRaw(&animBlockData->numFrames, 1, sizeof(int));
+			optionsIndex++;
+		}
+
+		if (animBlockData->cacheHighRes)
+		{
+			options[optionsIndex].Init(&s_CommandAnimBlockSize_Option_CacheHighRes);
+			optionsIndex++;
+		}
+
+		*numOptions = usedOptions;
+
+		return options;
+	}
+
+	CommandOption_t* CommandWeightList_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store = false)
+	{
+		UNUSED(file);
+		UNUSED(count);
+		UNUSED(store);
+
+		const WeightListData_t* const weightListData = reinterpret_cast<const WeightListData_t* const>(data);
+
+		const uint32_t usedOptions = weightListData->numWeights + (weightListData->isDefault ? 0u : 1u);
+		CommandOption_t* options = new CommandOption_t[usedOptions];
+
+		uint32_t optionsIndex = 0u;
+
+		if (weightListData->isDefault == false)
+		{
+			options[optionsIndex].Init(&s_CommandGeneric_Option_Name);
+			options[optionsIndex].SetPtr(weightListData->name);
+			optionsIndex++;
+		}
+
+		for (int i = 0; i < weightListData->numWeights; i++)
+		{
+			const CommandOptionPair_t weightData(weightListData->bones[i], weightListData->weights[i]);
+
+			options[optionsIndex].Init(&s_CommandWeightList_Option_Weight);
+			options[optionsIndex].SavePtr(file, &weightData, 1u, sizeof(CommandOptionPair_t));
+			optionsIndex++;
+		}
+
+		*numOptions = usedOptions;
+
+		return options;
+	}
+
+	// general
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_Filepath(QC_OPT_STRING, "filepath");
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_FPS(QC_OPT_FLOAT, "fps", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_Loop(QC_OPT_NONE, "loop", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_NoForceLoop(QC_OPT_NONE, "noforceloop", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_Snap(QC_OPT_NONE, "snap", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_Post(QC_OPT_NONE, "post", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_NoAnim(QC_OPT_NONE, "noanimation", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_NoAnimKeepDuration(QC_OPT_NONE, "noanim_keepduration", s_CommandOptionFormatNameNewLine, s_QCVersion_CSGO, s_QCVersion_R5_RETAIL); // not in p2, but in csgo, and seemingly in r1
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_NoAutoIK(QC_OPT_NONE, "noautoik", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_AutoIK(QC_OPT_NONE, "autoik", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_Subtract(QC_OPT_STRING, "subtract", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_WeightList(QC_OPT_STRING, "weightlist", s_CommandOptionFormatNameNewLine);
+
+	// motions
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_MotionAxis(QC_OPT_STRING, "motion_axis", s_CommandOptionFormatDefault);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_WalkFrame_EndFrame(QC_OPT_INT, "endframe", s_CommandOptionFormatDefault);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_WalkFrame(QC_OPT_ARRAY, "walkframe", s_CommandOptionFormatNameNewLine);
+
+	// ik rule
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule(QC_OPT_ARRAY, "ikrule", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKFixup(QC_OPT_ARRAY, "ikfixup", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Touch(QC_OPT_STRING, "touch", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Footstep(QC_OPT_NONE, "footstep", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Attachment(QC_OPT_STRING, "attachment", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Release(QC_OPT_NONE, "release", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Unlatch(QC_OPT_NONE, "unlatch", s_CommandOptionFormatNameParentLine);
+
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Height(QC_OPT_FLOAT, "height", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Target(QC_OPT_INT, "target", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Range(QC_OPT_INT, "range", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Floor(QC_OPT_FLOAT, "floor", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Radius(QC_OPT_FLOAT, "radius", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Contact(QC_OPT_FLOAT, "contact", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_FakeOrigin(QC_OPT_FLOAT, "fakeorigin", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_FakeRotate(QC_OPT_FLOAT, "fakerotate", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Bone(QC_OPT_STRING, "bone", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_EndHeight(QC_OPT_FLOAT, "endheight", s_CommandOptionFormatNameParentLine, s_QCVersion_R1, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_UseSeq(QC_OPT_NONE, "usesequence", s_CommandOptionFormatNameParentLine);
+
+	// respawn
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_RootMotion(QC_OPT_NONE, "rm", s_CommandOptionFormatNameParentLine, s_QCVersion_R1, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_SuppressGesture(QC_OPT_NONE, "suppgest", s_CommandOptionFormatNameParentLine, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_DefaultPose(QC_OPT_NONE, "defaultpose", s_CommandOptionFormatNameNewLine, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
+
+	// seqeunce
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Activity(QC_OPT_PAIR, "activity", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Delta(QC_OPT_NONE, "delta", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_AutoPlay(QC_OPT_NONE, "autoplay", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_RealTime(QC_OPT_NONE, "realtime", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Hidden(QC_OPT_NONE, "hidden", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_WorldSpace(QC_OPT_NONE, "worldspace", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_FadeIn(QC_OPT_FLOAT, "fadein", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_FadeOut(QC_OPT_FLOAT, "fadeout", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Event(QC_OPT_ARRAY, "event", QC_FMT_ARRAY | QC_FMT_NEWLINE);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Event_Key(QC_OPT_NONE, "event", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Event_ID(QC_OPT_INT, "event_id", s_CommandOptionFormatDefault);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Event_Frame(QC_OPT_INT, "event_frame", s_CommandOptionFormatDefault);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Event_Options(QC_OPT_STRING, "event_options", s_CommandOptionFormatDefault);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Event_Unk(QC_OPT_FLOAT, "event_unk", s_CommandOptionFormatDefault, s_QCVersion_R5_120, s_QCVersion_R5_RETAIL); // should be 12.3, todo support this
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Blends(QC_OPT_STRING, "blends", QC_FMT_NEWLINE);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_BlendWidth(QC_OPT_INT, "blendwidth", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Blend(QC_OPT_PAIR, "blend", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Node(QC_OPT_STRING, "node", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Transition(QC_OPT_PAIR, "transition", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_RTransition(QC_OPT_PAIR, "rtransition", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_ExitPhase(QC_OPT_FLOAT, "exitphase", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_AddLayer(QC_OPT_ARRAY, "addlayer", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_BlendLayer(QC_OPT_ARRAY, "blendlayer", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Layer_Local(QC_OPT_NONE, "local", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Layer_Pose(QC_OPT_STRING, "poseparameter", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Layer_NoBlend(QC_OPT_NONE, "noblend", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Layer_Spline(QC_OPT_NONE, "spline", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Layer_XFade(QC_OPT_NONE, "xfade", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Layer_RealTime(QC_OPT_NONE, "realtime", s_CommandOptionFormatNameParentLine, s_QCVersion_R1, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Layer_Unk2000(QC_OPT_NONE, "unk_2000", s_CommandOptionFormatNameParentLine, s_QCVersion_R1, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_Layer_Range(QC_OPT_INT, "range", s_CommandOptionFormatDefault);
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_IKLock(QC_OPT_ARRAY, "iklock", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_PoseCycle(QC_OPT_STRING, "posecycle", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_KeyValues(QC_OPT_STRING, "keyvalues", s_CommandOptionFormatNameNewLine);
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_ActMod(QC_OPT_ARRAY, "activitymodifier", s_CommandOptionFormatNameNewLine, s_QCVersion_P2, s_QCVersion_MAX);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_ActMod_Negate(QC_OPT_NONE, "negate", s_CommandOptionFormatNameParentLine, s_QCVersion_R1, s_QCVersion_R5_RETAIL);
+
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_IKResetMask(QC_OPT_STRING, "ikresetmask", s_CommandOptionFormatNameParentLine, s_QCVersion_R1, s_QCVersion_R5_RETAIL);
+
+	void CommandAnimation_ParseOption_Motion(QCFile* const file, CommandOption_t* const options, uint32_t& optionsIndex, const AnimationData_t* const animData)
+	{
+		// motion spans the entire animation
+		// undesirable results ?
+		/*if (animData->numMotions == 1)
+		{
+			const char* motionAxis[AnimationMotion_t::MOTION_OPT_COUNT]{};
+			const AnimationMotion_t* const motion = animData->motions;
+
+			animData->BuildAxisForMotion(0, motionAxis);
+			const int numAxis = motion->AxisCount();
+
+			options[optionsIndex].Init(&s_CommandAnimation_Option_MotionAxis);
+			options[optionsIndex].SavePtr(file, motionAxis, numAxis, sizeof(char*) * numAxis);
+			optionsIndex++;
+
+			return;
+		}*/
+
+		const char* motionAxis[AnimationMotion_t::MOTION_OPT_COUNT]{};
+
+		for (int i = 0; i < animData->numMotions; i++)
+		{
+			const AnimationMotion_t* const motion = animData->motions + i;
+
+			animData->BuildAxisForMotion(i, motionAxis);
+			const int numAxis = motion->AxisCount();
+
+			CommandOptionArray_t walkframeArray(file, 2u);
+
+			walkframeArray.options[0].Init(&s_CommandAnimation_Option_WalkFrame_EndFrame);
+			walkframeArray.options[0].SetRaw(&motion->endframe, 1u, sizeof(int));
+
+			walkframeArray.options[1].Init(&s_CommandAnimation_Option_MotionAxis);
+			walkframeArray.options[1].SavePtr(file, motionAxis, numAxis, sizeof(char*) * numAxis);
+
+			options[optionsIndex].Init(&s_CommandAnimation_Option_WalkFrame);
+			options[optionsIndex].SavePtr(file, &walkframeArray, 1u, sizeof(CommandOptionArray_t));
+			optionsIndex++;
+		}
+	}
+
+	void CommandAnimation_ParseOption_IKRule(QCFile* const file, const AnimationData_t* const animData, const AnimationIKRule_t* const ikRule, CommandOptionArray_t* const ikRuleArray)
+	{
+		CommandOption_t* const options = ikRuleArray->options;
+		uint32_t optionsIndex = 0;
+
+		switch (ikRule->type)
+		{
+		case IK_SELF:
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Footstep);
+			options[optionsIndex].SetPtr(ikRule->bonename);
+			optionsIndex++;
+
+			break;
+		}
+		case IK_GROUND:
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Touch);
+			optionsIndex++;
+
+			break;
+		}
+		case IK_ATTACHMENT:
+		{
+			assertm(ikRule->attachment, "ik rule was attachment without attachment name");
+
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Attachment);
+			options[optionsIndex].SetPtr(ikRule->attachment);
+			optionsIndex++;
+
+			break;
+		}
+		case IK_RELEASE:
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Release);
+			optionsIndex++;
+
+			break;
+		}
+		case IK_UNLATCH:
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Unlatch);
+			optionsIndex++;
+
+			break;
+		}
+		}
+
+		if (ikRule->height != 0.0f)
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Height);
+			options[optionsIndex].SetRaw(&ikRule->height, 1u, sizeof(float));
+			optionsIndex++;
+		}
+
+		if (ikRule->floor != 0.0f)
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Floor);
+			options[optionsIndex].SetRaw(&ikRule->floor, 1u, sizeof(float));
+			optionsIndex++;
+		}
+
+		if (ikRule->radius != 0.0f)
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Radius);
+			options[optionsIndex].SetRaw(&ikRule->radius, 1u, sizeof(float));
+			optionsIndex++;
+		}
+
+		if (ikRule->endHeight != 0.0f)
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_EndHeight);
+			options[optionsIndex].SetRaw(&ikRule->endHeight, 1u, sizeof(float));
+			optionsIndex++;
+		}
+
+		if (ikRule->slot != ikRule->chain)
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Target);
+			options[optionsIndex].SetRaw(&ikRule->slot, 1u, sizeof(int));
+			optionsIndex++;
+		}
+
+		if (ikRule->start != 0.0f || ikRule->peak != 0.0f || ikRule->tail != 1.0f || ikRule->end != 1.0f)
+		{
+			int range[4]{};
+			const float numFrames = static_cast<float>(animData->numFrames - 1);
+
+			range[0] = static_cast<int>(numFrames * ikRule->start);
+			range[1] = static_cast<int>(numFrames * ikRule->peak);
+			range[2] = static_cast<int>(numFrames * ikRule->tail);
+			range[3] = static_cast<int>(numFrames * ikRule->end);
+
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Range);
+			options[optionsIndex].SavePtr(file, range, 4u, sizeof(range));
+			optionsIndex++;
+		}
+
+		if (ikRule->bone == -1)
+		{
+			if (ikRule->pos->x != 0.0f || ikRule->pos->y != 0.0f || ikRule->pos->z != 0.0f)
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_FakeOrigin);
+				options[optionsIndex].SetPtr(ikRule->pos, 3u);
+				optionsIndex++;
+			}
+
+			if (ikRule->q->x != 0.0f || ikRule->q->y != 0.0f || ikRule->q->z != 0.0f || ikRule->q->w != 0.0f)
+			{
+				QAngle angles(*ikRule->q);
+
+				options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_FakeRotate);
+				options[optionsIndex].SavePtr(file, &angles, 3u, sizeof(QAngle));
+				optionsIndex++;
+			}
+		}
+
+		if (ikRule->bone > 0 && ikRule->type != IK_SELF)
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Bone);
+			options[optionsIndex].SetPtr(ikRule->bonename);
+			optionsIndex++;
+		}
+
+		// todo 'usesequence'
+
+		ikRuleArray->TruncateOptions(optionsIndex);
+	}
+
+	void CommandAnimation_ParseOption_IKRule(QCFile* const file, CommandOption_t* const options, uint32_t& optionsIndex, const AnimationData_t* const animData)
+	{
+		for (int i = 0; i < animData->numIKRules; i++)
+		{
+			const AnimationIKRule_t* const ikRule = animData->ikRules + i;
+			CommandOptionArray_t ikRuleArray(file, 16u);
+
+			CommandAnimation_ParseOption_IKRule(file, animData, ikRule, &ikRuleArray);
+
+			if (ikRule->isFixup)
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_IKFixup);
+			}
+			else
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule);
+			}
+
+			options[optionsIndex].SavePtr(file, &ikRuleArray, 1u, sizeof(CommandOptionArray_t));
+			optionsIndex++;
+		}
+	}
+
+	void CommandAnimation_ParseOption_Simple(QCFile* const file, CommandOption_t* const options, uint32_t& optionsIndex, const AnimationData_t* const animData, const bool forceNoParentLine)
+	{
+		UNUSED(file);
+
+		const CommandFormat_t format = forceNoParentLine ? s_CommandOptionFormatNameNewLine : s_CommandOptionFormatNameParentLine;
+		const AnimationOptions_t animOptions = animData->options;
+
+		if (animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_SEQ)
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_FPS);
+			options[optionsIndex].SetRaw(&animData->fps, 1, sizeof(float));
+			optionsIndex++;
+		}
+
+		if (animOptions.GetUsedOptions())
+		{
+			if (animOptions.IsLooping())
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_Loop);
+				options[optionsIndex].SetFormat(format);
+				optionsIndex++;
+			}
+
+			if (animOptions.HasSnap())
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_Snap);
+				options[optionsIndex].SetFormat(format);
+				optionsIndex++;
+			}
+
+			if (animOptions.IsDelta())
+			{
+				if (animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_SEQ)
+				{
+					options[optionsIndex].Init(&s_CommandAnimation_Option_Subtract);
+					options[optionsIndex].SetPtr(animData->subtractPath);
+					options[optionsIndex].data.format |= QC_FMT_COMMENT; // temp
+					optionsIndex++;
+				}
+
+				if (animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM)
+				{
+					options[optionsIndex].Init(&s_CommandSequence_Option_Delta);
+					optionsIndex++;
+				}
+			}
+
+			if (animOptions.IsAutoPlay())
+			{
+				assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "autoplay on animation?");
+
+				options[optionsIndex].Init(&s_CommandSequence_Option_AutoPlay);
+				optionsIndex++;
+			}
+
+			if (animOptions.HasPost())
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_Post);
+				options[optionsIndex].SetFormat(format);
+				optionsIndex++;
+			}
+
+			if (animOptions.HasNoAnim())
+			{
+				if (animData->numFrames > 1)
+				{
+					options[optionsIndex].Init(&s_CommandAnimation_Option_NoAnimKeepDuration);
+				}
+				else
+				{
+					options[optionsIndex].Init(&s_CommandAnimation_Option_NoAnim);
+				}
+
+				optionsIndex++;
+			}
+
+			if (animOptions.IsRealTime())
+			{
+				assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "realtime on animation?");
+
+				options[optionsIndex].Init(&s_CommandSequence_Option_RealTime);
+				optionsIndex++;
+			}
+
+			if (animOptions.IsHidden())
+			{
+				assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "hidden on animation?");
+
+				options[optionsIndex].Init(&s_CommandSequence_Option_Hidden);
+				optionsIndex++;
+			}
+
+			if (animOptions.IsWorldSpace())
+			{
+				assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "worldspace on animation?");
+
+				options[optionsIndex].Init(&s_CommandSequence_Option_WorldSpace);
+				optionsIndex++;
+			}
+
+			if (animOptions.HasNoForceLoop())
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_NoForceLoop);
+				options[optionsIndex].SetFormat(format);
+				optionsIndex++;
+			}
+
+			if (animOptions.UseNoAutoIK())
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_NoAutoIK);
+				optionsIndex++;
+			}
+
+			if (animOptions.UseAutoIK())
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_AutoIK);
+				optionsIndex++;
+			}
+
+			// respawn options
+			if (animOptions.HasRootMotion())
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_RootMotion);
+				optionsIndex++;
+			}
+
+			if (animOptions.SuppressGestures())
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_SuppressGesture);
+				optionsIndex++;
+			}
+
+			if (animOptions.UseDefaultPose())
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_DefaultPose);
+				optionsIndex++;
+			}
+		}
+	}
+
+	CommandOption_t* CommandAnimation_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store = false)
+	{
+		// 
+		// unable to replicate = data was baked in and cannot be extracted
+		// 
+		// COMMANDS VALID FOR ANIMATION
+		// fps				(done)
+		// origin			(unable to replicate) (adjusts animation origin/offset)
+		// rotate			(unable to replicate) (adjusts rotation of z axis)
+		// angles			(unable to replicate) (adjusts rotation of angles)
+		// scale			(unable to replicate) (adjusts scale of values)
+		// loop				(done) (animation loops)
+		// noforceloop		(done) (not forced into looping anim?)
+		// startloop		(unable to replicate) (adjusts loop point?)
+		// percentstartloop (unable to replicate) (adjusts loop point?)
+		// fudgeloop		(unable to replicate) (last frame was not the same as the first, so make it match, specifically for motions)
+		// snap				(done) (snaps to next blend, no interp)
+		// frame/frames framestart (unable to replicate) (truncates animation)
+		// blockname		(unable to replicate) (gets animation from provided source (mdl? dmx?))
+		// post				(done) (CHECK FOR OTHER FLAGS ON SEQS!!!) (STUDIO_WORLD_AND_RELATIVE, STUDIO_WORLD, STUDIO_DELTA)
+		// noautoik			(done) (check ikrules for default release ikrules)
+		// autoik			(done) (check ikrules for default release ikrules)
+		// cmdlist			(unable to replicate) (for a list of options)
+		// motionrollback	(unable to replicate) (used to prevent 'popping' on looped animations with motions)
+		// noanimblock		(todo) (animation doesn't use animblocks)
+		// noanimblockstall (todo) (first section is stored locally instead of using stall frames)
+		// nostallframes	(todo) (value is used for some checks but not for writing?)
+		// motion axis		(done) (X, Y, Z, XR, YR, ZR, LX, LY, LZ, LXR, LYR, LZR, LM, LQ)
+		// rm				(done)
+		// suppgest			(done)
+		// defaultpose		(done)
+
+		// COMMANDS VALID FOR CMDLIST
+		// fixuploop			(unable to replicate) (blends the end and start frames to smoothly transition)
+		// weightlist			(done) (only used in sequence currently)
+		// subtract				(todo) (use an empty smd to simply apply the delta flag)
+		// presubtract			(unable to replicate) (subtract with extra steps)
+		// alignto				(unable to replicate) (adjusts animation on compile)
+		// align				(unable to replicate) (adjusts animation on compile)
+		// alignboneto			(unable to replicate) (adjusts animation on compile)
+		// alignbone			(unable to replicate) (adjusts animation on compile)
+		// match				(unable to replicate) (adds to another animation on compile)
+		// matchblend			(unable to replicate) (above but blending)
+		// worldspaceblend		(unable to replicate) (adjusts animation on compile)
+		// worldspaceblendloop	(unable to replicate) (above but loop)
+		// rotateto				(unable to replicate) (rotates the entire animations)
+		// ikrule				(incomplete)
+		// ikfixup				(incomplete) (ikerrors, animation should be looped?)
+		// walkframe			(done)
+		// walkalignto			(unable to replicate) (parses extra data in, use walkframe)
+		// walkalign			(unable to replicate) (parses extra data in, use walkframe)
+		// derivative			(unable to replicate) (adjusts animation on compile)
+		// noanimation			(done)
+		// noanim_keepduration	(done)
+		// lineardelta			(todo) (check autolayer flags, probably just a comment about this being used)
+		// splinedelta			(todo) (check autolayer flags, probably just a comment about this being used)
+		// compress				(unable to replicate) (adjusts framerate, do not know original framerate)
+		// numframes			(unable to replicate) (truncates animation)
+		// counterrotate		(unable to replicate) (rotates a bone)
+		// counterrotateto		(unable to replicate) (rotates a bone)
+		// localhierarchy		(todo)
+		// forceboneposrot		(unable to replicate) (forces a bone translation and updates child bones)
+		// bonedriver			(unable to replicate) (reference bone driver is not stored, and only updates local values)
+		// reverse				(unable to replicate) (compiles the animation backwards, possible to decompile if any sign of it being used are stored(apex anim names?))
+		// appendanim			(unable to replicate) (appends another animation on the end of this, compiled in)
+
+		UNUSED(count);
+		UNUSED(store);
+
+		const AnimationData_t* const animData = reinterpret_cast<const AnimationData_t* const>(data);
+
+		const uint32_t usedOptions = 3u + animData->EstimateOptionCount_Anim();
+		CommandOption_t* const options = new CommandOption_t[usedOptions];
+
+		uint32_t optionsIndex = 0u;
+
+		options[optionsIndex].Init(&s_CommandGeneric_Option_Name);
+		options[optionsIndex].SetPtr(animData->name);
+		optionsIndex++;
+
+		// always expect this needs to be allocated
+		options[optionsIndex].Init(&s_CommandAnimation_Option_Filepath);
+		options[optionsIndex].SaveStr(file, animData->filepath);
+		optionsIndex++;
+
+		if (animData->numMotions && usedOptions >= (optionsIndex + animData->numMotions))
+		{
+			CommandAnimation_ParseOption_Motion(file, options, optionsIndex, animData);
+		}
+
+		if (animData->numIKRules && usedOptions >= (optionsIndex + animData->numIKRules))
+		{
+			CommandAnimation_ParseOption_IKRule(file, options, optionsIndex, animData);
+		}
+
+		CommandAnimation_ParseOption_Simple(file, options, optionsIndex, animData, false);
+
+		*numOptions = usedOptions;
+
+		return options;
+	}
+
+	void CommandSequence_ParseOption_Layer(QCFile* const file, const SequenceData_t* const seqData, const SequenceLayer_t* const layer, CommandOptionArray_t* const layerArray, const bool useBlendLayer)
+	{
+		uint32_t optionsIndex = 0u;
+
+		CommandOption_t* const options = layerArray->options;
+
+		options[optionsIndex].Init(&s_CommandGeneric_Option_Name);
+		options[optionsIndex].SetPtr(layer->sequence);
+		optionsIndex++;
+
+		if (useBlendLayer)
+		{
+			int range[4]{};
+			const float numFrames = static_cast<float>(seqData->numFrames - 1);
+
+			range[0] = static_cast<int>(numFrames * layer->start);
+			range[1] = static_cast<int>(numFrames * layer->peak);
+			range[2] = static_cast<int>(numFrames * layer->tail);
+			range[3] = static_cast<int>(numFrames * layer->end);
+
+			options[optionsIndex].Init(&s_CommandSequence_Option_Layer_Range);
+			options[optionsIndex].SavePtr(file, range, 4u, sizeof(range));
+			optionsIndex++;
+		}
+
+		if (layer->flags & STUDIO_AL_LOCAL)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_Layer_Local);
+			optionsIndex++;
+		}
+
+		if (useBlendLayer == false)
+		{
+			layerArray->TruncateOptions(optionsIndex);
+			return;
+		}
+
+		if (layer->flags & STUDIO_AL_POSE)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_Layer_Pose);
+			options[optionsIndex].SetPtr(layer->pose);
+			optionsIndex++;
+		}
+
+		if (layer->flags & STUDIO_AL_NOBLEND)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_Layer_Local);
+			optionsIndex++;
+		}
+
+		if (layer->flags & STUDIO_AL_SPLINE)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_Layer_Spline);
+			optionsIndex++;
+		}
+
+		if (layer->flags & STUDIO_AL_XFADE)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_Layer_XFade);
+			optionsIndex++;
+		}
+
+		if (layer->flags & STUDIO_AL_REALTIME)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_Layer_RealTime);
+			optionsIndex++;
+		}
+
+		if (layer->flags & STUDIO_AL_2000)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_Layer_Unk2000);
+			optionsIndex++;
+		}
+
+		layerArray->TruncateOptions(optionsIndex);
+	}
+
+	void CommandSequence_ParseOption_IKResetMask(QCFile* const file, CommandOption_t* const options, uint32_t& optionsIndex, const SequenceData_t* const seqData)
+	{
+		UNUSED(file);
+
+		options[optionsIndex].Init(&s_CommandSequence_Option_IKResetMask);
+
+		switch (seqData->ikResetMask)
+		{
+		case IK_SELF:
+		{
+			options[optionsIndex].SetPtr("touch");
+			break;
+		}
+		case IK_WORLD:
+		{
+			assertm(false, "IK_WORLD is only set via runtime code");
+			break;
+		}
+		case IK_GROUND:
+		{
+			options[optionsIndex].SetPtr("footstep");
+			break;
+		}
+		case IK_ATTACHMENT:
+		{
+			options[optionsIndex].SetPtr("attachment");
+			break;
+		}
+		case IK_RELEASE:
+		{
+			options[optionsIndex].SetPtr("release");
+			break;
+		}
+		case IK_UNLATCH:
+		{
+			options[optionsIndex].SetPtr("unlatch");
+			break;
+		}
+		}
+
+		optionsIndex++;
+	}
+
+	CommandOption_t* CommandSequence_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store = false)
+	{
+		// event			(done)
+		// activity			(done)
+		// activitymodifier	(done)
+		// snap				(done)
+		// blendwidth		(done)
+		// blend			(done)
+		// calcblend		(unable to replicate) (adjusts param on compile)
+		// blendref			(unable to replicate) (adjusts param on compile)
+		// blendcomp		(unable to replicate) (adjusts param on compile)
+		// blendcenter		(unable to replicate) (adjusts param on compile)
+		// node				(done)
+		// transition		(done)
+		// rtransition		(done)
+		// exitphase		(done)
+		// delta			(done)
+		// worldspace		(done)
+		// post				(done)
+		// predelta			(unable to replicate) (use delta, this does stuff on compile)
+		// autoplay			(done)
+		// fadein			(done)
+		// fadeout			(done)
+		// realtime			(done)
+		// posecycle		(done)
+		// hidden			(done)
+		// addlayer			(done)
+		// iklock			(done)
+		// keyvalues		(done)
+		// blendlayer		(done)
+
+		// ikresetmask		(done)
+
+		// other respawn stuff
+
+		UNUSED(count);
+		UNUSED(store);
+
+		const SequenceData_t* const seqData = reinterpret_cast<const SequenceData_t* const>(data);
+
+		const bool animationImplied = seqData->options.features == AnimationOptions_t::ANIM_OPT_FEATURE_ALL;
+
+		const uint32_t usedOptions = animationImplied + seqData->EstimateOptionCount_Seq();
+		CommandOption_t* options = new CommandOption_t[usedOptions];
+
+		uint32_t optionsIndex = 0u;
+
+		options[optionsIndex].Init(&s_CommandGeneric_Option_Name);
+		options[optionsIndex].SetPtr(seqData->name);
+		optionsIndex++;
+
+		assertm(seqData->numBlends, "sequence without animations");
+		if (seqData->numBlends > 1)
+		{
+			for (int i = 0; i < seqData->numBlends; i += seqData->GetWidth())
+			{
+				options[optionsIndex].Init(&s_CommandSequence_Option_Blends);
+				options[optionsIndex].SavePtr(file, seqData->blends + i, seqData->GetWidth(), sizeof(char*) * seqData->GetWidth());
+				optionsIndex++;
+			}
+
+			options[optionsIndex].Init(&s_CommandSequence_Option_BlendWidth);
+			options[optionsIndex].SetRaw(&seqData->GetWidth(), 1u, sizeof(int));
+			optionsIndex++;
+		}
+		else
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_Filepath);
+			options[optionsIndex].SaveStr(file, seqData->blends[0]);
+			optionsIndex++;
+		}
+
+		for (int i = 0; i < 2; i++)
+		{
+			if (seqData->param[i] == nullptr)
+			{
+				break;
+			}
+
+			const float min_max[2] = { seqData->paramstart[i], seqData->paramend[i] };
+
+			CommandOptionPair_t seqBlend;
+			seqBlend.SetData(0u, seqData->param[i], 1u, QC_OPT_STRING);
+			seqBlend.SetData(1u, min_max, 2u, QC_OPT_FLOAT);
+
+			options[optionsIndex].Init(&s_CommandSequence_Option_Blend);
+			options[optionsIndex].SavePtr(file, &seqBlend, 1u, sizeof(CommandOptionPair_t));
+			optionsIndex++;
+		}
+
+		if (seqData->weightlist)
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_WeightList);
+			options[optionsIndex].SetPtr(seqData->weightlist);
+			optionsIndex++;
+		}
+
+		if (seqData->numMotions && usedOptions >= (optionsIndex + seqData->numMotions))
+		{
+			CommandAnimation_ParseOption_Motion(file, options, optionsIndex, seqData);
+		}
+
+		// ik stuff
+		if (seqData->numIKRules && usedOptions >= (optionsIndex + seqData->numIKRules))
+		{
+			CommandAnimation_ParseOption_IKRule(file, options, optionsIndex, seqData);
+		}
+
+		for (int i = 0; i < seqData->numIKLocks; i++)
+		{
+			const IKLockData_t* const seqIKLock = seqData->ikLocks + i;
+			CommandOptionArray_t seqIKLockArray(file, 3u);
+
+			CommandIKAutoPlayLock_ParseOptions(file, seqIKLockArray.options, 3u, store, seqIKLock);
+
+			options[optionsIndex].Init(&s_CommandSequence_Option_IKLock);
+			options[optionsIndex].SavePtr(file, &seqIKLockArray, 1u, sizeof(CommandOptionArray_t));
+			optionsIndex++;
+		}
+
+		if (seqData->ikResetMask)
+		{
+			CommandSequence_ParseOption_IKResetMask(file, options, optionsIndex, seqData);
+		}
+
+		// activity
+		if (seqData->HasActivity())
+		{
+			const CommandOptionPair_t seqActivity(seqData->activity, seqData->activityWeight);
+
+			options[optionsIndex].Init(&s_CommandSequence_Option_Activity);
+			options[optionsIndex].SavePtr(file, &seqActivity, 1u, sizeof(CommandOptionPair_t));
+			optionsIndex++;
+		}
+
+		for (int i = 0; i < seqData->numActMods; i++)
+		{
+			const SequenceActMod_t* const seqActMod = seqData->actmods + i;
+			CommandOptionArray_t seqActModArray(file, 1u + seqActMod->negate);
+
+			seqActModArray.options[0].Init(&s_CommandGeneric_Option_Name);
+			seqActModArray.options[0].SetPtr(seqActMod->activity);
+
+			if (seqActMod->negate)
+			{
+				seqActModArray.options[1].Init(&s_CommandSequence_Option_ActMod_Negate);
+			}
+
+			options[optionsIndex].Init(&s_CommandSequence_Option_ActMod);
+			options[optionsIndex].SavePtr(file, &seqActModArray, 1u, sizeof(CommandOptionArray_t));
+			optionsIndex++;
+		}
+
+		// layers
+		for (int i = 0; i < seqData->numLayers; i++)
+		{
+			const SequenceLayer_t* const seqLayer = seqData->layers + i;
+			const bool useBlendLayer = seqLayer->UseBlendLayer();
+
+			CommandOptionArray_t seqLayerArray(file, useBlendLayer ? 16u : 2u);
+
+			CommandSequence_ParseOption_Layer(file, seqData, seqLayer, &seqLayerArray, useBlendLayer);
+
+			const CommandOptionDesc_t* const layerDesc = seqLayer->UseBlendLayer() ? &s_CommandSequence_Option_BlendLayer : &s_CommandSequence_Option_AddLayer;
+
+			options[optionsIndex].Init(layerDesc);
+			options[optionsIndex].SavePtr(file, &seqLayerArray, 1u, sizeof(CommandOptionArray_t));
+			optionsIndex++;
+		}
+
+		// nodes
+		if (seqData->localentrynode || seqData->localexitnode)
+		{
+			assertm(seqData->localentrynode && seqData->localexitnode, "both should be set");
+
+			if (seqData->nodeflags == 1)
+			{
+				const CommandOptionPair_t rTransition(seqData->entrynode, seqData->exitnode);
+
+				options[optionsIndex].Init(&s_CommandSequence_Option_RTransition);
+				options[optionsIndex].SavePtr(file, &rTransition, 1u, sizeof(CommandOptionPair_t));
+				optionsIndex++;
+			}
+			else if (seqData->localentrynode != seqData->localexitnode)
+			{
+				const CommandOptionPair_t transition(seqData->entrynode, seqData->exitnode);
+
+				options[optionsIndex].Init(&s_CommandSequence_Option_Transition);
+				options[optionsIndex].SavePtr(file, &transition, 1u, sizeof(CommandOptionPair_t));
+				optionsIndex++;
+			}
+			else
+			{
+				options[optionsIndex].Init(&s_CommandSequence_Option_Node);
+				options[optionsIndex].SetPtr(seqData->entrynode);
+				optionsIndex++;
+			}
+		}
+
+		// misc
+		if (seqData->fadeintime != s_Sequence_DefaultFadeIn)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_FadeIn);
+			options[optionsIndex].SetRaw(&seqData->fadeintime, 1u, sizeof(float));
+			optionsIndex++;
+		}
+
+		if (seqData->fadeouttime != s_Sequence_DefaultFadeOut)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_FadeOut);
+			options[optionsIndex].SetRaw(&seqData->fadeouttime, 1u, sizeof(float));
+			optionsIndex++;
+		}
+
+		if (seqData->options.HasCyclePose())
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_PoseCycle);
+			options[optionsIndex].SetPtr(seqData->cyclePose);
+			optionsIndex++;
+		}
+
+		// events
+		for (int i = 0; i < seqData->numEvents; i++)
+		{
+			const SequenceEvent_t* const seqEvent = seqData->events + i;
+			CommandOptionArray_t seqEventArray(file, 4u + seqEvent->HasOptions());
+
+			// cheat a little so our brackets are outside
+			seqEventArray.options[0].Init(&s_CommandSequence_Option_Event_Key);
+
+			if (seqEvent->UseEventName())
+			{
+				seqEventArray.options[1].Init(&s_CommandGeneric_Option_Name);
+				seqEventArray.options[1].SetPtr(seqEvent->name);
+			}
+			else
+			{
+				seqEventArray.options[1].Init(&s_CommandSequence_Option_Event_ID);
+				seqEventArray.options[1].SetRaw(&seqEvent->event, 1u, sizeof(int));
+			}
+
+			const int frame = static_cast<int>(static_cast<float>(seqData->numFrames - 1) * seqEvent->cycle);
+			seqEventArray.options[2].Init(&s_CommandSequence_Option_Event_Frame);
+			seqEventArray.options[2].SetRaw(&frame, 1u, sizeof(int));
+
+			// what is this for?
+			seqEventArray.options[3].Init(&s_CommandSequence_Option_Event_Unk);
+			seqEventArray.options[3].SetRaw(&seqEvent->unk, 1u, sizeof(float));
+
+			if (seqEvent->HasOptions())
+			{
+				seqEventArray.options[4].Init(&s_CommandSequence_Option_Event_Options);
+				seqEventArray.options[4].SetPtr(seqEvent->options);
+			}
+
+			options[optionsIndex].Init(&s_CommandSequence_Option_Event);
+			options[optionsIndex].SavePtr(file, &seqEventArray, 1u, sizeof(CommandOptionArray_t));
+			optionsIndex++;
+		}
+
+		if (seqData->keyValues)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_KeyValues);
+			options[optionsIndex].SetPtr(seqData->keyValues);
+			optionsIndex++;
+		}
+
+		// these only get parsed if we have animations or blends, so if the animation is not on the parent line (multiple blends) we need to make sure these are not on the parent line
+		CommandAnimation_ParseOption_Simple(file, options, optionsIndex, seqData, seqData->numBlends > 1);
+
+		if (seqData->exitphase != 0.0f)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_ExitPhase);
+			options[optionsIndex].SetRaw(&seqData->exitphase, 1u, sizeof(float));
+			optionsIndex++;
+		}
 
 		*numOptions = usedOptions;
 
@@ -1960,6 +3149,38 @@ namespace qc
 	}
 
 	// collision
+	inline void CommandContents_ParseOptions(CommandOption_t* const options, const uint32_t usedOptions, uint32_t& optionsIndex, const int contents)
+	{
+
+		if (contents == CONTENTS_EMPTY)
+		{
+			options[optionsIndex].Init(&s_CommandContents_Option_Flag);
+			options[optionsIndex].SetPtr(StudioContentFlagString(contents));
+			optionsIndex++;
+
+			return;
+		}
+
+		for (int bitIdx = 0; bitIdx < 32; bitIdx++)
+		{
+			if (optionsIndex == usedOptions)
+			{
+				break;
+			}
+
+			// shift here to get the content flag for this bit
+			const int content = 1 << bitIdx;
+			if ((contents & content) == 0)
+			{
+				continue;
+			}
+
+			options[optionsIndex].Init(&s_CommandContents_Option_Flag);
+			options[optionsIndex].SetPtr(StudioContentFlagString(contents & content));
+			optionsIndex++;
+		}
+	}
+
 	CommandOption_t* CommandContents_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store = false)
 	{
 		UNUSED(file);
@@ -1967,31 +3188,15 @@ namespace qc
 		UNUSED(store);
 
 		const int contents = *reinterpret_cast<const int* const>(data);
+		const uint32_t usedFlags = __popcnt(contents);
 
-		int usedFlags = static_cast<int>(__popcnt(contents));
+		const uint32_t usedOptions = usedFlags ? usedFlags : 1;
+		CommandOption_t* options = new CommandOption_t[usedOptions];
 
-		if (!usedFlags)
-			usedFlags = 1;
+		uint32_t optionsIndex = 0u;
+		CommandContents_ParseOptions(options, usedOptions, optionsIndex, contents);
 
-		CommandOption_t* options = new CommandOption_t[usedFlags];
-
-		for (int i = 0, bitIdx = 0; bitIdx < 32; bitIdx++)
-		{
-			if (i == usedFlags)
-				break;
-
-			// shift here to get the content flag for this bit
-			const int content = 1 << bitIdx;
-			if (!(contents & content) && contents)
-				continue;
-
-			options[i].Init(&s_CommandContents_Option_Flag);
-			options[i].SetPtr(StudioContentFlagString(contents & content));
-
-			i++;
-		}
-
-		*numOptions = usedFlags;
+		*numOptions = usedOptions;
 
 		return options;
 	}
@@ -2018,7 +3223,7 @@ namespace qc
 			options[0].Init(&s_CommandHBox_Option_Group);
 			options[0].SetRaw(&hitboxGroupData->group, 1, sizeof(int));
 
-			options[1].Init(&s_CommandGeneric_Option_Name);
+			options[1].Init(&s_CommandGeneric_Option_Bone);
 			options[1].SetPtr(hitboxGroupData->bone);
 
 			options[2].Init(&s_CommandHBox_Option_Min);
@@ -2074,6 +3279,7 @@ namespace qc
 		return options;
 	}
 
+	// misc
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_Mass(QC_OPT_FLOAT, "$mass", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_Concave(QC_OPT_NONE, "$concave", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_ConcavePerJoint(QC_OPT_NONE, "$concaveperjoint", s_CommandOptionFormatNameNewLine);
@@ -2084,6 +3290,7 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_Drag(QC_OPT_FLOAT, "$drag", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_RollingDrag(QC_OPT_FLOAT, "$rollingDrag", s_CommandOptionFormatNameNewLine);
 
+	// joints
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointMerge(QC_OPT_PAIR, "$jointmerge", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointInertia(QC_OPT_PAIR, "$jointinertia", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointDamping(QC_OPT_PAIR, "$jointdamping", s_CommandOptionFormatNameNewLine);
@@ -2092,6 +3299,7 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointCollide(QC_OPT_PAIR, "$jointcollide", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraint(QC_OPT_ARRAY, "$jointconstrain", s_CommandOptionFormatNameNewLine);
 
+	// joint constrain
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraintAxis(QC_OPT_STRING, "jointconstrain_axis");
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraintAllowOption(QC_OPT_STRING, "jointconstrain_allow_option");
 	constexpr CommandOptionDesc_t s_CommandCollModel_Option_JointConstraintMinAngle(QC_OPT_FLOAT, "jointconstrain_minangle");
@@ -2358,7 +3566,7 @@ namespace qc
 		}
 
 		// I don't see a reason to shrink this buffer, it will just be deallocated once we're done writing anyway
-		assertm(optionsIndex < usedOptions, "exceeded max usable options");
+		assertm(usedOptions >= optionsIndex, "exceeded max usable options");
 		*numOptions = optionsIndex;
 
 		return options;
@@ -2378,56 +3586,83 @@ namespace qc
 
 	int CompareCommand(const void* a, const void* b)
 	{
-		const Command_t* const cmda = *reinterpret_cast<const Command_t* const* const>(a);
-		const Command_t* const cmdb = *reinterpret_cast<const Command_t* const* const>(b);
+		const Command_t* const commandFirst = *reinterpret_cast<const Command_t* const* const>(a);
+		const Command_t* const commandSecond = *reinterpret_cast<const Command_t* const* const>(b);
 
-		if (cmda->GetCmd() < cmdb->GetCmd())
+		const CommandList_t cmdListFirst = commandFirst->GetCmd();
+		const CommandList_t cmdListSecond = commandSecond->GetCmd();
+
+		if (cmdListFirst == cmdListSecond)
+		{
+			const int indexFirst = commandFirst->GetIndex();
+			const int indexSecond = commandSecond->GetIndex();
+
+			if (indexFirst < indexSecond)
+			{
+				return -1;
+			}
+
+			if (indexFirst > indexSecond)
+			{
+				return 1;
+			}
+			
+			return 0;
+		}
+
+		if (cmdListFirst < cmdListSecond)
+		{
 			return -1;
+		}
 
-		if (cmda->GetCmd() > cmdb->GetCmd())
+		if (cmdListFirst > cmdListSecond)
+		{
 			return 1;
+		}
 
+		assertm(false, "should not reach here");
 		return 0;
+	}
+
+	inline const float CompareCommandLOD_GetThreshold(const Command_t* const command)
+	{
+		for (uint32_t i = 0u; i < command->numOptions; i++)
+		{
+			const CommandOption_t* const option = command->options + i;
+			if (option->desc != &s_CommandLOD_Option_Threshold)
+				continue;
+
+			return *reinterpret_cast<const float* const>(&option->data.value.raw);
+		}
+
+		assertm(false, "lod did not have threshold");
+		return -2.0f;
 	}
 
 	int CompareCommandLOD(const void* a, const void* b)
 	{
-		const Command_t* const cmda = *reinterpret_cast<const Command_t* const* const>(a);
-		const Command_t* const cmdb = *reinterpret_cast<const Command_t* const* const>(b);
+		const Command_t* const commandFirst = *reinterpret_cast<const Command_t* const* const>(a);
+		const Command_t* const commandSecond = *reinterpret_cast<const Command_t* const* const>(b);
 
-		float thresholda = 0.0f;
-		float thresholdb = 0.0f;
-
-		for (uint32_t i = 0; i < cmda->numOptions; i++)
-		{
-			const CommandOption_t* const option = cmda->options + i;
-			if (option->desc != &s_CommandLOD_Option_Threshold)
-				continue;
-
-			thresholda = *reinterpret_cast<const float* const>(&option->data.value.raw);
-			break;
-		}
-
-		for (uint32_t i = 0; i < cmdb->numOptions; i++)
-		{
-			const CommandOption_t* const option = cmdb->options + i;
-			if (option->desc != &s_CommandLOD_Option_Threshold)
-				continue;
-
-			thresholdb = *reinterpret_cast<const float* const>(&option->data.value.raw);
-			break;
-		}
+		const float thresholdFirst = CompareCommandLOD_GetThreshold(commandFirst);
+		const float thresholdSecond = CompareCommandLOD_GetThreshold(commandSecond);
 
 		// todo: test!!!
 		// sort shadowlod last
-		if (thresholda == -1.0f)
+		if (thresholdFirst == -1.0f)
+		{
 			return 1;
+		}
 
-		if (thresholda < thresholdb)
+		if (thresholdFirst < thresholdSecond)
+		{
 			return -1;
+		}
 
-		if (thresholda > thresholdb)
+		if (thresholdFirst > thresholdSecond)
+		{
 			return 1;
+		}
 
 		return 0;
 	}

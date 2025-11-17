@@ -65,7 +65,6 @@ inline Quaternion64& Quaternion64::operator=(const Quaternion& vOther)
 }
 
 
-
 //=========================================================
 // 48 bit Quaternion
 //=========================================================
@@ -79,7 +78,7 @@ public:
 
 	// assignment
 	Quaternion48& operator=(const Quaternion& vOther);
-	operator Quaternion ();
+	operator Quaternion () const;
 
 private:
 	uint16_t x : 16;
@@ -89,7 +88,7 @@ private:
 };
 
 
-inline Quaternion48::operator Quaternion ()
+inline Quaternion48::operator Quaternion () const
 {
 	Quaternion tmp;
 
@@ -116,6 +115,90 @@ inline Quaternion48& Quaternion48::operator=(const Quaternion& vOther)
 	return *this;
 }
 
+
+//=========================================================
+// 48 bit sorted Quaternion
+//=========================================================
+
+class Quaternion48S
+{
+public:
+	// Construction/destruction:
+	//Quaternion48S();
+	//Quaternion48S(float x, float y, float z);
+
+	// assignment
+	// Quaternion& operator=(const Quaternion48 &vOther);
+	Quaternion48S& operator=(const Quaternion& vOther);
+	operator Quaternion () const;
+	//operator fltx4 () const RESTRICT;
+	//private:
+	// shift the quaternion so that the largest value is recreated by the sqrt()
+	// abcd maps modulo into quaternion xyzw starting at "offset"
+	// "offset" is split into two 1 bit fields so that the data packs into 6 bytes (3 shorts)
+	unsigned short a : 15;		// first of the 3 consecutive smallest quaternion elements 
+	unsigned short offsetH : 1;	// high bit of "offset"
+	unsigned short b : 15;
+	unsigned short offsetL : 1;	// low bit of "offset"
+	unsigned short c : 15;
+	unsigned short dneg : 1;		// sign of the largest quaternion element
+};
+
+#define SCALE48S 23168.0f		// needs to fit 2*sqrt(0.5) into 15 bits.
+#define SHIFT48S 16384			// half of 2^15 bits.
+
+inline Quaternion48S::operator Quaternion ()	const
+{
+	Quaternion tmp;
+
+	static_assert(sizeof(Quaternion48S) == 6);
+
+	float* ptmp = &tmp.x;
+	const int ia = offsetL + offsetH * 2;
+	const int ib = (ia + 1) % 4;
+	const int ic = (ia + 2) % 4;
+	const int id = (ia + 3) % 4;
+	ptmp[ia] = static_cast<float>(static_cast<int>(a) - SHIFT48S) * (1.0f / SCALE48S);
+	ptmp[ib] = static_cast<float>(static_cast<int>(b) - SHIFT48S) * (1.0f / SCALE48S);
+	ptmp[ic] = static_cast<float>(static_cast<int>(c) - SHIFT48S) * (1.0f / SCALE48S);
+	ptmp[id] = sqrt(1.0f - ptmp[ia] * ptmp[ia] - ptmp[ib] * ptmp[ib] - ptmp[ic] * ptmp[ic]);
+	if (dneg)
+		ptmp[id] = -ptmp[id];
+
+	return tmp;
+}
+
+inline Quaternion48S& Quaternion48S::operator=(const Quaternion& vOther)
+{
+	assert(vOther.IsValid());
+
+	const float* ptmp = &vOther.x;
+
+	// find largest field, make sure that one is recreated by the sqrt to minimize error
+	int i = 0;
+	if (fabs(ptmp[i]) < fabs(ptmp[1]))
+	{
+		i = 1;
+	}
+	if (fabs(ptmp[i]) < fabs(ptmp[2]))
+	{
+		i = 2;
+	}
+	if (fabs(ptmp[i]) < fabs(ptmp[3]))
+	{
+		i = 3;
+	}
+
+	const int offset = (i + 1) % 4; // make "a" so that "d" is the largest element
+	offsetL = offset & 1;
+	offsetH = offset > 1;
+	a = clamp(static_cast<int>(ptmp[offset] * SCALE48S) + SHIFT48S, 0, static_cast<int>(SCALE48S * 2));
+	b = clamp(static_cast<int>(ptmp[(offset + 1) % 4] * SCALE48S) + SHIFT48S, 0, static_cast<int>(SCALE48S * 2));
+	c = clamp(static_cast<int>(ptmp[(offset + 2) % 4] * SCALE48S) + SHIFT48S, 0, static_cast<int>(SCALE48S * 2));
+	dneg = (ptmp[(offset + 3) % 4] < 0.0f);
+
+	return *this;
+}
 
 
 //=========================================================
@@ -168,7 +251,6 @@ inline Quaternion32& Quaternion32::operator=(const Quaternion& vOther)
 }
 
 
-
 //=========================================================
 // Fit a 3D vector in 48 bits
 //=========================================================
@@ -182,7 +264,7 @@ public:
 
 	// assignment
 	Vector48& operator=(const Vector& vOther);
-	operator Vector ();
+	operator Vector () const;
 
 	const float operator[](int i) const { return (((float16*)this)[i]).GetFloat(); }
 
@@ -217,7 +299,7 @@ inline Vector Vector48::AsVector() const
 	return tmp;
 }
 
-inline Vector48::operator Vector ()
+inline Vector48::operator Vector () const
 {
 	Vector tmp;
 
@@ -231,7 +313,6 @@ inline Vector48::operator Vector ()
 
 	return tmp;
 }
-
 
 
 //=========================================================
@@ -289,7 +370,6 @@ inline Vector Vector64::Unpack() const
 
 	return tmp;
 }
-
 
 
 //=========================================================

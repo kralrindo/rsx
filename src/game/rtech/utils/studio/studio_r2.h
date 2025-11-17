@@ -3,6 +3,8 @@
 
 namespace r2
 {
+	struct studiohdr_t;
+
 #pragma pack(push, 4)
 	//
 	// Model Bones
@@ -75,7 +77,7 @@ namespace r2
 	struct mstudiobone_t
 	{
 		int sznameindex;
-		inline char* const pszName() const { return ((char*)this + sznameindex); }
+		inline const char* const pszName() const { return reinterpret_cast<const char* const>(this) + sznameindex; }
 
 		int parent; // parent bone
 		int bonecontroller[6]; // bone controller index, -1 == none
@@ -102,7 +104,7 @@ namespace r2
 		int physicsbone;	// index into physically simulated bone
 							// from what I can tell this is the section that is parented to this bone, and if this bone is not the parent of any sections, it goes up the bone chain to the nearest bone that does and uses that section index
 		int surfacepropidx; // index into string tablefor property name
-		inline char* const pszSurfaceProp() const { return ((char*)this + surfacepropidx); }
+		inline const char* const pszSurfaceProp() const { return reinterpret_cast<const char* const>(this) + surfacepropidx; }
 
 		int contents; // See BSPFlags.h for the contents flags
 
@@ -126,51 +128,47 @@ namespace r2
 		inline int flags(int i) const { return *pFlags(i); }
 
 		int	parentindex;
-		inline int* pParent(int i)
-			const {
+		inline const int* const pParent(int i) const
+		{
 			assert(i >= 0 && i < numbones);
-			return reinterpret_cast<int*>((char*)this + parentindex) + i;
+			return reinterpret_cast<const int* const>((char*)this + parentindex) + i;
 		}
 
 		int	posindex;
-		inline const Vector* pPos(int i)
-			const {
+		inline const Vector* const pPos(int i) const
+		{
 			assert(i >= 0 && i < numbones);
-			return reinterpret_cast<Vector*>((char*)this + posindex) + i;
+			return reinterpret_cast<const Vector* const>((char*)this + posindex) + i;
 		}
 
 		int quatindex;
-		inline const Quaternion* pQuat(int i)
-			const {
+		inline const Quaternion* const pQuat(int i) const
+		{
 			assert(i >= 0 && i < numbones);
-			return reinterpret_cast<Quaternion*>((char*)this + quatindex) + i;
+			return reinterpret_cast<const Quaternion* const>((char*)this + quatindex) + i;
 		}
 
 		int rotindex;
-		inline const RadianEuler* pRot(int i)
-			const {
+		inline const RadianEuler* const pRot(int i) const
+		{
 			assert(i >= 0 && i < numbones);
-			return reinterpret_cast<RadianEuler*>((char*)this + rotindex) + i;
+			return reinterpret_cast<const RadianEuler* const>((char*)this + rotindex) + i;
 		}
 
 		int posetoboneindex;
-		inline const matrix3x4_t* pPoseToBone(int i)
-			const {
+		inline const matrix3x4_t* const pPoseToBone(int i) const
+		{
 			assert(i >= 0 && i < numbones);
-			return reinterpret_cast<matrix3x4_t*>((char*)this + posetoboneindex) + i;
+			return reinterpret_cast<const matrix3x4_t* const>((char*)this + posetoboneindex) + i;
 		}
 
 		int	posscaleindex; // unused
 
 		int	rotscaleindex;
-		inline const Vector* pRotScale(int i) const { assert(i >= 0 && i < numbones); return reinterpret_cast<Vector*>((char*)this + rotscaleindex) + i; }
+		inline const Vector* const pRotScale(int i) const { assert(i >= 0 && i < numbones); return reinterpret_cast<const Vector* const>((char*)this + rotscaleindex) + i; }
 
 		int	qalignmentindex;
-		inline const Quaternion* pQAlignment(int i)
-			const {
-			assert(i >= 0 && i < numbones);
-			return reinterpret_cast<Quaternion*>((char*)this + qalignmentindex) + i;
-		}
+		inline const Quaternion* const pQAlignment(int i) const { assert(i >= 0 && i < numbones); return reinterpret_cast<const Quaternion* const>((char*)this + qalignmentindex) + i; }
 
 		int unused[6];
 	};
@@ -241,9 +239,9 @@ namespace r2
 		const mstudioiklink_t* const pLink(int i) const { return reinterpret_cast<const mstudioiklink_t* const>((char*)this + linkindex) + i; }
 
 		float unk_10;	// tried, and tried to find what this does, but it doesn't seem to get hit in any normal IK code paths
-		// however, in Apex Legends this value is 0.866 which happens to be cos(30) (https://github.com/NicolasDe/AlienSwarm/blob/master/src/public/studio.h#L2173)
-		// and in Titanfall 2 it's set to 0.707 or alternatively cos(45).
-		// TLDR: likely set in QC $ikchain command from a degrees entry, or set with a default value in studiomdl when not defined.
+						// however, in Apex Legends this value is 0.866 which happens to be cos(30) (https://github.com/NicolasDe/AlienSwarm/blob/master/src/public/studio.h#L2173)
+						// and in Titanfall 2 it's set to 0.707 or alternatively cos(45).
+						// TLDR: likely set in QC $ikchain command from a degrees entry, or set with a default value in studiomdl when not defined.
 
 		int	unused[3];
 	};
@@ -290,6 +288,7 @@ namespace r2
 		float top; // top of the foot box
 
 		int szattachmentindex; // name of world attachment
+		inline const char* const pszAttachment() const { return szattachmentindex ? reinterpret_cast<const char* const>(this) + szattachmentindex : nullptr; }
 
 		float endHeight; // new in v52
 		// titan_buddy_mp_core.mdl
@@ -353,6 +352,7 @@ namespace r2
 	struct mstudioanimdesc_t
 	{
 		int baseptr;
+		const studiohdr_t* const pStudiohdr() const { return reinterpret_cast<const studiohdr_t* const>((char*)this + baseptr); }
 
 		int sznameindex;
 		inline const char* pszName() const { return ((char*)this + sznameindex); }
@@ -375,6 +375,7 @@ namespace r2
 
 		int numikrules;
 		int ikruleindex; // non-zero when IK data is stored in the mdl
+		inline const mstudioikrule_t* const pIKRule(const int i) const { return reinterpret_cast<const mstudioikrule_t* const>((char*)this + ikruleindex) + i; }
 
 		int numlocalhierarchy;
 		int localhierarchyindex;
@@ -419,16 +420,16 @@ namespace r2
 
 		// Index into array of shorts which is groupsize[0] x groupsize[1] in length
 		int animindexindex;
-		inline const short* const pAnimIndex(const int i) const { return reinterpret_cast<short*>((char*)this + animindexindex) + i; }
-		inline const short GetAnimIndex(const int i) const { return *pAnimIndex(i); }
-		const int AnimCount() const { return  groupsize[0] * groupsize[1]; }
+		inline const int16_t* const pAnimIndex(const int i) const { return reinterpret_cast<int16_t*>((char*)this + animindexindex) + i; }
+		inline const int16_t GetAnimIndex(const int i) const { return *pAnimIndex(i); }
+		inline const int AnimCount() const { return  groupsize[0] * groupsize[1]; }
 
-		int movementindex; // [blend] float array for blended movement
-		int groupsize[2];
-		int paramindex[2]; // X, Y, Z, XR, YR, ZR
-		float paramstart[2]; // local (0..1) starting value
-		float paramend[2]; // local (0..1) ending value
-		int paramparent;
+		int movementindex;	// unused as of v49
+		int groupsize[2];	// width x height of blends
+		int paramindex[2];	// X, Y, Z, XR, YR, ZR
+		float paramstart[2];// local (0..1) starting value
+		float paramend[2];	// local (0..1) ending value
+		int paramparent;	// unused as of v49
 
 		float fadeintime; // ideal cross fate in time (0.2 default)
 		float fadeouttime; // ideal cross fade out time (0.2 default)
@@ -449,16 +450,19 @@ namespace r2
 
 		int numautolayers;
 		int autolayerindex;
-		//inline const r1::mstudioautolayer_t* const pAutoLayer(const int i) const { return reinterpret_cast<r1::mstudioautolayer_t*>((char*)this + autolayerindex) + i; }
+		//inline const mstudioautolayer_t* const pAutoLayer(const int i) const { return reinterpret_cast<mstudioautolayer_t*>((char*)this + autolayerindex) + i; }
 
 		int weightlistindex;
 		inline const float* const pWeightList() const { return reinterpret_cast<float*>((char*)this + weightlistindex); }
 		inline const float weight(const int weightidx) const { return pWeightList()[weightidx]; }
 
 		int posekeyindex;
+		inline const float* const pPoseKey(int iParam, int iAnim) const { return reinterpret_cast<float*>((char*)this + posekeyindex) + (iParam * groupsize[0]) + iAnim; }
+		inline float poseKey(int iParam, int iAnim) const { return *(pPoseKey(iParam, iAnim)); }
 
 		int numiklocks;
 		int iklockindex;
+		inline const mstudioiklock_t* const pIKLock(const int i) const { return reinterpret_cast<const mstudioiklock_t* const>((char*)this + iklockindex) + i; }
 
 		// Key values
 		int keyvalueindex;
@@ -469,13 +473,10 @@ namespace r2
 
 		int activitymodifierindex;
 		int numactivitymodifiers;
-		//inline const r1::mstudioactivitymodifier_t* const pActMod(const int i) const { return reinterpret_cast<r1::mstudioactivitymodifier_t*>((char*)this + activitymodifierindex) + i; }
+		//inline const mstudioactivitymodifier_t* const pActMod(const int i) const { return reinterpret_cast<mstudioactivitymodifier_t*>((char*)this + activitymodifierindex) + i; }
 
-		int ikResetMask;	// new in v52
-		// titan_buddy_mp_core.mdl
-		// reset all ikrules with this type???
-		int unk_C4;	// previously 'unk1'
-		// mayhaps this is the ik type applied to the mask if what's above it true
+		int ikResetMask; // mask this ik rule type for reset, can't find the code for this, but it would either prevent reset of this type, or only allow reset of this time. only ever observed as IK_GROUND
+		int unk_C4;
 
 		int unused[8];
 	};
@@ -497,7 +498,7 @@ namespace r2
 		int material;
 
 		int modelindex;
-		const mstudiomodel_t* const pModel() const { return reinterpret_cast<const mstudiomodel_t* const>((char*)this + modelindex); }
+		inline const mstudiomodel_t* const pModel() const { return reinterpret_cast<const mstudiomodel_t* const>((char*)this + modelindex); }
 
 		int numvertices;	// number of unique vertices/normals/texcoords
 		int vertexoffset;	// vertex mstudiovertex_t
@@ -535,7 +536,7 @@ namespace r2
 
 		int nummeshes;
 		int meshindex;
-		const mstudiomesh_t* const pMesh(int i) const { return reinterpret_cast<const mstudiomesh_t* const>((char*)this + meshindex) + i; }
+		inline const mstudiomesh_t* const pMesh(int i) const { return reinterpret_cast<const mstudiomesh_t* const>((char*)this + meshindex) + i; }
 
 		// cache purposes
 		int numvertices; // number of unique vertices/normals/texcoords
@@ -614,7 +615,7 @@ namespace r2
 
 		int numhitboxsets;
 		int hitboxsetindex;
-		const mstudiohitboxset_t* const pHitboxSet(const int i) const
+		inline const mstudiohitboxset_t* const pHitboxSet(const int i) const
 		{
 			assert(i >= 0 && i < numhitboxsets);
 			return reinterpret_cast<const mstudiohitboxset_t* const>((char*)this + hitboxsetindex) + i;
@@ -655,12 +656,14 @@ namespace r2
 
 		int numlocalattachments;
 		int localattachmentindex;
-		const mstudioattachment_t* const pLocalAttachment(const int i) const { assert(i >= 0 && i < numlocalattachments); return reinterpret_cast<const mstudioattachment_t* const>((char*)this + localattachmentindex) + i; }
+		inline const mstudioattachment_t* const pLocalAttachment(const int i) const { assert(i >= 0 && i < numlocalattachments); return reinterpret_cast<const mstudioattachment_t* const>((char*)this + localattachmentindex) + i; }
 
 		int numlocalnodes;
 		int localnodeindex;
 		int localnodenameindex;
 		int localNodeUnk; // something about having nodes while include models also have nodes??? used only three times in r2, never used in apex, removed in rmdl v16. super_spectre_v1, titan_buddy, titan_buddy_skyway
+		inline const char* const pszLocalNodeName(const int iNode) const { return reinterpret_cast<const char* const>((char*)this + reinterpret_cast<const int* const>((char*)this + localnodenameindex)[iNode]); }
+		inline const uint8_t* const pLocalTransition(const int i) const { return reinterpret_cast<const uint8_t* const>((char*)this + localnodeindex) + i; }
 
 		int deprecated_flexdescindex;
 

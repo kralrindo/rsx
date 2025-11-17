@@ -806,6 +806,13 @@ struct mstudioikchain_t
 	const mstudioiklink_t* const pLink(int i) const { return reinterpret_cast<const mstudioiklink_t* const>((char*)this + linkindex) + i; }
 };
 
+#define IK_SELF 1
+#define IK_WORLD 2
+#define IK_GROUND 3
+#define IK_RELEASE 4
+#define IK_ATTACHMENT 5
+#define IK_UNLATCH 6
+
 
 //
 // Model Animation
@@ -862,7 +869,7 @@ enum eStudioAnimFlags
 #define STUDIO_HAS_ANIM			0x20000 // if not set there is no useable anim data
 #define STUDIO_FRAMEMOVEMENT    0x40000 // framemovements are only read if this flag is present
 #define STUDIO_SINGLE_FRAME		0x80000 // this animation/sequence only has one frame of animation data
-// 0x100000
+#define STUDIO_ANIM_UNK100000	0x100000	// reactive animations? seemingly only used on sequences for reactive skins, speicifcally the idle sequence
 #define STUDIO_DATAPOINTANIM	0x200000
 
 #define NEW_EVENT_STYLE ( 1 << 10 )
@@ -881,11 +888,13 @@ enum eStudioAnimFlags
 #define STUDIO_LYR		0x00000400
 #define STUDIO_LZR		0x00000800
 
-#define STUDIO_LINEAR	0x00001000
+#define STUDIO_LINEAR			0x00001000
+#define STUDIO_QUADRATIC_MOTION 0x00002000 // tucked away in studiomdl.h
 
 #define STUDIO_TYPES	0x0003FFFF
 #define STUDIO_RLOOP	0x00040000	// controller that wraps shortest distance
 
+// pete_scripted_r1.mdl a_traverseB a_traverseC a_traverseD
 struct mstudiomovement_t
 {
 	int		endframe;
@@ -916,6 +925,24 @@ struct mstudiomodelgroup_t
 	int sznameindex;	// file name
 	inline const char* const pszName() const { return reinterpret_cast<const char* const>(this) + sznameindex; }
 };
+
+// autolayer flags
+//							0x0001
+//							0x0002
+//							0x0004
+//							0x0008
+#define STUDIO_AL_POST		0x0010		// 
+//							0x0020
+#define STUDIO_AL_SPLINE	0x0040		// convert layer ramp in/out curve is a spline instead of linear
+#define STUDIO_AL_XFADE		0x0080		// pre-bias the ramp curve to compense for a non-1 weight, assuming a second layer is also going to accumulate
+//							0x0100
+#define STUDIO_AL_NOBLEND	0x0200		// animation always blends at 1.0 (ignores weight)
+//							0x0400
+//							0x0800
+#define STUDIO_AL_LOCAL		0x1000		// layer is a local context sequence
+#define STUDIO_AL_2000		0x2000		// skips parsing in AddSequenceLayer and AddLocalLayer if set
+#define STUDIO_AL_POSE		0x4000		// layer blends using a pose parameter instead of parent cycle
+#define STUDIO_AL_REALTIME	0x8000		// treats the layer sequence as if it uses STUDIO_REALTIME (sub_1401D9AD0 in R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM)
 
 
 //
@@ -1057,8 +1084,25 @@ struct studiohdr_short_t
 class StudioLooseData_t
 {
 public:
-	StudioLooseData_t(const std::filesystem::path& path, const char* const name, char* buffer, const size_t bufferSize); // DO NOT call this without managing the allocated buffers.
+	StudioLooseData_t(const std::filesystem::path& path, const char* const name, char* buffer, const size_t bufferSize, const bool hasIDCV = false, const char* const aniname = nullptr); // DO NOT call this without managing the allocated buffers.
 	StudioLooseData_t(const char* const file);
+	~StudioLooseData_t()
+	{
+		if (vertexBufAllocated)
+		{
+			FreeAllocArray(vertexDataBuffer);
+		}
+
+		if (physicsBufAllocated)
+		{
+			FreeAllocArray(physicsDataBuffer);
+		}
+
+		if (animBufAllocated)
+		{
+			FreeAllocArray(animDataBuffer);
+		}
+	}
 
 	enum LooseDataType : int8_t
 	{
@@ -1086,6 +1130,8 @@ public:
 	inline const ivps::phyheader_t* const GetPHYS_VALVE() const { return physicsDataSize ? reinterpret_cast<const ivps::phyheader_t* const>(physicsDataBuffer + physicsDataOffset) : nullptr; }
 	inline const irps::phyheader_t* const GetPHYS_RESPAWN() const { return physicsDataSize ? reinterpret_cast<const irps::phyheader_t* const>(physicsDataBuffer + physicsDataOffset) : nullptr; }
 
+	inline const char* const GetANI() const { return animDataSize ? animDataBuffer + animDataOffset : nullptr; }
+
 	const bool VerifyFileIntegrity(const studiohdr_short_t* const pHdr) const;
 
 private:
@@ -1096,6 +1142,14 @@ private:
 	const char* physicsDataBuffer;
 	int physicsDataOffset;
 	int physicsDataSize;
+
+	const char* animDataBuffer;
+	int animDataOffset;
+	int animDataSize;
+
+	bool vertexBufAllocated;
+	bool physicsBufAllocated;
+	bool animBufAllocated;
 };
 
 static const char* s_StudioLooseDataExtensions[StudioLooseData_t::LooseDataType::SLD_COUNT] = {

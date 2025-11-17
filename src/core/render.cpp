@@ -244,7 +244,7 @@ void HandleRenderFrame()
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_DockingEnable)
     {
         ImGui::SetNextWindowBgAlpha(0.f);
-        ImGui::DockSpaceOverViewport(0, ImGuiDockNodeFlags_PassthruCentralNode, 0);
+        ImGui::DockSpaceOverViewport(0, NULL, ImGuiDockNodeFlags_PassthruCentralNode, 0);
     }
 
     // while ImGui is using keyboard input, we should not accept any keyboard input, but we should also clear all  
@@ -506,6 +506,21 @@ void HandleRenderFrame()
                     sortSpecs->SpecsDirty = false;
                 }
 
+                static ImGuiSelectionBasicStorage selection;
+                selection.UserData = (void*)&pakAssets;           // Setup adapter so selection.ApplyRequests() function can convert indexes to identifiers.
+                selection.AdapterIndexToStorageId = [](ImGuiSelectionBasicStorage* /*self*/, int idx) { return (ImGuiID)idx; };
+
+                ImGuiMultiSelectFlags flags = ImGuiMultiSelectFlags_ClearOnEscape | ImGuiMultiSelectFlags_BoxSelect1d;
+                ImGuiMultiSelectIO* ms_io = ImGui::BeginMultiSelect(flags, static_cast<int>(selectedAssets.size()), static_cast<int>(pakAssets.size()));
+
+                selection.ApplyRequests(ms_io);
+
+                void* it = NULL; ImGuiID id;
+                while (selection.GetNextSelectedItem(&it, &id))
+                {
+                    selectedAssets.insert(selectedAssets.end(), pakAssets[id].m_asset);
+                }
+
                 ImGuiListClipper clipper;
                 clipper.Begin(static_cast<int>(pakAssets.size()));
                 while (clipper.Step())
@@ -528,23 +543,25 @@ void HandleRenderFrame()
 
                         if (ImGui::TableSetColumnIndex(AssetColumn_t::AC_Name))
                         {
-                            const bool isSelected = std::find(selectedAssets.begin(), selectedAssets.end(), asset) != selectedAssets.end();
+                            const bool isSelected = selection.Contains(rowNum);
+                            ImGui::SetNextItemSelectionUserData(rowNum);
                             if (ImGui::Selectable(asset->GetAssetName().c_str(), isSelected, ImGuiSelectableFlags_AllowDoubleClick))
                             {
+
                                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                                 {
-                                    selectedAssets.clear();
-                                    selectedAssets.insert(selectedAssets.end(), asset);
 
-                                    CThread(HandleExportBindingForAsset, std::move(*selectedAssets.begin()), g_ExportSettings.exportAssetDeps).detach();
-                                }
-                                else
-                                {
-                                    if (!ImGui::GetIO().KeyCtrl)
-                                    {
-                                        selectedAssets.clear();
-                                    }
-                                    selectedAssets.insert(selectedAssets.end(), asset);
+
+                                    // if the double clicked asset is not in the list, add it
+                                    // this is a very strange case but the only way you can export multiple assets by double clicking is by
+                                    // holding shift or ctrl while double clicking, which may cause the hovered asset to be deselected before export
+                                    if (std::find(selectedAssets.begin(), selectedAssets.end(), asset) == selectedAssets.end())
+                                        selectedAssets.insert(selectedAssets.end(), asset);
+
+
+                                    CThread(HandlePakAssetExportList, std::move(selectedAssets), g_ExportSettings.exportAssetDeps).detach();
+                                
+                                    selectedAssets.clear();
                                 }
                             }
                         }
@@ -557,6 +574,14 @@ void HandleRenderFrame()
 
                         ImGui::PopID();
                     }
+                }
+                ms_io = ImGui::EndMultiSelect();
+                selection.ApplyRequests(ms_io);
+
+                it = NULL;
+                while (selection.GetNextSelectedItem(&it, &id))
+                {
+                    selectedAssets.insert(selectedAssets.end(), pakAssets[id].m_asset);
                 }
 
                 ImGui::EndTable();

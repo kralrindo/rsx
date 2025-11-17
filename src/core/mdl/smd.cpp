@@ -50,6 +50,25 @@ namespace smd
 		assertm(false, "bones added out of order or not pre-sized");
 	}
 
+	void CStudioModelData::UpdateFrameBone(const int iframe, const int ibone, const Vector& pos, const RadianEuler& rot) const
+	{
+		assertm(iframe < numFrames, "frame out of range");
+		assertm(ibone < numNodes, "node out of range");
+
+		Frame* const frame = &frames[iframe];
+
+		const int boneCount = static_cast<int>(frame->bones.size());
+		assertm(ibone < boneCount, "tried to access invalid bone index");
+
+		Bone& bone = frame->bones.at(ibone);
+
+		bone.node = ibone;
+		bone.pos = pos;
+		bone.rot = rot;
+
+		return;
+	}
+
 	// [rika]: this does not round floats to 6 decimal points as required by SMD, HOWEVER studiomdl supports scientific notation so we should be ok! 
 	// [rika]: if this causes any weird issues in tthe future such as messed up skeletons we can change it
 	void CStudioModelData::Write() const
@@ -103,14 +122,23 @@ namespace smd
 					out << "\t" << vert.bone[0] << " ";
 					out << vert.position.x << " " << vert.position.y << " " << vert.position.z << " ";
 					out << vert.normal.x << " " << vert.normal.y << " " << vert.normal.z << " ";
-					out << vert.texcoords[0].x << " " << vert.texcoords[0].y << " " << vert.numBones << " ";
+					out << vert.texcoords[0].x << " " << vert.texcoords[0].y << " ";
 
-					for (uint32_t weightIdx = 0u; weightIdx < vert.numBones; weightIdx++)
+					if (vert.numBones > 1)
 					{
-						out << vert.bone[weightIdx] << " " << vert.weight[weightIdx] << " ";
+						out << vert.numBones << " ";
+
+						for (uint32_t weightIdx = 0u; weightIdx < vert.numBones; weightIdx++)
+						{
+							out << vert.bone[weightIdx] << " " << vert.weight[weightIdx] << " ";
+						}
+					}
+					else
+					{
+						assertm(vert.weight[0] > 0.98f, "single weight without full infuence");
 					}
 
-					if (s_outputVersion == 3)
+					if (s_outputVersion == 3 && vert.numTexcoords > 1)
 					{
 						out << " " << vert.numTexcoords;
 
@@ -146,14 +174,23 @@ namespace smd
 			const Vertex& vert = vertices[vertIdx];
 
 			// bone, pos xyz, normal xyz, texcoord xy, weight count 
-			textBuffer.WriteFormatted("%i %f %f %f %f %f %f %f %f %i", vert.bone[0],
+			textBuffer.WriteFormatted("%i %f %f %f %f %f %f %f %f", vert.bone[0],
 				vert.position.x, vert.position.y, vert.position.z,
 				vert.normal.x, vert.normal.y, vert.normal.z,
-				vert.texcoords[0].x, vert.texcoords[0].y, vert.numBones);
+				vert.texcoords[0].x, vert.texcoords[0].y);
 
-			for (uint32_t weightIdx = 0u; weightIdx < vert.numBones; weightIdx++)
+			if (vert.numBones > 1)
 			{
-				textBuffer.WriteFormatted(" %i %f", vert.bone[weightIdx], vert.weight[weightIdx]);
+				textBuffer.WriteFormatted(" %i", vert.numBones);
+
+				for (uint32_t weightIdx = 0u; weightIdx < vert.numBones; weightIdx++)
+				{
+					textBuffer.WriteFormatted(" %i %f", vert.bone[weightIdx], vert.weight[weightIdx]);
+				}
+			}
+			else
+			{
+				assertm(vert.weight[0] > 0.98f, "single weight without full infuence");
 			}
 
 			if (s_outputVersion == 3 && vert.numTexcoords > 1)

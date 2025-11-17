@@ -217,7 +217,7 @@ int main(int argc, char* argv[])
         | ImGuiConfigFlags_ViewportsEnable
         ;
 
-    GImGui->NavDisableHighlight = true;
+    GImGui->NavCursorVisible = false; // was NavDisableHighlight
 
     ImGui_ImplWin32_Init(windowHandle);
     ImGui_ImplDX11_Init(g_dxHandler->GetDevice(), g_dxHandler->GetDeviceContext());

@@ -7,11 +7,6 @@ namespace qc
 {
 	constexpr size_t s_QCMaxPath = _MAX_PATH;
 
-	struct Settings_t
-	{
-		bool limitTextureGroupIndices;
-	};
-
 	//
 	// VERSION
 	//
@@ -89,12 +84,15 @@ namespace qc
 
 	constexpr Version_t s_QCVersion_OB(QC_VER_48, 0); // orange box
 	constexpr Version_t s_QCVersion_TF2(QC_VER_48, 1); // boing boing
+	constexpr Version_t s_QCVersion_L4D(QC_VER_48, 2); // confirm l4d is 48
+	constexpr Version_t s_QCVersion_L4D2(QC_VER_48, 3); // confirm l4d is 48
 	constexpr Version_t s_QCVersion_P2(QC_VER_49, 0); // should this be subversion 1? bone count changed between p2 and alien swarm, sfm also uses more bones
 	constexpr Version_t s_QCVersion_CSGO(QC_VER_49, 1);
 	constexpr Version_t s_QCVersion_R1(QC_VER_52, 0);
 	constexpr Version_t s_QCVersion_R2(QC_VER_53, 0);
 	constexpr Version_t s_QCVersion_R5_080(QC_VER_54, 8);
 	constexpr Version_t s_QCVersion_R5_100(QC_VER_54, 10);
+	constexpr Version_t s_QCVersion_R5_120(QC_VER_54, 12);
 	constexpr Version_t s_QCVersion_R5_150(QC_VER_54, 15);
 	constexpr Version_t s_QCVersion_R5_RETAIL(QC_VER_54, QC_VER_MAX);
 
@@ -117,7 +115,7 @@ namespace qc
 		".qci",
 	};
 
-	constexpr int maxCommandLength = 0x10000; // $texturegroup is very large
+	constexpr int maxCommandLength = 0x20000; // $texturegroup is very large (it is even larger thank you r1 titans)
 
 	struct Command_t;
 	inline const bool VerifyOrder();
@@ -202,6 +200,7 @@ namespace qc
 		QC_FMT_WRITENAME	= 1 << 2,	// write the name of this entry
 		QC_FMT_PARENTLINE	= 1 << 3,	// write this entry on the same line as its parent
 		QC_FMT_NEWLINE		= 1 << 4,	// last entry on its line, not to be used with 'QC_FMT_PARENTLINE'
+		QC_FMT_ARRAYSTYLE	= 1 << 5,	// set this to have the curly bracket start on the parent line
 	};
 
 	constexpr CommandFormat_t s_CommandOptionFormatDefault = QC_FMT_PARENTLINE; // write this option on the parent line
@@ -318,6 +317,11 @@ namespace qc
 			data.SetRaw(ptr, count, size);
 		}
 
+		void SetFormat(const CommandFormat_t format)
+		{
+			data.format = format;
+		}
+
 		inline void Init(const CommandOptionDesc_t* const optiondesc)
 		{
 			desc = optiondesc;
@@ -367,6 +371,13 @@ namespace qc
 		{
 			SetData(0, key, 1, CommandOptionType_t::QC_OPT_STRING);
 			SetData(1, &val, 1, CommandOptionType_t::QC_OPT_FLOAT);
+		}
+
+		// string key, int value pair
+		CommandOptionPair_t(const char* const key, const int val)
+		{
+			SetData(0, key, 1, CommandOptionType_t::QC_OPT_STRING);
+			SetData(1, &val, 1, CommandOptionType_t::QC_OPT_INT);
 		}
 
 		CommandOptionData_t data[2];
@@ -581,6 +592,9 @@ namespace qc
 		QC_JOINTCONTENTS,
 		QC_JOINTSURFACEPROP,
 		QC_BONEMERGE,
+		QC_SCREENALIGN,
+		QC_LIMITROTATION,
+		QC_BONESAVEFRAME,
 		QC_JIGGLEBONE,
 		QC_ATTACHMENT,
 
@@ -589,6 +603,14 @@ namespace qc
 		QC_IKCHAIN,
 		QC_IKAUTOPLAYLOCK,
 		QC_INCLUDEMODEL,
+		QC_SECTIONFRAMES,
+		QC_ANIMBLOCKSIZE,
+		QC_DEFAULTWEIGHTLIST,
+		QC_WEIGHTLIST,
+		QC_ANIMATION,
+		QC_DECLAREANIM,
+		QC_SEQUENCE,
+		QC_DECLARESEQ,
 
 		// bounds
 		QC_BBOX,
@@ -671,8 +693,8 @@ namespace qc
 
 	struct BoneData_t
 	{
-		BoneData_t(const char* const boneName, const char* const boneParent/*, const char* const boneSurface*/, const int boneContents, const Vector* const pos, const RadianEuler* const rot, const matrix3x4_t* const fixup = nullptr) : name(boneName), parent(boneParent), /*surfaceprop(boneSurface),*/
-			contents(boneContents), position(pos), rotation(rot), fixupMatrix(fixup) {}
+		BoneData_t(const char* const boneName, const char* const boneParent/*, const char* const boneSurface*/, const int boneContents, const int boneFlags, const Vector* const pos, const RadianEuler* const rot, const matrix3x4_t* const fixup = nullptr) : name(boneName), parent(boneParent), /*surfaceprop(boneSurface),*/
+			contents(boneContents), flags(boneFlags), position(pos), rotation(rot), fixupMatrix(fixup) { }
 
 		const char* name;
 		const char* parent;
@@ -684,8 +706,65 @@ namespace qc
 		const matrix3x4_t* fixupMatrix;
 
 		const int contents;
+		const int flags;
+
+		enum ScreenAlign_t
+		{
+			SCREENALIGN_SPHERE,
+			SCREENALIGN_CYLINDER,
+			SCREENALIGN_NONE,
+
+			SCREENALIGN_COUNT,
+		};
+
+		enum BoneSaveFrame_t
+		{
+			BONESAVE_POS,
+			BONESAVE_ROT,
+
+			BONESAVE_COUNT,
+		};
+
+		enum BoneFlags_t : int
+		{
+			QCB_SCREEN_ALIGN_SPHERE		= 0x8,	// bone aligns to the screen, not constrained in motion.
+			QCB_SCREEN_ALIGN_CYLINDER	= 0x10,	// bone aligns to the screen, constrained by it's own axis.
+
+			QCB_HAS_SAVEFRAME_POS		= 0x200000,	// Vector48
+			QCB_HAS_SAVEFRAME_ROT64		= 0x400000,	// Quaternion64
+			QCB_HAS_SAVEFRAME_ROT32		= 0x800000,	// Quaternion32
+		};
+
+		inline const ScreenAlign_t ScreenAlignShape() const
+		{
+			if (flags & QCB_SCREEN_ALIGN_SPHERE)
+			{
+				return SCREENALIGN_SPHERE;
+			}
+
+			if (flags & QCB_SCREEN_ALIGN_CYLINDER)
+			{
+				return SCREENALIGN_CYLINDER;
+			}
+
+			assertm(false, "invalid screen align shape");
+			return SCREENALIGN_NONE;
+		}
 
 		inline const bool UseFixups() const { return fixupMatrix ? true : false; }
+	};
+
+	constexpr const char* const s_ScreenAlignType[BoneData_t::SCREENALIGN_COUNT] =
+	{
+		"sphere",
+		"cylinder",
+		"",
+	};
+
+	constexpr const char* const s_BoneSaveFrameType[BoneData_t::BONESAVE_COUNT] =
+	{
+		"position",
+		"rotation",
 	};
 
 	struct JiggleData_t
@@ -1013,15 +1092,22 @@ namespace qc
 
 	struct LodData_t
 	{
-		LodData_t(const uint32_t modelCount, const uint32_t boneCount, const float switchPoint, bool shadowlod) : numModels(modelCount), numBoneSlots(boneCount), numBoneUsed(0u), threshold(switchPoint), isShadowLOD(shadowlod), useShadowLODMaterials(false)
+		LodData_t(const uint32_t modelCount, const uint32_t boneCount, const uint32_t materialCount, const float switchPoint, bool shadowlod) : numModels(modelCount), numBoneSlots(boneCount), numBoneUsed(0u), numReplacementMaterials(materialCount),
+			threshold(switchPoint), isShadowLOD(shadowlod), useShadowLODMaterials(false), modelBaseNames(nullptr), modelReplaceNames(nullptr), boneBaseNames(nullptr), boneReplaceNames(nullptr), materialBaseNames(nullptr), materialReplaceNames(nullptr)
 		{
-			alloc = new const char*[numModels * 2 + numBoneSlots * 2]{};
+			alloc = new const char* [(numModels * 2) + (numBoneSlots * 2) + (numReplacementMaterials * 2)] {};
 
 			modelBaseNames = alloc;
 			modelReplaceNames = modelBaseNames + numModels;
 
 			boneBaseNames = modelReplaceNames + numModels;
 			boneReplaceNames = boneBaseNames + numBoneSlots;
+
+			if (numReplacementMaterials > 0)
+			{
+				materialBaseNames = boneReplaceNames + numBoneSlots;
+				materialReplaceNames = materialBaseNames + numReplacementMaterials;
+			}
 		}
 
 		~LodData_t()
@@ -1042,6 +1128,10 @@ namespace qc
 
 		bool isShadowLOD;
 		bool useShadowLODMaterials;
+
+		uint32_t numReplacementMaterials;
+		const char** materialBaseNames;
+		const char** materialReplaceNames;
 
 		float threshold;
 
@@ -1080,6 +1170,19 @@ namespace qc
 			const char* const base = qc->WriteString(baseName);
 			const char* const replace = qc->WriteString(replaceName);
 			ReplaceBone(idx, base, replace);
+		}
+
+		inline void ReplaceMaterial(const uint32_t idx, const char* const baseName, const char* const replaceName)
+		{
+			materialBaseNames[idx] = baseName;
+			materialReplaceNames[idx] = replaceName;
+		}
+
+		inline void ReplaceMaterial(QCFile* const qc, const uint32_t idx, const char* const baseName, const char* const replaceName)
+		{
+			const char* const base = qc->WriteString(baseName);
+			const char* const replace = qc->WriteString(replaceName);
+			ReplaceMaterial(idx, base, replace);
 		}
 
 		inline const bool UseThreshold() const { return isShadowLOD ? false : true; }
@@ -1258,9 +1361,618 @@ namespace qc
 		"limit",
 	};
 #endif // HAS_PHYSICSMODEL_PARSER
+
+	constexpr int s_SectionFrames_DefaultFrameCount = 30;
+	constexpr int s_SectionFrames_DefaultMinFrame = 120;
+	struct SectionFrameData_t
+	{
+		SectionFrameData_t(const int sectionFrames, const int minFrames) : sectionFrameCount(sectionFrames), minFramesForSections(minFrames) {}
+
+		int sectionFrameCount;
+		int minFramesForSections;
+	};
+
+	struct AnimBlockData_t
+	{
+		AnimBlockData_t(const int blockSize, const int zeroFrames, const bool useNoStall, const bool useHighRes, const bool useLowRes, const bool useCacheHighRes) : maxBlockSizeInBytes(blockSize), numFrames(zeroFrames), noStall(useNoStall),
+			highRes(useHighRes), lowRes(useLowRes), cacheHighRes(useCacheHighRes) {}
+
+		int maxBlockSizeInBytes; // not kilobytes
+		int numFrames;
+		bool noStall;
+		bool highRes;
+		bool lowRes;
+		bool cacheHighRes;
+
+		inline const bool UseNumFrames() const { return (numFrames == 3 || noStall) ? false : true; }
+
+		inline const uint32_t EstimateOptionCount() const
+		{
+			uint32_t numOptions = 1u; // datasize
+
+			numOptions += noStall;
+			numOptions += highRes;
+			numOptions += lowRes;
+			numOptions += UseNumFrames();
+			numOptions += cacheHighRes;
+
+			return numOptions;
+		}
+	};
+
+	struct WeightListData_t
+	{
+		WeightListData_t(const char* listName, const char** const listBones, const float* const listWeights, const int listLength, const bool setDefault) : name(listName), bones(listBones), weights(listWeights), numWeights(listLength), isDefault(setDefault) {}
+
+		const char* name;
+		const char** bones;
+		const float* weights;
+		int numWeights;
+		const bool isDefault;
+	};
+
+	constexpr float s_Animation_DefaultFPS = 30.0f;
+	struct AnimationOptions_t
+	{
+		AnimationOptions_t(const uint32_t animOptions, const uint32_t animFeatures) : flags(animOptions), features(static_cast<FeatureSet_t>(animFeatures)) {}
+
+		enum FeatureSet_t : uint32_t
+		{
+			ANIM_OPT_FEATURE_INVALID,
+			ANIM_OPT_FEATURE_ANIM,
+			ANIM_OPT_FEATURE_SEQ,
+			ANIM_OPT_FEATURE_ALL,
+		};
+
+		enum Options_t : uint32_t
+		{
+			ANIM_OPTION_LOOPING			= 0x1,
+			ANIM_OPTION_SNAP			= 0x2,
+			ANIM_OPTION_DELTA			= 0x4,		
+			ANIM_OPTION_AUTOPLAY		= 0x8,
+			ANIM_OPTION_POST			= 0x10,
+			ANIM_OPTION_NOANIM			= 0x20,
+			ANIM_OPTION_CYCLEPOSE		= 0x80,
+			ANIM_OPTION_REALTIME		= 0x100,
+			ANIM_OPTION_HIDDEN			= 0x400,
+
+			ANIM_OPTION_WORLDSPACE		= 0x4000,
+			ANIM_OPTION_NOFORCELOOP		= 0x8000,	// do not force the animation loop
+
+			ANIM_OPTION_ROOTMOTION		= 0x40000,	// uses rootmotion style animation track
+			ANIM_OPTION_DEFAULTPOSE		= 0x100000,	// 0x20000 HAS_ANIM flag from apex, if 'noanimation' or 'noanim_keepduration' (STUDIO_ALLZEROS) is used, it will yield different results (goes down different pose path, does not get default bone data)
+			ANIM_OPTION_SUPPGEST		= 0x200000,
+
+			ANIM_OPTION_AUTOIK			= 0x1000000,
+			ANIM_OPTION_NOAUTOIK		= 0x2000000,
+		};
+
+		uint32_t flags;
+		FeatureSet_t features;
+
+		inline void SetLooping() { flags |= ANIM_OPTION_LOOPING; }
+		inline void SetSnap() { flags |= ANIM_OPTION_SNAP; }
+		inline void SetDelta() { flags |= ANIM_OPTION_DELTA; }
+		inline void SetAutoPlay() { flags |= ANIM_OPTION_AUTOPLAY; }
+		inline void SetPost() { flags |= ANIM_OPTION_POST; }
+		inline void SetNoAnim() { flags |= ANIM_OPTION_NOANIM; }
+		inline void SetCyclePose() { flags |= ANIM_OPTION_CYCLEPOSE; }
+		inline void SetRealTime() { flags |= ANIM_OPTION_REALTIME; }
+		inline void SetHidden() { flags |= ANIM_OPTION_HIDDEN; }
+		inline void SetWorldSpace() { flags |= ANIM_OPTION_WORLDSPACE; }
+		inline void SetNoForceLoop() { flags |= ANIM_OPTION_NOFORCELOOP; }
+
+		inline void SetRootMotion() { flags |= ANIM_OPTION_ROOTMOTION; }
+		inline void SetDefaultPose() { flags |= ANIM_OPTION_DEFAULTPOSE; }
+		inline void SetSuppressGestures() { flags |= ANIM_OPTION_SUPPGEST; }
+
+		inline void SetAutoIK(const bool autoIk) { flags |= autoIk ? ANIM_OPTION_AUTOIK : ANIM_OPTION_NOAUTOIK; }
+
+		inline const bool IsLooping() const { return flags & ANIM_OPTION_LOOPING; }
+		inline const bool HasSnap() const { return flags & ANIM_OPTION_SNAP; }
+		inline const bool IsDelta() const { return flags & ANIM_OPTION_DELTA; }
+		inline const bool IsAutoPlay() const { return flags & ANIM_OPTION_AUTOPLAY; }
+		inline const bool HasPost() const { return flags & ANIM_OPTION_POST; }
+		inline const bool HasNoAnim() const { return flags & ANIM_OPTION_NOANIM; }
+		inline const bool HasCyclePose() const { return flags & ANIM_OPTION_CYCLEPOSE; }
+		inline const bool IsRealTime() const { return flags & ANIM_OPTION_REALTIME; }
+		inline const bool IsHidden() const { return flags & ANIM_OPTION_HIDDEN; }
+		inline const bool IsWorldSpace() const { return flags & ANIM_OPTION_WORLDSPACE; }
+		inline const bool HasNoForceLoop() const { return flags & ANIM_OPTION_NOFORCELOOP; }
+
+		inline const bool HasRootMotion() const { return flags & ANIM_OPTION_ROOTMOTION; }
+		inline const bool UseDefaultPose() const { return flags & ANIM_OPTION_DEFAULTPOSE; }
+		inline const bool SuppressGestures() const { return flags & ANIM_OPTION_SUPPGEST; }
+
+		inline const bool UseAutoIK() const { return flags & ANIM_OPTION_AUTOIK; }
+		inline const bool UseNoAutoIK() const { return flags & ANIM_OPTION_NOAUTOIK; }
+
+		const uint32_t GetUsedOptions() const
+		{
+			constexpr uint32_t maskSequence = ~(ANIM_OPTION_NOANIM | ANIM_OPTION_ROOTMOTION | ANIM_OPTION_DEFAULTPOSE | ANIM_OPTION_AUTOIK | ANIM_OPTION_NOAUTOIK);
+			constexpr uint32_t maskAnimation = ~(ANIM_OPTION_WORLDSPACE);
+
+			switch (features)
+			{
+			case ANIM_OPT_FEATURE_ANIM:
+			{
+				return __popcnt(flags & maskAnimation);
+			}
+			case ANIM_OPT_FEATURE_SEQ:
+			{
+				return __popcnt(flags & maskSequence);
+			}
+			case ANIM_OPT_FEATURE_ALL:
+			{
+				return __popcnt(flags & ~ANIM_OPTION_DELTA) + (flags & ANIM_OPTION_DELTA ? 2u : 0u);
+			}
+			default:
+			{
+				assertm(false, "invalid features");
+				return 0u;
+			}
+			}
+		}
+	};
+
+	struct AnimationMotion_t
+	{
+		AnimationMotion_t() = default;
+		AnimationMotion_t(const int end, const int flags) : endframe(end), motionflags(flags) {}
+
+		// slightly cheaty, but these flags are sequential so
+		enum MotionAxis_t
+		{
+			MOTION_X,
+			MOTION_Y,	
+			MOTION_Z,
+			MOTION_XR,
+			MOTION_YR,
+			MOTION_ZR,
+
+			MOTION_LX,
+			MOTION_LY,
+			MOTION_LZ,
+			MOTION_LXR,
+			MOTION_LYR,
+			MOTION_LZR,
+
+			MOTION_LINEAR,
+			MOTION_QUADRATIC_MOTION, // tucked away in studiomdl.h
+
+			MOTION_OPT_COUNT,
+		};
+
+		int endframe;
+		int motionflags;
+
+		inline const int AxisCount() const { return static_cast<int>(__popcnt(motionflags & STUDIO_TYPES)); }
+	};
+
+	constexpr const char* const s_AnimationMotionAxis[AnimationMotion_t::MOTION_OPT_COUNT] =
+	{
+		"X",
+		"Y",
+		"Z",
+		"XR",
+		"YR",
+		"ZR",
+
+		"LX",
+		"LY",
+		"LZ",
+		"LXR",
+		"LYR",
+		"LZR",
+
+		"LM",
+		"LQ",
+	};
+
+	struct AnimationIKRule_t
+	{
+		AnimationIKRule_t() = default;
+		AnimationIKRule_t(const int ruleType, const int ruleChain, const int ruleBone, const int ruleSlot, const char* const ruleBoneName, const char* const ruleChainName, const char* const ruleAttachement) : bonename(ruleBoneName), chainname(ruleChainName), attachment(ruleAttachement),
+			type(ruleType), chain(ruleChain), bone(ruleBone), slot(ruleSlot), height(0.0f), radius(0.0f), floor(0.0f), pos(nullptr), q(nullptr), start(0.0f), peak(0.0f), tail(1.0f), end(1.0f), contact(0.0f), drop(0.0f), top(0.0f), endHeight(0.0f), isFixup(false) {}
+
+		const char* bonename;
+		const char* chainname;
+		const char* attachment;
+
+		bool isFixup;
+
+		int type;
+		int chain;
+		int bone;
+		int slot;
+
+		float height;
+		float radius;
+		float floor;
+		const Vector* pos;
+		const Quaternion* q;
+
+		float start;
+		float peak;
+		float tail;
+		float end;
+
+		float contact;
+		float drop;
+		float top;
+
+		float endHeight; // new in v52
+
+		// init per option (ish) because a long constructor is messy and prone to minor spelling mistakes
+		inline void SetRange(const float ruleStart, const float rulePeak, const float ruleTail, const float ruleEnd)
+		{
+			start = ruleStart;
+			peak = rulePeak;
+			tail = ruleTail;
+			end = ruleEnd;
+		}
+
+		inline void SetOrigin(const Vector* const rulePos, const Quaternion* const ruleQ)
+		{
+			pos = rulePos;
+			q = ruleQ;
+		}
+
+		inline void SetFoot(const float ruleHeight, const float ruleRadius, const float ruleFloor, const float ruleEndHeight)
+		{
+			height = ruleHeight;
+			radius = ruleRadius;
+			floor = ruleFloor;
+			endHeight = ruleEndHeight;
+		}
+
+		inline void SetFootContact(const float ruleContact, const float ruleDrop, const float ruleTop)
+		{
+			contact = ruleContact;
+			drop = ruleDrop;
+			top = ruleTop;
+		}
+
+		inline void MarkAsFixup() { isFixup = true; }
+	};
+
+	struct AnimationData_t
+	{
+		AnimationData_t(const char* const animName, const char* const animPath, const float animFPS, const int animFrames, const char* const animWeightList = nullptr) : name(animName), filepath(animPath), subtractPath(nullptr), weightlist(animWeightList),
+			fps(animFPS), numFrames(animFrames), options(0u, 0u), motions(nullptr), numMotions(0), ikRules(nullptr), numIKRules(0) {}
+
+		const char* name;
+		const char* filepath;
+		const char* subtractPath;
+		const char* weightlist;
+
+		float fps;
+		int numFrames;
+
+		AnimationOptions_t options;
+
+		AnimationMotion_t* motions;
+		int numMotions;
+
+		int numIKRules;
+		AnimationIKRule_t* ikRules;
+
+		const uint32_t EstimateOptionCount_Anim() const
+		{
+			return numMotions + numIKRules + options.GetUsedOptions();
+		}
+
+		inline void SetOptions(const AnimationOptions_t animOptions) { options = animOptions; }
+		inline void SetSubtractAnim(const char* const path) { subtractPath = path; }
+
+		// motions
+		inline void SetMotion(const int index, const int endframe, const int motionflags)
+		{
+			assertm(motions, "no valid motions");
+			assertm(index < numMotions && index >= 0, "invalid motion index");
+
+			motions[index] = AnimationMotion_t(endframe, motionflags);
+		}
+
+		inline void EnableMotion(QCFile* const file, const int motionCount)
+		{
+			numMotions = motionCount;
+			motions = reinterpret_cast<AnimationMotion_t*>(file->ReserveData(sizeof(AnimationMotion_t) * numMotions));
+		}
+
+		void BuildAxisForMotion(const int index, const char** axis) const
+		{
+			const AnimationMotion_t* const motion = motions + index;
+
+			for (int i = 0, idx = 0; i < AnimationMotion_t::MOTION_OPT_COUNT; i++)
+			{
+				// hack, relies on flags being in order
+				const int flag = 1 << i;
+				if ((motion->motionflags & flag) == false)
+					continue;
+
+				axis[idx] = s_AnimationMotionAxis[i];
+				idx++;
+			}
+		}
+
+		// ik rule
+		inline void SetIKRule(const int index, const int type, const int chain, const int bone, const int slot, const char* const boneName, const char* const chainName, const char* const attachment)
+		{
+			assertm(ikRules, "no valid ik rules");
+			assertm(index < numIKRules && index >= 0, "invalid ik rule index");
+
+			ikRules[index] = AnimationIKRule_t(type, chain, bone, slot, boneName, chainName, attachment);
+		}
+
+		inline void EnableIKRules(QCFile* const file, const int ikRuleCount)
+		{
+			numIKRules = ikRuleCount;
+			ikRules = reinterpret_cast<AnimationIKRule_t*>(file->ReserveData(sizeof(AnimationIKRule_t) * numIKRules));
+		}
+	};
+
+	struct SequenceEvent_t
+	{
+		SequenceEvent_t() = default;
+		SequenceEvent_t(const char* const eventName, const int eventId, const bool useNewStyle, const float eventCycle, const float eventUnk, const char* const eventOptions) : name(eventName), event(eventId), newEventStyle(useNewStyle), cycle(eventCycle),
+			unk(eventUnk), options(eventOptions) {}
+
+		const char* name;
+		int event;
+
+		bool newEventStyle;
+
+		float cycle;
+		float unk;
+
+		const char* options;
+
+		inline const bool UseEventName() const { return newEventStyle; }
+		inline const bool HasOptions() const { return options[0] ? true : false; }
+	};
+
+	struct SequenceLayer_t
+	{
+		SequenceLayer_t() = default;
+		SequenceLayer_t(const char* const layerSequence, const char* const layerPose, const int layerFlags, const float layerStart, const float layerPeak, const float layerTail, const float layerEnd) : sequence(layerSequence), pose(layerPose), flags(layerFlags),
+			start(layerStart), peak(layerPeak), tail(layerTail), end(layerEnd) {}
+
+		const char* sequence;
+		const char* pose;
+
+		int flags;
+		float start;	// beginning of influence
+		float peak;		// start of full influence
+		float tail;		// end of full influence
+		float end;		// end of all influence
+
+		const bool UseBlendLayer() const
+		{
+			constexpr int mask = ~STUDIO_AL_LOCAL;
+
+			if (flags & mask)
+				return true;
+
+			if (start != 0.0f || peak != 0.0f || tail != 0.0f || end != 0.0f)
+				return true;
+
+			return false;
+		}
+	};
+
+	struct SequenceActMod_t
+	{
+		SequenceActMod_t() = default;
+		SequenceActMod_t(const char* actName, const bool actNegated = false) : activity(actName), negate(actNegated) {};
+
+		const char* activity;
+		bool negate;
+	};
+
+	constexpr float s_Sequence_DefaultFadeIn = 0.2f;
+	constexpr float s_Sequence_DefaultFadeOut = 0.2f;
+
+#define SEQ_ADD_OPT(condition) (condition ? 1u : 0u)
+	struct SequenceData_t : AnimationData_t
+	{
+		SequenceData_t(const char* const seqLabel, const char* const seqActivity, const int seqActWeight, const float animFPS, const int animFrames, const char* const animWeightList, const int blendWidth, const int blendHeight,
+			const float seqFadeIn, const float seqFadeOut, const float seqEntryPhase, const float seqExitPhase, const char* const seqKVs, const int seqIkResetMask) : AnimationData_t(seqLabel, nullptr, animFPS, animFrames, animWeightList),
+			activity(seqActivity), activityWeight(seqActWeight), events(nullptr), numEvents(0), blends(nullptr), numBlends(0), param(), paramstart(), paramend(), fadeintime(seqFadeIn), fadeouttime(seqFadeOut),
+			entrynode(nullptr), exitnode(nullptr), localentrynode(0), localexitnode(0), nodeflags(0), exitphase(seqEntryPhase), entryphase(seqExitPhase), layers(nullptr), numLayers(0), ikLocks(nullptr), numIKLocks(0), keyValues(seqKVs), cyclePose(nullptr),
+			actmods(nullptr), numActMods(0), ikResetMask(seqIkResetMask)
+		{
+			groupsize[0] = blendWidth;
+			groupsize[1] = blendHeight;
+		}
+
+		SequenceData_t(QCFile* file, const char* const seqLabel, const char* const seqActivity, const int seqActWeight, const float animFPS, const int animFrames, const char* const animWeightList, const int blendWidth, const int blendHeight, const int blendCount,
+			const float seqFadeIn, const float seqFadeOut, const float seqEntryPhase, const float seqExitPhase, const char* const seqKVs, const int seqIkResetMask) :
+			SequenceData_t(seqLabel, seqActivity, seqActWeight, animFPS, animFrames, animWeightList, blendWidth, blendHeight, seqFadeIn, seqFadeOut, seqEntryPhase, seqExitPhase, seqKVs, seqIkResetMask)
+		{
+			EnableBlends(file, blendCount);
+		}
+
+		const char* activity;
+		int activityWeight;
+		inline const bool HasActivity() const { return activity && activity[0] != '\0'; }
+
+		int numEvents;
+		SequenceEvent_t* events;
+
+		const char** blends;
+		int numBlends;
+
+		int groupsize[2]; // width x height
+		inline const int& GetWidth() const { return groupsize[0]; }
+		inline const int& GetHeight() const { return groupsize[1]; }
+
+		const char* param[2];
+		float paramstart[2];
+		float paramend[2];
+
+		float fadeintime;
+		float fadeouttime;
+
+		const char* entrynode;
+		const char* exitnode;
+		int localentrynode;
+		int localexitnode;
+		int nodeflags;
+
+		float entryphase;
+		float exitphase;
+
+		SequenceLayer_t* layers;
+		int numLayers;
+
+		int numIKLocks;
+		IKLockData_t* ikLocks;
+
+		const char* keyValues;
+
+		const char* cyclePose;
+
+		SequenceActMod_t* actmods;
+		int numActMods;
+
+		int ikResetMask;
+
+		const uint32_t EstimateOptionCount_Seq() const
+		{
+			uint32_t numOptions = 1u; // name
+
+			// add option per feature used, and options per animation data type if needed
+			numOptions += options.features == AnimationOptions_t::ANIM_OPT_FEATURE_ALL ? EstimateOptionCount_Anim() : options.GetUsedOptions();
+
+			// add option per sequence data type
+			numOptions += (numEvents + numLayers + numIKLocks + numActMods);
+
+			numOptions += HasActivity();
+			numOptions += SEQ_ADD_OPT(weightlist);
+			numOptions += GetHeight() + SEQ_ADD_OPT(numBlends > 1); // blends & blendwidth
+			numOptions += SEQ_ADD_OPT(param[0]);
+			numOptions += SEQ_ADD_OPT(param[1]);
+			numOptions += SEQ_ADD_OPT(localentrynode && localexitnode);
+			numOptions += SEQ_ADD_OPT(exitphase!= 0.0f);
+			numOptions += SEQ_ADD_OPT(keyValues);
+
+			numOptions += SEQ_ADD_OPT(fadeintime != s_Sequence_DefaultFadeIn);
+			numOptions += SEQ_ADD_OPT(fadeouttime != s_Sequence_DefaultFadeOut);
+
+			numOptions += SEQ_ADD_OPT(ikResetMask);
+
+			return numOptions;
+		}
+
+		inline void SetupNodes(const char* const entryNode, const char* const exitNode, const int localEntryNode, const int localExitNode, const int nodeFlags)
+		{
+			entrynode = entryNode;
+			exitnode = exitNode;
+			localentrynode = localEntryNode;
+			localexitnode = localExitNode;
+			nodeflags = nodeFlags;
+		}
+
+		// event
+		inline void SetEvent(const int index, const char* const event, const int id, const bool useNewStyle, const float cycle, const float unk, const char* const optionList)
+		{
+			assertm(events, "no valid events");
+			assertm(index < numEvents && index >= 0, "invalid event index");
+
+			events[index] = SequenceEvent_t(event, id, useNewStyle, cycle, unk, optionList);
+		}
+
+		inline void EnableEvents(QCFile* const file, const int eventCount)
+		{
+			numEvents = eventCount;
+			events = reinterpret_cast<SequenceEvent_t*>(file->ReserveData(sizeof(SequenceEvent_t) * numEvents));
+		}
+
+		// blends
+		inline void SetBlend(const int index, const char* const path)
+		{
+			assertm(blends, "no valid blends");
+			assertm(index < numBlends && index >= 0, "invalid blend index");
+
+			blends[index] = path;
+		}
+
+		inline void EnableBlends(QCFile* const file, const int blendCount)
+		{
+			numBlends = blendCount;
+
+			assertm(groupsize[0] * groupsize[1] == numBlends, "invalid blend setup");
+
+			blends = reinterpret_cast<const char**>(file->ReserveData(sizeof(char*) * numBlends));
+		}
+
+		// param
+		inline void SetParam(const int index, const char* const paramName, const float paramStart, const float paramEnd)
+		{
+			assertm(index < 2 && index >= 0, "invalid layer index");
+
+			param[index] = paramName;
+			paramstart[index] = paramStart;
+			paramend[index] = paramEnd;
+		}
+
+		// layers
+		inline void SetLayer(const int index, const char* const layerSequence, const char* const layerPose, const int layerFlags, const float layerStart, const float layerPeak, const float layerTail, const float layerEnd)
+		{
+			assertm(layers, "no valid layers");
+			assertm(index < numLayers && index >= 0, "invalid layer index");
+
+			layers[index] = SequenceLayer_t(layerSequence, layerPose, layerFlags, layerStart, layerPeak, layerTail, layerEnd);
+		}
+
+		inline void EnableLayers(QCFile* const file, const int layerCount)
+		{
+			numLayers = layerCount;
+			layers = reinterpret_cast<SequenceLayer_t*>(file->ReserveData(sizeof(SequenceLayer_t) * numLayers));
+		}
+
+		// iklocks
+		inline void SetIKLock(const int index, const char* const chainName, const float posWeight, const float qWeight)
+		{
+			assertm(ikLocks, "no valid iklocks");
+			assertm(index < numIKLocks && index >= 0, "invalid iklock index");
+
+			ikLocks[index] = IKLockData_t(chainName, posWeight, qWeight);
+		}
+
+		inline void EnableIKLocks(QCFile* const file, const int ikLockCount)
+		{
+			numIKLocks = ikLockCount;
+			ikLocks = reinterpret_cast<IKLockData_t*>(file->ReserveData(sizeof(IKLockData_t) * numIKLocks));
+		}
+
+		// cyclepose
+		inline void SetCyclePose(const char* const poseparam)
+		{
+			options.SetCyclePose();
+			cyclePose = poseparam;
+		}
+
+		// actmod
+		inline void SetActMod(const int index, const char* const actName, const bool actNegated = false)
+		{
+			assertm(actmods, "no valid actmods");
+			assertm(index < numActMods && index >= 0, "invalid actmod index");
+
+			actmods[index] = SequenceActMod_t(actName, actNegated);
+		}
+
+		inline void EnableActMods(QCFile* const file, const int actModCount)
+		{
+			numActMods = actModCount;
+			actmods = reinterpret_cast<SequenceActMod_t*>(file->ReserveData(sizeof(SequenceActMod_t) * numActMods));
+		}
+	};
+#undef SEQ_ADD_OPT
 	
 
-	// custom commands
+	// custom commands	
 	// misc
 	size_t CommandKeyvalues_Write(const Command_t* const command, char* buffer, size_t bufferSize);
 	size_t CommandCollText_Write(const Command_t* const command, char* buffer, size_t bufferSize);
@@ -1276,6 +1988,8 @@ namespace qc
 	CommandOption_t* CommandDefineBone_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandJointContents_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	//CommandOption_t* CommandJointSurfaceProp_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
+	CommandOption_t* CommandScreenAlign_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
+	CommandOption_t* CommandBoneSaveFrame_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandJiggleBone_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandAttachment_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 
@@ -1287,9 +2001,14 @@ namespace qc
 	CommandOption_t* CommandPoseParam_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandIKChain_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandIKAutoPlayLock_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
-
+	CommandOption_t* CommandSectionFrames_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
+	CommandOption_t* CommandAnimBlockSize_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
+	CommandOption_t* CommandWeightList_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
+	CommandOption_t* CommandAnimation_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
+	CommandOption_t* CommandSequence_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 
 	// collision
+	inline void CommandContents_ParseOptions(CommandOption_t* const options, const uint32_t usedOptions, uint32_t& optionsIndex, const int contents);
 	CommandOption_t* CommandContents_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandHBox_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
 	CommandOption_t* CommandCollModel_ParseBinary(QCFile* const file, uint32_t* const numOptions, const void* const data, const uint32_t count, const bool store);
@@ -1344,6 +2063,9 @@ namespace qc
 		CommandInfo_t(QC_JOINTCONTENTS,				"$jointcontents",				QCI_BONE,		&CommandGeneric_Write,	&CommandJointContents_ParseBinary,	nullptr),
 		CommandInfo_t(QC_JOINTSURFACEPROP,			"$jointsurfaceprop",			QCI_BONE,		&CommandGeneric_Write,	&CommandPair_ParseBinary,			nullptr),
 		CommandInfo_t(QC_BONEMERGE,					"$bonemerge",					QCI_BONE,		&CommandGeneric_Write,	&CommandString_ParseBinary,			nullptr),
+		CommandInfo_t(QC_SCREENALIGN,				"$screenalign",					QCI_BONE,		&CommandGeneric_Write,	&CommandScreenAlign_ParseBinary,	nullptr),
+		CommandInfo_t(QC_LIMITROTATION,				"$limitrotation",				QCI_BONE,		&CommandGeneric_Write,	&CommandString_ParseBinary,			nullptr),
+		CommandInfo_t(QC_BONESAVEFRAME,				"$limitrotation",				QCI_BONE,		&CommandGeneric_Write,	&CommandBoneSaveFrame_ParseBinary,	nullptr),
 		CommandInfo_t(QC_JIGGLEBONE,				"$jigglebone",					QCI_BONE,		&CommandGeneric_Write,	&CommandJiggleBone_ParseBinary,		nullptr, s_QCVersion_OB, s_QCVersion_MAX),
 		CommandInfo_t(QC_ATTACHMENT,				"$attachment",					QCI_BONE,		&CommandGeneric_Write,	&CommandAttachment_ParseBinary,		nullptr),
 
@@ -1352,6 +2074,14 @@ namespace qc
 		CommandInfo_t(QC_IKCHAIN,					"$ikchain",						QCI_ANIM,		&CommandGeneric_Write,	&CommandIKChain_ParseBinary,		nullptr),
 		CommandInfo_t(QC_IKAUTOPLAYLOCK,			"$ikautoplaylock",				QCI_ANIM,		&CommandGeneric_Write,	&CommandIKAutoPlayLock_ParseBinary,	nullptr, s_QCVersion_MIN, s_QCVersion_R5_150),
 		CommandInfo_t(QC_INCLUDEMODEL,				"$includemodel",				QCI_ANIM,		&CommandGeneric_Write,	&CommandString_ParseBinary,			nullptr),
+		CommandInfo_t(QC_SECTIONFRAMES,				"$sectionframes",				QCI_ANIM,		&CommandGeneric_Write,	&CommandSectionFrames_ParseBinary,	nullptr),
+		CommandInfo_t(QC_ANIMBLOCKSIZE,				"$animblocksize",				QCI_ANIM,		&CommandGeneric_Write,	&CommandAnimBlockSize_ParseBinary,	nullptr, s_QCVersion_MIN, s_QCVersion_R1),
+		CommandInfo_t(QC_DEFAULTWEIGHTLIST,			"$defaultweightlist",			QCI_ANIM,		&CommandGeneric_Write,	&CommandWeightList_ParseBinary,		nullptr),
+		CommandInfo_t(QC_WEIGHTLIST,				"$weightlist",					QCI_ANIM,		&CommandGeneric_Write,	&CommandWeightList_ParseBinary,		nullptr),
+		CommandInfo_t(QC_ANIMATION,					"$animation",					QCI_ANIM,		&CommandGeneric_Write,	&CommandAnimation_ParseBinary,		nullptr),
+		CommandInfo_t(QC_DECLAREANIM,				"$declareanimation",			QCI_ANIM,		&CommandGeneric_Write,	&CommandString_ParseBinary,			nullptr),
+		CommandInfo_t(QC_SEQUENCE,					"$sequence",					QCI_ANIM,		&CommandGeneric_Write,	&CommandSequence_ParseBinary,		nullptr),
+		CommandInfo_t(QC_DECLARESEQ,				"$declaresequence",				QCI_ANIM,		&CommandGeneric_Write,	&CommandString_ParseBinary,			nullptr),
 
 		// box
 		CommandInfo_t(QC_BBOX,						"$bbox",						QCI_BOX,		&CommandGeneric_Write,	&CommandPair_ParseBinary,			nullptr),
@@ -1393,17 +2123,20 @@ namespace qc
 		return true;
 	}
 
+	typedef uint16_t CommandIndex_t;
+	constexpr CommandIndex_t s_MaxCommandIndex = 0xFFFF;
+
 	struct Command_t
 	{
-		Command_t() : info(nullptr), options(nullptr), numOptions(0), format(0u) {}
-		Command_t(const CommandInfo_t* cmdinfo) : info(cmdinfo), options(nullptr), numOptions(0), format(0u) {}
-		Command_t(Command_t& cmd) : info(cmd.info), options(cmd.options), numOptions(cmd.numOptions), format(cmd.format)
+		Command_t() : info(nullptr), options(nullptr), numOptions(0), format(0u), index(s_MaxCommandIndex) {}
+		Command_t(const CommandInfo_t* cmdinfo) : info(cmdinfo), options(nullptr), numOptions(0), format(0u), index(s_MaxCommandIndex) {}
+		Command_t(Command_t& cmd) : info(cmd.info), options(cmd.options), numOptions(cmd.numOptions), format(cmd.format), index(cmd.index)
 		{
 			cmd.options = nullptr;
 			cmd.numOptions = 0;
 		}
 
-		Command_t(Command_t&& cmd) noexcept : info(cmd.info), options(cmd.options), numOptions(cmd.numOptions), format(cmd.format)
+		Command_t(Command_t&& cmd) noexcept : info(cmd.info), options(cmd.options), numOptions(cmd.numOptions), format(cmd.format), index(cmd.index)
 		{
 			cmd.options = nullptr;
 			cmd.numOptions = 0;
@@ -1421,6 +2154,7 @@ namespace qc
 
 		// formatting options
 		CommandFormat_t format;
+		CommandIndex_t index; // local index within this qc file
 
 		void ParseBinaryOptions(QCFile* const file, const void* const data, const int count = 1, const bool store = false)
 		{
@@ -1428,26 +2162,28 @@ namespace qc
 			options = info->parseBinaryFunc(file, &numOptions, data, count, store);
 		}
 
-		void ParseFormatting(const bool comment)
-		{ 
-			format |= (comment ? QC_FMT_COMMENT : 0u);
-		}
-
 		inline const CommandType_t GetType() const { return info->type; }
 		inline const CommandList_t GetCmd() const { return info->id; }
+		inline const CommandIndex_t GetIndex() const { return index; }
 
 		inline const bool ArrayBracket() const { return format & QC_FMT_ARRAY; }
 		inline const bool IsComment() const { return format & QC_FMT_COMMENT; }
 		inline const bool WriteName() const { return format & QC_FMT_WRITENAME; }
 		inline const bool ParentLine() const { return format & QC_FMT_PARENTLINE; }
 		inline const bool NewLine() const { return format & QC_FMT_NEWLINE; }
+		inline const bool BracketStyle() const { return format & QC_FMT_ARRAYSTYLE; }
 	};
 
-	inline void CmdParse(QCFile* const qc, const CommandList_t cmd, const void* const data, const int count = 1, const bool store = false, const bool comment = false)
+	inline void CmdParse(QCFile* const file, const CommandList_t cmd, const void* const data, const int count = 1, const bool store = false, const CommandFormat_t fmt = QC_FMT_NONE)
 	{
 		Command_t command(CmdInfo(cmd));
-		command.ParseBinaryOptions(qc, data, count, store);
-		command.ParseFormatting(comment);
-		qc->AddCommand(command);
+		command.ParseBinaryOptions(file, data, count, store);
+		command.format = fmt;
+
+		// set our index to retain add order during sorting
+		command.index = static_cast<uint16_t>(file->NumCommands());
+		assertm(command.index < s_MaxCommandIndex, "exceeded max commands");
+
+		file->AddCommand(command);
 	}
 }

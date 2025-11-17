@@ -243,7 +243,21 @@ void ImGuiHandler::SetStyle()
 {
     ImGuiIO& io = ImGui::GetIO();
 
-    this->defaultFont = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, sizeof(SourceSansProRegular_compressed_data), 18.f);
+    ImFontConfig config;
+    config.MergeMode = true;
+    config.OversampleH = 2;
+    config.OversampleV = 2;
+
+    this->defaultFont = io.Fonts->AddFontFromMemoryCompressedTTF(SourceSansProRegular_compressed_data, sizeof(SourceSansProRegular_compressed_data), 18.f, NULL, io.Fonts->GetGlyphRangesDefault());
+    
+    char* systemRootPath = nullptr;
+    size_t systemRootPathLen = 0;
+    assertm(_dupenv_s(&systemRootPath, &systemRootPathLen, "SYSTEMROOT") == 0, "couldn't get systemroot env var");
+
+    const std::string fontsDir = std::string(systemRootPath) + "\\Fonts\\";
+    io.Fonts->AddFontFromFileTTF((fontsDir + "simsun.ttc").c_str(), 18.f, &config, io.Fonts->GetGlyphRangesChineseFull());
+    io.Fonts->AddFontFromFileTTF((fontsDir + "malgun.ttf").c_str(), 18.f, &config, io.Fonts->GetGlyphRangesJapanese());
+    io.Fonts->AddFontFromFileTTF((fontsDir + "micross.ttf").c_str(), 18.f, &config, io.Fonts->GetGlyphRangesCyrillic());
 
     ImGuiStyle& style = ImGui::GetStyle();
     ImVec4* colors = style.Colors;
