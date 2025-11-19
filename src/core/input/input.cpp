@@ -136,9 +136,9 @@ void CInput::OnMouseStateChanged(CInput::MouseButton_t button, bool state)
 		this->SetCursorVisible(mouseCaptured);
 
 		if (mouseCaptured)
-			ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+			ImGui::GetIO().ConfigFlags &= ~(ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoKeyboard);
 		else
-			ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+			ImGui::GetIO().ConfigFlags |= (ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoKeyboard);
 
 		mouseCaptured = !mouseCaptured;
 	}
