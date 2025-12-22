@@ -7,12 +7,15 @@
 #include <backends/imgui_impl_win32.h>
 #include <misc/imgui_utility.h>
 #include <game/rtech/utils/bsp/bspflags.h>
+#include <cctype>
 
 #include <core/render/dx.h>
 #include <core/window.h>
 #include <core/input/input.h>
 
 #include <core/filehandling/export.h>
+
+#include <core/discord_presence.h>
 
 #include <game/rtech/cpakfile.h>
 #include <game/rtech/assets/model.h>
@@ -72,6 +75,237 @@ struct AssetCompare_t
         return (static_cast<int64_t>(assetA->GetAssetType()) - assetB->GetAssetType()) > 0;
     }
 };
+
+struct AsyncAssetFilterState
+{
+    std::mutex mutex;
+    std::vector<CGlobalAssetData::AssetLookup_t> pendingResults;
+    std::string pendingFilterText;
+    uint64_t pendingJobId = 0;
+    bool hasPendingResults = false;
+    std::atomic<uint64_t> lastRequestedJobId{0};
+    std::atomic<int32_t> runningJobs{0};
+    std::atomic<uint32_t> activeJobId{0};
+    std::atomic<bool> progressBarVisible{false};
+    std::atomic<uint32_t> progressProcessed{0};
+    std::atomic<uint32_t> progressTotal{0};
+    const ProgressBarEvent_t* progressEvent = nullptr;
+};
+
+static AsyncAssetFilterState g_AsyncAssetFilterState;
+
+static std::string TrimFilterToken(const std::string& token)
+{
+    const char* const whitespace = " \t\r\n";
+    const size_t start = token.find_first_not_of(whitespace);
+    if (start == std::string::npos)
+        return {};
+    const size_t end = token.find_last_not_of(whitespace);
+    return token.substr(start, end - start + 1);
+}
+
+static bool ContainsCaseInsensitive(const std::string& haystack, const std::string& needle)
+{
+    if (needle.empty())
+        return true;
+
+    auto it = std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end(),
+        [](char a, char b)
+        {
+            return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b));
+        });
+
+    return it != haystack.end();
+}
+
+static void ParseFilterTokens(const std::string& filterText, std::vector<std::string>& includeTerms, std::vector<std::string>& excludeTerms)
+{
+    includeTerms.clear();
+    excludeTerms.clear();
+
+    size_t start = 0;
+    while (start < filterText.length())
+    {
+        const size_t end = filterText.find(',', start);
+        const size_t len = end == std::string::npos ? std::string::npos : end - start;
+        std::string token = filterText.substr(start, len);
+        token = TrimFilterToken(token);
+
+        if (!token.empty())
+        {
+            if (token.front() == '-')
+            {
+                std::string term = TrimFilterToken(token.substr(1));
+                if (!term.empty())
+                    excludeTerms.emplace_back(std::move(term));
+            }
+            else
+            {
+                includeTerms.emplace_back(std::move(token));
+            }
+        }
+
+        if (end == std::string::npos)
+            break;
+        start = end + 1;
+    }
+}
+
+static std::vector<CGlobalAssetData::AssetLookup_t> BuildFilteredAssetListSnapshot(const std::string& filterText, std::atomic<uint32_t>* progressCounter, uint32_t progressTotal)
+{
+    std::vector<CGlobalAssetData::AssetLookup_t> matches;
+
+    if (filterText.empty())
+    {
+        if (progressCounter)
+            progressCounter->store(progressTotal, std::memory_order_relaxed);
+        return matches;
+    }
+
+    std::vector<std::string> includeTerms;
+    std::vector<std::string> excludeTerms;
+    ParseFilterTokens(filterText, includeTerms, excludeTerms);
+
+    const bool filterActive = !includeTerms.empty() || !excludeTerms.empty();
+
+    char* end = nullptr;
+    const uint64_t parsedGuid = strtoull(filterText.c_str(), &end, 0);
+    const bool filterIsGuid = end == (filterText.c_str() + filterText.length());
+
+    if (!filterActive && !filterIsGuid)
+    {
+        if (progressCounter)
+            progressCounter->store(progressTotal, std::memory_order_relaxed);
+        return matches;
+    }
+
+    matches.reserve(std::min<size_t>(g_assetData.v_assets.size(), 4096));
+
+    for (const auto& lookup : g_assetData.v_assets)
+    {
+        const std::string& assetName = lookup.m_asset->GetAssetName();
+        bool added = false;
+
+        if (filterActive)
+        {
+            bool includeMatched = includeTerms.empty();
+            if (!includeTerms.empty())
+            {
+                for (const std::string& term : includeTerms)
+                {
+                    if (ContainsCaseInsensitive(assetName, term))
+                    {
+                        includeMatched = true;
+                        break;
+                    }
+                }
+            }
+
+            bool excluded = false;
+            if (includeMatched)
+            {
+                for (const std::string& term : excludeTerms)
+                {
+                    if (ContainsCaseInsensitive(assetName, term))
+                    {
+                        excluded = true;
+                        break;
+                    }
+                }
+            }
+
+            if (includeMatched && !excluded)
+            {
+                matches.push_back(lookup);
+                added = true;
+            }
+        }
+
+        if (!added && filterIsGuid && parsedGuid == RTech::StringToGuid(assetName.c_str()))
+            matches.push_back(lookup);
+
+        if (progressCounter)
+            progressCounter->fetch_add(1, std::memory_order_relaxed);
+    }
+
+    matches.shrink_to_fit();
+    if (progressCounter)
+        progressCounter->store(progressTotal, std::memory_order_relaxed);
+    return matches;
+}
+
+static void SubmitAsyncAssetFilterJob(const std::string& filterText)
+{
+    if (filterText.empty())
+        return;
+
+    const uint64_t jobId = g_AsyncAssetFilterState.lastRequestedJobId.fetch_add(1) + 1;
+    g_AsyncAssetFilterState.runningJobs.fetch_add(1);
+    g_AsyncAssetFilterState.activeJobId.store(static_cast<uint32_t>(jobId));
+    const uint32_t assetCount = static_cast<uint32_t>(g_assetData.v_assets.size());
+    g_AsyncAssetFilterState.progressTotal.store(assetCount, std::memory_order_relaxed);
+    g_AsyncAssetFilterState.progressProcessed.store(0, std::memory_order_relaxed);
+
+    constexpr size_t kSearchProgressThreshold = 256;
+    const bool shouldShowProgressBar = filterText.length() > kSearchProgressThreshold;
+
+    if (shouldShowProgressBar && !g_AsyncAssetFilterState.progressBarVisible.exchange(true))
+    {
+        // use inverted mode so the handler treats our processed counter as the displayed value (fills left-to-right)
+        g_AsyncAssetFilterState.progressEvent = g_pImGuiHandler->AddProgressBarEvent("Searching assets", assetCount, &g_AsyncAssetFilterState.progressProcessed, true);
+
+        if (!g_AsyncAssetFilterState.progressEvent)
+            g_AsyncAssetFilterState.progressBarVisible.store(false);
+    }
+
+    CThread([filterText, jobId]()
+    {
+        auto results = BuildFilteredAssetListSnapshot(filterText, &g_AsyncAssetFilterState.progressProcessed, g_AsyncAssetFilterState.progressTotal.load());
+
+        if (jobId == g_AsyncAssetFilterState.lastRequestedJobId.load())
+        {
+            std::scoped_lock lock(g_AsyncAssetFilterState.mutex);
+            g_AsyncAssetFilterState.pendingResults = std::move(results);
+            g_AsyncAssetFilterState.pendingFilterText = filterText;
+            g_AsyncAssetFilterState.pendingJobId = jobId;
+            g_AsyncAssetFilterState.hasPendingResults = true;
+        }
+
+        g_AsyncAssetFilterState.progressProcessed.store(g_AsyncAssetFilterState.progressTotal.load());
+
+        if (g_AsyncAssetFilterState.progressEvent)
+        {
+            g_pImGuiHandler->FinishProgressBarEvent(g_AsyncAssetFilterState.progressEvent);
+            g_AsyncAssetFilterState.progressEvent = nullptr;
+            g_AsyncAssetFilterState.progressBarVisible.store(false);
+        }
+
+        g_AsyncAssetFilterState.runningJobs.fetch_sub(1);
+    }).detach();
+}
+
+static bool ConsumeCompletedAssetFilterResults(std::vector<CGlobalAssetData::AssetLookup_t>& filteredAssets, uint64_t& lastAppliedJobId, std::string& lastAppliedFilterText)
+{
+    std::scoped_lock lock(g_AsyncAssetFilterState.mutex);
+    if (!g_AsyncAssetFilterState.hasPendingResults)
+        return false;
+
+    filteredAssets = g_AsyncAssetFilterState.pendingResults;
+    filteredAssets.shrink_to_fit();
+    lastAppliedJobId = g_AsyncAssetFilterState.pendingJobId;
+    lastAppliedFilterText = g_AsyncAssetFilterState.pendingFilterText;
+    g_AsyncAssetFilterState.hasPendingResults = false;
+
+    g_AsyncAssetFilterState.progressProcessed.store(g_AsyncAssetFilterState.progressTotal.load());
+    if (g_AsyncAssetFilterState.progressEvent)
+    {
+        g_pImGuiHandler->FinishProgressBarEvent(g_AsyncAssetFilterState.progressEvent);
+        g_AsyncAssetFilterState.progressEvent = nullptr;
+        g_AsyncAssetFilterState.progressBarVisible.store(false);
+    }
+
+    return true;
+}
 
 
 // TODO: Add shortcut handling for copying asset names with CTRL+C when assets are selected and asset list is focused.
@@ -234,6 +468,122 @@ void CreatePakAssetDependenciesTable(CAsset* asset)
     }
 }
 
+void CreatePakAssetDependentsTable(CAsset* asset)
+{
+    CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
+
+    std::vector<AssetGuid_t> dependents;
+    pakAsset->getDependents(dependents);
+
+    constexpr ImGuiTableFlags tableFlags =
+        ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable
+        | ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_NoBordersInBody
+        | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingFixedFit;
+
+    const ImVec2 outerSize = ImVec2(0.f, ImGui::GetTextLineHeightWithSpacing() * 12.f);
+
+    constexpr int numColumns = 5;
+
+    if (ImGui::TreeNodeEx("Asset Dependents", ImGuiTreeNodeFlags_SpanAvailWidth))
+    {
+        if (dependents.empty())
+        {
+            ImGui::TextUnformatted("No dependents found.");
+        }
+        else if (ImGui::BeginTable("AssetDependents", numColumns, tableFlags, outerSize))
+        {
+            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 0);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 1);
+            ImGui::TableSetupColumn("Pak", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 2);
+            ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 3);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 4);
+            ImGui::TableSetupScrollFreeze(1, 1);
+
+            ImGui::TableHeadersRow();
+
+            for (int d = 0; d < dependents.size(); ++d)
+            {
+                CPakAsset* depAsset = g_assetData.FindAssetByGUID<CPakAsset>(dependents[d].guid);
+
+                ImGui::PushID(d);
+                ImGui::TableNextRow(ImGuiTableRowFlags_None, 0.f);
+
+                if (ImGui::TableSetColumnIndex(0))
+                {
+                    ImGui::AlignTextToFramePadding();
+                    if (depAsset)
+                        ColouredTextForAssetType(depAsset);
+                    else
+                        ImGui::TextUnformatted("n/a");
+                }
+
+                if (ImGui::TableSetColumnIndex(1))
+                {
+                    ImGui::AlignTextToFramePadding();
+                    if (depAsset)
+                        ImGui::TextUnformatted(depAsset->GetAssetName().c_str());
+                    else
+                        ImGui::Text("%016llX", dependents[d].guid);
+                }
+
+                if (ImGui::TableSetColumnIndex(2))
+                {
+                    ImGui::AlignTextToFramePadding();
+                    if (depAsset)
+                        ImGui::TextUnformatted(depAsset->GetContainerFileName().c_str());
+                    else
+                        ImGui::TextUnformatted("n/a");
+                }
+
+                if (ImGui::TableSetColumnIndex(3))
+                {
+                    ImGui::AlignTextToFramePadding();
+                    if (depAsset)
+                    {
+                        if (depAsset->GetExportedStatus())
+                        {
+                            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 1.f, 1.f, 1.f));
+                            ImGui::TextUnformatted("Exported");
+                            ImGui::PopStyleColor();
+                        }
+                        else
+                        {
+                            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 1.f, 0.f, 1.f));
+                            ImGui::TextUnformatted("Loaded");
+                            ImGui::PopStyleColor();
+                        }
+                    }
+                    else
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.f, 0.f, 1.f));
+                        ImGui::TextUnformatted("Unavailable");
+                        ImGui::PopStyleColor();
+                    }
+                }
+
+                if (ImGui::TableSetColumnIndex(4))
+                {
+                    ImGui::AlignTextToFramePadding();
+                    if (!depAsset)
+                        ImGui::BeginDisabled();
+
+                    if (ImGui::Button("Export"))
+                        CThread(HandleExportBindingForAsset, depAsset, g_ExportSettings.exportAssetDeps).detach();
+
+                    if (!depAsset)
+                        ImGui::EndDisabled();
+                }
+
+                ImGui::PopID();
+            }
+
+            ImGui::EndTable();
+        }
+
+        ImGui::TreePop();
+    }
+}
+
 void ApplySelectionRequests(ImGuiMultiSelectIO* ms_io, std::deque<CAsset*>& selectedAssets, std::vector<CGlobalAssetData::AssetLookup_t>& pakAssets)
 {
     for (ImGuiSelectionRequest& req : ms_io->Requests)
@@ -297,6 +647,10 @@ void HandleRenderFrame()
     static std::deque<CAsset*> selectedAssets;
     static std::vector<CGlobalAssetData::AssetLookup_t> filteredAssets;
     static CAsset* prevRenderInfoAsset = nullptr;
+    static uint64_t lastAppliedFilterJobId = 0;
+    static std::string lastSubmittedFilterText;
+    static std::string lastAppliedFilterText;
+    static size_t lastSubmittedAssetCountSnapshot = 0;
 
     CDXDrawData* previewDrawData = nullptr;
     if (ImGui::BeginMainMenuBar())
@@ -369,7 +723,7 @@ void HandleRenderFrame()
             ImGui::TextUnformatted(RSX_WELCOME_MESSAGE);
             ImGui::PopTextWrapPos();
 
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
+            ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
             if (ImGui::Button("Open File..."))
             {
@@ -485,34 +839,46 @@ void HandleRenderFrame()
                 ImGui::EndMenuBar();
             }
 
-            // OR case if we load a pak and the filter is not cleared yet.
-            if (FilterConfig->textFilter.Draw("##Filter", -1.f) || (filteredAssets.empty() && FilterConfig->textFilter.IsActive()))
+            const bool filterInputChanged = FilterConfig->textFilter.Draw("##Filter", -1.f);
+            const bool appliedFilterResults = ConsumeCompletedAssetFilterResults(filteredAssets, lastAppliedFilterJobId, lastAppliedFilterText);
+            if (appliedFilterResults)
             {
-                filteredAssets.clear();
-                for (auto& it : g_assetData.v_assets)
+                lastSubmittedAssetCountSnapshot = g_assetData.v_assets.size();
+                lastSubmittedFilterText = lastAppliedFilterText;
+            }
+
+            const bool filterActive = FilterConfig->textFilter.IsActive();
+            const std::string currentFilterText = FilterConfig->textFilter.InputBuf;
+
+            const bool awaitingResults = !currentFilterText.empty() && currentFilterText == lastSubmittedFilterText && currentFilterText != lastAppliedFilterText;
+
+            if (filterActive)
+            {
+                const bool filterTextChanged = filterInputChanged && currentFilterText != lastSubmittedFilterText;
+                const bool filterNeverSubmitted = !currentFilterText.empty() && lastSubmittedFilterText != currentFilterText && lastAppliedFilterText != currentFilterText;
+                const bool assetsChangedSinceSubmission = !currentFilterText.empty() && currentFilterText == lastAppliedFilterText && g_assetData.v_assets.size() != lastSubmittedAssetCountSnapshot;
+                const bool resultsMissing = awaitingResults && g_AsyncAssetFilterState.runningJobs.load() == 0;
+
+                if ((filterTextChanged || filterNeverSubmitted || assetsChangedSinceSubmission || resultsMissing) && !currentFilterText.empty())
                 {
-                    const std::string& assetName = it.m_asset->GetAssetName();
-
-                    if (FilterConfig->textFilter.PassFilter(assetName.c_str()))
-                        filteredAssets.push_back(it);
-                    else
-                    {
-                        const char* const inputText = FilterConfig->textFilter.InputBuf;
-                        const size_t inputLen = strlen(inputText);
-
-                        char* end;
-                        const uint64_t guid = strtoull(inputText, &end, 0);
-
-                        if (end == &inputText[inputLen])
-                        {
-                            if (guid == RTech::StringToGuid(assetName.c_str()))
-                                filteredAssets.push_back(it);
-                        }
-                    }
+                    lastSubmittedFilterText = currentFilterText;
+                    lastSubmittedAssetCountSnapshot = g_assetData.v_assets.size();
+                    SubmitAsyncAssetFilterJob(currentFilterText);
                 }
 
-                // Shrink capacity to match new size.
-                filteredAssets.shrink_to_fit();
+                if (awaitingResults || g_AsyncAssetFilterState.runningJobs.load() > 0)
+                {
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("Searching...");
+                }
+            }
+            else
+            {
+                filteredAssets.clear();
+                lastSubmittedFilterText.clear();
+                lastAppliedFilterText.clear();
+                lastAppliedFilterJobId = 0;
+                lastSubmittedAssetCountSnapshot = 0;
             }
 
             constexpr int numColumns = AssetColumn_t::_AC_COUNT;
@@ -568,6 +934,9 @@ void HandleRenderFrame()
                             ImGui::SetNextItemSelectionUserData(rowNum);
                             if (ImGui::Selectable(asset->GetAssetName().c_str(), isSelected, ImGuiSelectableFlags_AllowDoubleClick))
                             {
+                                // Update Discord presence to show which asset was clicked and its pak (if enabled)
+                                if (UtilsConfig->discordPresenceEnabled)
+                                    DiscordGamePresence::UpdatePresence(asset->GetAssetName(), asset->GetContainerFileName());
 
                                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                                 {
@@ -588,7 +957,12 @@ void HandleRenderFrame()
                             ImGui::Text("%016llX", asset->GetAssetGUID());
 
                         if (ImGui::TableSetColumnIndex(AssetColumn_t::AC_File))
-                            ImGui::TextUnformatted(asset->GetContainerFileName().c_str());
+                        {
+                            if (asset->IsPatched())
+                                ImGui::Text("%s (Patched)", asset->GetContainerFileName().c_str());
+                            else
+                                ImGui::TextUnformatted(asset->GetContainerFileName().c_str());
+                        }
 
                         ImGui::PopID();
                     }
@@ -663,13 +1037,14 @@ void HandleRenderFrame()
                 ImGui::Text("dependentsIndex: %u", pakAsset->dependentsIndex);
 
                 CreatePakAssetDependenciesTable(firstAsset);
+                CreatePakAssetDependentsTable(firstAsset);
             }
 
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
+            ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
             ImGui::Separator();
 
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
+            ImGui::Dummy(ImVec2(0.0f, 5.0f));
 
             if (firstAsset)
             {
@@ -721,6 +1096,9 @@ void HandleRenderFrame()
             ImGui::Checkbox("Export asset dependencies", &g_ExportSettings.exportAssetDeps);
             ImGui::SameLine();
             g_pImGuiHandler->HelpMarker("Enables exporting of all dependencies that are associated with any asset that is being exported.");
+            // Discord presence toggle
+            ImGui::SameLine();
+            ImGui::Checkbox("Enable Discord Presence", &UtilsConfig->discordPresenceEnabled);
             
             ImGui::Checkbox("Disable CacheDB names", &g_ExportSettings.disableCachedNames);
             ImGui::SameLine();
@@ -788,7 +1166,7 @@ void HandleRenderFrame()
 
             ImGui::Combo("Compression Level", reinterpret_cast<int*>(&UtilsConfig->compressionLevel), s_CompressionLevelSetting, static_cast<int>(ARRAYSIZE(s_CompressionLevelSetting)));
             ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Specifies the compression level used when storing parsed assets in memory.\nWARNING: Modify only if you know what you’re doing; otherwise, you may run out of memory.\nNone: no compression.\nSuper Fast: Fastest level with the lowest compression ratio.\nVery Fast: Standard setting; fastest level with a decent compression ratio.\nFast: Fastest level with a good compression ratio.\nNormal: Standard LZ speed with the highest compression ratio.");
+            g_pImGuiHandler->HelpMarker("Specifies the compression level used when storing parsed assets in memory.\nWARNING: Modify only if you know what youï¿½re doing; otherwise, you may run out of memory.\nNone: no compression.\nSuper Fast: Fastest level with the lowest compression ratio.\nVery Fast: Standard setting; fastest level with a decent compression ratio.\nFast: Fastest level with a good compression ratio.\nNormal: Standard LZ speed with the highest compression ratio.");
 
             ImGui::SliderScalar("Parse Threads", ImGuiDataType_U32, &UtilsConfig->parseThreadCount, &minThreads, reinterpret_cast<int*>(&maxConcurrentThreads));
             ImGui::SameLine();

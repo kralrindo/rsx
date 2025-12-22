@@ -65,7 +65,11 @@ void HandleLoadFromCommandLine(const CCommandLine* const cli)
         }
     }
 
-    CThread(HandleFileLoad, std::move(filePaths)).detach();
+    if (filePaths.empty())
+        return;
+
+    // Direct (synchronous) file load on the caller thread.
+    HandleFileLoad(std::move(filePaths));
 }
 
 void HandleOpenFileDialog(const HWND windowHandle)

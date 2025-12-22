@@ -3,6 +3,7 @@
 
 #include <core/render/dx.h>
 #include <thirdparty/imgui/imgui.h>
+#include <core/discord_presence.h>
 
 extern CDXParentHandler* g_dxHandler;
 extern ExportSettings_t g_ExportSettings;
@@ -35,6 +36,8 @@ void LoadUIImageAsset(CAssetContainer* const pak, CAsset* const asset)
             name += ".rpak";
 
         pakAsset->SetAssetName(name, true);
+        // Update Discord presence to reflect current loaded asset
+        DiscordGamePresence::UpdatePresence(name, "Loading UI Image");
     }
     //else
     //{
@@ -482,16 +485,37 @@ std::shared_ptr<CTexture> CreateTextureForImage(CPakAsset* const asset, UIImageA
     }
     assertm(uiShiftedTexture, "shifted texture is nullptr.");
 
-    std::shared_ptr<CTexture> uiTexture = std::make_shared<CTexture>(nullptr, 0ull, resData->width, resData->height, DXGI_FORMAT_R8G8B8A8_UNORM, 1ull, 1ull);
+    // Use the asset's declared width/height for the final texture so exports match
+    // the UI asset dimensions rather than the per-resolution "actual" sizes.
+    std::shared_ptr<CTexture> uiTexture = std::make_shared<CTexture>(nullptr, 0ull, uiAsset->width, uiAsset->height, DXGI_FORMAT_R8G8B8A8_UNORM, 1ull, 1ull);
     assertm(uiTexture, "uiTexture is nullptr.");
+
+    // Ensure the final canvas is cleared to avoid uninitialised pixel noise
+    // (some platforms don't zero ScratchImage memory on Initialize).
+    memset(uiTexture->GetPixels(), 0, uiTexture->GetSlicePitch());
+
+    // When the final texture uses the asset's declared size it may be larger than the
+    // per-resolution "actual" size. Compute an offset so tiles are centered inside
+    // the final canvas rather than being left-aligned.
+    const uint32_t dstOffsetX = uiAsset->width > resData->width ? ((uiAsset->width - resData->width) / 2u) : 0u;
+    const uint32_t dstOffsetY = uiAsset->height > resData->height ? ((uiAsset->height - resData->height) / 2u) : 0u;
 
     for (uint32_t y = 0; y < resData->heightBlocks; y++)
     {
         const uint32_t sizeY = y * 31u + 30u < resData->height ? 31u : resData->height - y * 31u;
         for (uint32_t x = 0; x < resData->widthBlocks; x++)
         {
-            const uint32_t sizeX = x * 31u + 30u < resData->width ? 31u : resData->width - x * 31u;
-            uiTexture->CopySourceTextureSlice(uiShiftedTexture.get(), (x * 32ull), (y * 32ull), sizeX, sizeY, (x * 31ull), (y * 31ull));
+            const uint32_t srcX = x * 32u;
+            uint32_t sizeX = x * 31u + 30u < resData->width ? 31u : resData->width - x * 31u;
+            const uint32_t dstX = (x * 31u) + dstOffsetX;
+
+            // Clamp copy so we never write outside the final texture bounds (prevents artefacts).
+            if (dstX >= uiAsset->width)
+                continue;
+            if (dstX + sizeX > uiAsset->width)
+                sizeX = uiAsset->width - dstX;
+
+            uiTexture->CopySourceTextureSlice(uiShiftedTexture.get(), srcX, (y * 32ull), sizeX, sizeY, dstX, (y * 31ull) + dstOffsetY);
         }
     }
 

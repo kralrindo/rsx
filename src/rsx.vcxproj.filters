@@ -99,6 +99,12 @@
     <ClInclude Include="core\utils\fileio.h">
       <Filter>core\utils</Filter>
     </ClInclude>
+    <ClInclude Include="core\utils\load_progress.h">
+      <Filter>core\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="core\utils\fileassoc.h">
+      <Filter>core\utils</Filter>
+    </ClInclude>
     <ClInclude Include="game\rtech\assets\animrig.h">
       <Filter>game\rtech\assets</Filter>
     </ClInclude>
@@ -544,6 +550,9 @@
     </ClCompile>
     <ClCompile Include="core\filehandling\load.cpp">
       <Filter>core\filehandling</Filter>
+    </ClCompile>
+    <ClCompile Include="core\utils\fileassoc.cpp">
+      <Filter>core\utils</Filter>
     </ClCompile>
     <ClCompile Include="game\rtech\assets\localisation.cpp">
       <Filter>game\rtech\assets</Filter>

@@ -15,6 +15,8 @@
 #include <core/splash.h>
 #include <core/window.h>
 #include <core/render.h>
+#include <core/discord_presence.h>
+#include <core/utils/fileassoc.h>
 
 CDXParentHandler* g_dxHandler;
 std::atomic<uint32_t> maxConcurrentThreads = 1u;
@@ -182,6 +184,10 @@ int main(int argc, char* argv[])
 
     g_cacheDBManager.LoadFromFile((std::filesystem::current_path() / "rsx_cache_db.bin").string());
 
+    // Ensure file associations for .rpak/.mbnk are registered for this user so
+    // double-clicking those files will open them in rsx.
+    RegisterFileAssociationsIfNeeded();
+
     // init pak asset types
     HandleAssetRegistration(&cli);
 
@@ -222,6 +228,10 @@ int main(int argc, char* argv[])
     ImGui_ImplWin32_Init(windowHandle);
     ImGui_ImplDX11_Init(g_dxHandler->GetDevice(), g_dxHandler->GetDeviceContext());
 
+    // Initialize Discord Rich Presence (no-op if SDK not enabled).
+    DiscordGamePresence::Initialize();
+    DiscordGamePresence::UpdatePresence("Browsing assets", "Idle");
+
     // call after initializing dx and gui otherwise you will crash
     HandleLoadFromCommandLine(&cli);
 
@@ -240,10 +250,15 @@ int main(int argc, char* argv[])
         if (quit)
             break;
 
+        // Pump Discord SDK callbacks each frame so presence updates propagate.
+        DiscordGamePresence::RunCallbacks();
+
         HandleRenderFrame();
     }
 
     g_cacheDBManager.SaveToFile((std::filesystem::current_path() / "rsx_cache_db.bin").string());
+    // Shutdown Discord presence before shutdown of UI and device.
+    DiscordGamePresence::Shutdown();
 
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();

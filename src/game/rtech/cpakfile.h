@@ -1104,6 +1104,11 @@ public:
         return pak()->getPakStem() + ".rpak";
     }
 
+    bool IsPatched() const override
+    {
+        return pak()->firstPageIndex() != 0 && data()->headPagePtr.index >= pak()->firstPageIndex();
+    }
+
     uint64_t guid() { return data()->guid; };
 
     const int version() { return data()->version; };
@@ -1167,6 +1172,43 @@ public:
         {
             const AssetGuid_t* pGuid = reinterpret_cast<AssetGuid_t*>(pak()->getPointerToPageOffset(guidRefs[i]));
             guidsArray[i] = *pGuid;
+        }
+    }
+
+    void getDependents(std::vector<AssetGuid_t>& dependentsArray) const
+    {
+        dependentsArray.clear();
+
+        const CPakFile* const container = pak();
+        if (!container)
+            return;
+
+        const int numDependents = data()->dependentsCount;
+        if (numDependents <= 0)
+            return;
+
+        const uint32_t dependentsOffset = data()->dependentsIndex;
+        const int* const dependentEntries = container->dependents();
+        if (!dependentEntries)
+            return;
+
+        const int maxEntries = container->header()->numDependencies;
+        if (dependentsOffset >= static_cast<uint32_t>(maxEntries))
+            return;
+
+        const int readableEntries = std::min(numDependents, maxEntries - static_cast<int>(dependentsOffset));
+        const int* const dependentsStart = dependentEntries + dependentsOffset;
+
+        for (int i = 0; i < readableEntries; ++i)
+        {
+            const int assetIndex = dependentsStart[i];
+            if (assetIndex < 0 || assetIndex >= container->assetCount())
+                continue;
+
+            const PakAsset_t* const dependentAsset = &container->internalAssets()[assetIndex];
+            AssetGuid_t guid{};
+            guid.guid = dependentAsset->guid;
+            dependentsArray.push_back(guid);
         }
     }
 

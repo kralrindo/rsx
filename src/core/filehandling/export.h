@@ -6,6 +6,8 @@ FORCEINLINE void HandleExportBindingForAsset(CAsset* const asset, const bool exp
 void HandlePakAssetExportList(std::deque<CAsset*> selectedAssets, const bool exportDependencies);
 void HandleExportAllPakAssets(std::vector<CGlobalAssetData::AssetLookup_t>* const pakAssets, const bool exportDependencies);
 void HandleExportSelectedAssetType(std::vector<CGlobalAssetData::AssetLookup_t> pakAssets, const bool exportDependencies);
+const CAsset* GetCurrentExportRootAsset();
+const CAsset* GetCurrentExportParentAsset();
 
 // list.cpp
 void HandleListExportPakAssets(const HWND handle, std::vector<CGlobalAssetData::AssetLookup_t>* assets);

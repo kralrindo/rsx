@@ -1086,7 +1086,11 @@ bool ExportMaterialStruct(const MaterialAsset* const materialAsset,
             const TextureAsset* const textureAsset = reinterpret_cast<const TextureAsset*>(info.pTexture->extraData());
 
             if (textureAsset->type != eTextureType::_UNUSED)
-                toPrint = s_TextureTypeMap.at(textureAsset->type);
+            {
+                auto itType = s_TextureTypeMap.find(static_cast<uint8_t>(textureAsset->type));
+                if (itType != s_TextureTypeMap.end())
+                    toPrint = itType->second;
+            }
         }
 
         ofs << (toPrint ? toPrint : "unavailable");

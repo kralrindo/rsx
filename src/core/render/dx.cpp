@@ -95,6 +95,8 @@ bool CTexture::CreateShaderResourceView(ID3D11Device* const device)
 
     m_currentDevice = device;
 
+    const auto meta = ToScratchImage->GetMetadata();
+
     return SUCCEEDED(DirectX::CreateShaderResourceView(device, ToScratchImage->GetImages(), ToScratchImage->GetImageCount(), ToScratchImage->GetMetadata(), &m_shaderResourceView));
 }
 

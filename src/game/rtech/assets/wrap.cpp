@@ -21,8 +21,28 @@ void LoadWrapAsset(CAssetContainer* const pak, CAsset* const asset)
     }
     default:
     {
-        assertm(false, "unaccounted asset version, will cause major issues!");
-        return;
+            // If the asset version is unrecognized, skip constructing the full WrapAsset
+            // to avoid crashes in downstream code that expects specific header layouts.
+            // Create a minimal placeholder so post-load/preview/export functions can safely
+            // operate (they assert that extraData is non-null).
+            //warning(false, "unaccounted wrap asset version, skipping full parse.");
+
+            wrapAsset = new WrapAsset();
+            wrapAsset->path = const_cast<char*>("unsupported wrap asset");
+            wrapAsset->data = nullptr;
+            wrapAsset->skipSize = 0;
+            wrapAsset->cmpSize = 0;
+            wrapAsset->dcmpSize = 0;
+            wrapAsset->pathSize = 0;
+            wrapAsset->skipFirstFolderPos = 0;
+            wrapAsset->fileNamePos = 0;
+            wrapAsset->flags = 0;
+            wrapAsset->isCompressed = false;
+            wrapAsset->isStreamed = false;
+            wrapAsset->parsedDataType = eWrapAssetParsedDataType::NONE;
+            wrapAsset->parsedData = nullptr;
+
+            break;
     }
     }
 

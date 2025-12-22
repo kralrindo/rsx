@@ -77,6 +77,8 @@ public:
 
     const ProgressBarEvent_t* const AddProgressBarEvent(const char* const eventName, const uint32_t eventNum, std::atomic<uint32_t>* const remainingEvents, const bool isInverted);
     void FinishProgressBarEvent(const ProgressBarEvent_t* const event);
+    // NOTE: RequestFinishProgressEvent removed; progress events should be finished
+    // directly via FinishProgressBarEvent from the creating thread where appropriate.
     void HandleProgressBar();
 
     struct UtilsSettings_t
@@ -84,6 +86,8 @@ public:
         uint32_t parseThreadCount;
         uint32_t exportThreadCount;
         uint32_t compressionLevel;
+        // Enable Discord rich presence updates from the app
+        bool discordPresenceEnabled;
     } cfg;
 
     struct FilterSettings_t
@@ -102,6 +106,7 @@ private:
     std::mutex eventMutex;
     ProgressBarEvent_t pbEvents[PB_SIZE];
     std::stack<uint8_t> pbAvailSlots;
+    // legacy finish queue removed
 
     ImFont* defaultFont;
     ImFont* monospaceFont;

@@ -275,6 +275,9 @@ public:
 	// Get the name of the file that contains this asset.
 	virtual std::string GetContainerFileName() const = 0;
 
+	// Returns whether this asset is from a patched file.
+	virtual bool IsPatched() const { return false; }
+
 	void* GetContainerFile() const { return m_containerFile; }
 
 	template <typename T>

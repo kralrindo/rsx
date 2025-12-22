@@ -4,6 +4,8 @@
 #include <game/rtech/utils/utils.h>
 
 #include <imgui.h>
+#include <core/filehandling/export.h>
+#include <cstdio>
 
 extern CDXParentHandler* g_dxHandler;
 
@@ -674,16 +676,36 @@ bool ExportShaderAsset(CAsset* const asset, const int setting)
 	// shaders with no data/invalid type need to be skipped until we properly handle them
 	if (shaderAsset->type >= eShaderType::Invalid)
 	{
-		Log("Tried to export %s with invalid shader type, skipping...\n");
+		Log("Tried to export a shader with invalid shader type, skipping...\n");
 		return false;
 	}
 
 	// Create exported path + asset path.
 	std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
-	const std::filesystem::path shaderPath(asset->GetAssetName());
+
+	const auto isShaderAsset = [](const CAsset* candidate)
+	{
+		return candidate && candidate->GetAssetType() == static_cast<uint32_t>(AssetType_t::SHDR);
+	};
+
+	const CAsset* const parentAsset = GetCurrentExportParentAsset();
+	const CAsset* const rootAsset = GetCurrentExportRootAsset();
+	const CAsset* aliasAsset = nullptr;
+
+	if (parentAsset != asset && isShaderAsset(parentAsset))
+		aliasAsset = parentAsset;
+	else if (rootAsset != asset && isShaderAsset(rootAsset))
+		aliasAsset = rootAsset;
+
+	const CAsset* const namingAsset = aliasAsset ? aliasAsset : asset;
+	const std::filesystem::path namingPath(namingAsset->GetAssetName());
 
 	if (g_ExportSettings.exportPathsFull)
-		exportPath.append(shaderPath.parent_path().string());
+	{
+		const std::string parentPathStr = namingPath.parent_path().string();
+		if (!parentPathStr.empty())
+			exportPath.append(parentPathStr);
+	}
 	else
 		exportPath.append(s_PathPrefixSHDR);
 
@@ -693,7 +715,9 @@ bool ExportShaderAsset(CAsset* const asset, const int setting)
 		return false;
 	}
 
-	exportPath.append(shaderPath.filename().string());
+	char shaderGuidBuffer[34] = {};
+	std::snprintf(shaderGuidBuffer, sizeof(shaderGuidBuffer), "0x%llX.rpak", namingAsset->GetAssetGUID());
+	exportPath.append(shaderGuidBuffer);
 
 	switch (setting)
 	{

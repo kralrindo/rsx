@@ -5,12 +5,80 @@
 #include <core/filehandling/load.h>
 #include <core/filehandling/export.h>
 
+#include <core/discord_presence.h>
+
 #include <game/rtech/cpakfile.h>
+
+namespace
+{
+    thread_local const CAsset* g_CurrentExportRootAsset = nullptr;
+    thread_local std::vector<const CAsset*> g_ExportAssetStack;
+
+    class ScopedExportRootContext
+    {
+    public:
+        explicit ScopedExportRootContext(const CAsset* newRoot)
+            : m_previousRoot(g_CurrentExportRootAsset), m_applied(newRoot != nullptr)
+        {
+            if (m_applied)
+                g_CurrentExportRootAsset = newRoot;
+        }
+
+        ~ScopedExportRootContext()
+        {
+            if (m_applied)
+                g_CurrentExportRootAsset = m_previousRoot;
+        }
+
+    private:
+        const CAsset* m_previousRoot;
+        bool m_applied;
+    };
+
+    class ScopedExportAssetContext
+    {
+    public:
+        explicit ScopedExportAssetContext(const CAsset* asset)
+            : m_applied(asset != nullptr)
+        {
+            if (m_applied)
+                g_ExportAssetStack.push_back(asset);
+        }
+
+        ~ScopedExportAssetContext()
+        {
+            if (m_applied)
+                g_ExportAssetStack.pop_back();
+        }
+
+    private:
+        bool m_applied;
+    };
+}
+
+const CAsset* GetCurrentExportRootAsset()
+{
+    return g_CurrentExportRootAsset;
+}
+
+const CAsset* GetCurrentExportParentAsset()
+{
+    return g_ExportAssetStack.size() > 1 ? g_ExportAssetStack[g_ExportAssetStack.size() - 2] : nullptr;
+}
+
+namespace
+{
+    constexpr uint32_t kEfctAssetType = static_cast<uint32_t>(AssetType_t::EFCT);
+
+    inline bool IsEfctAsset(const CAsset* asset)
+    {
+        return asset && asset->GetAssetType() == kEfctAssetType;
+    }
+}
 
 void HandlePakLoad(std::vector<std::string> filePaths)
 {
-    std::atomic<uint32_t> pakLoadingProgress = 0;
-    const ProgressBarEvent_t* const pakLoadProgress = g_pImGuiHandler->AddProgressBarEvent("Loading Paks..", static_cast<uint32_t>(filePaths.size()), &pakLoadingProgress, true);
+    // Original pak load behavior (no global UI progress counters used here).
 
     if (g_assetData.m_pakPatchMaster)
         delete g_assetData.m_pakPatchMaster;
@@ -75,18 +143,19 @@ void HandlePakLoad(std::vector<std::string> filePaths)
                 g_assetData.m_pakLoadStatusMap.emplace(pak->header()->crc, true);
 
             g_assetData.v_assetContainers.emplace_back(pak);
+            // Update Discord presence to show which pak was just loaded (if enabled)
+            if (UtilsConfig->discordPresenceEnabled)
+                DiscordGamePresence::UpdatePresence(fsPath.filename().string(), "Loaded pak");
         }
         else
         {
             //assertm(false, "Parsing pak from file failed.");
             delete pak;
         }
-        ++pakLoadingProgress;
     }
-    g_pImGuiHandler->FinishProgressBarEvent(pakLoadProgress);
 }
 
-static void TraverseAssetDependencies(CPakAsset* const asset, std::deque<CPakAsset*>& cpyAssets)
+static void TraverseAssetDependencies(CPakAsset* const asset, std::deque<CPakAsset*>& cpyAssets, std::deque<CPakAsset*>& parentAssets, CPakAsset* const parent)
 {
     std::vector<AssetGuid_t> dependencies;
     asset->getDependencies(dependencies);
@@ -99,23 +168,32 @@ static void TraverseAssetDependencies(CPakAsset* const asset, std::deque<CPakAss
         if (!depAsset)
             continue;
 
+        if (IsEfctAsset(depAsset))
+            continue;
+
         if (std::find(cpyAssets.begin(), cpyAssets.end(), depAsset) != cpyAssets.end())
             continue; // Already in the list.
 
         assert(depAsset != asset);
+        parentAssets.emplace_back(asset);
         cpyAssets.emplace_back(depAsset);
 
         // Add the dependencies of this asset into the list as well.
-        TraverseAssetDependencies(depAsset, cpyAssets);
+        TraverseAssetDependencies(depAsset, cpyAssets, parentAssets, depAsset);
     }
 
     // Add the root asset itself to the list.
     if (std::find(cpyAssets.begin(), cpyAssets.end(), asset) == cpyAssets.end())
+    {
+        parentAssets.emplace_back(parent);
         cpyAssets.emplace_back(asset);
+    }
 }
 
 static void HandleExportBindingForAssetEx(CAsset* const asset)
 {
+    ScopedExportAssetContext assetContext(asset);
+
     if (auto it = g_assetData.m_assetTypeBindings.find(asset->GetAssetType()); it != g_assetData.m_assetTypeBindings.end())
     {
         if (it->second.e.exportFunc)
@@ -128,14 +206,23 @@ static void HandleExportBindingForAssetEx(CAsset* const asset)
 
 FORCEINLINE void HandleExportBindingForAsset(CAsset* const asset, const bool exportDependencies)
 {
+    const bool allowDependencies = exportDependencies && !IsEfctAsset(asset);
+
     // only pak assets have dependencies so don't try to export them with other types
-    if (asset->GetAssetContainerType() == CAsset::ContainerType::PAK && exportDependencies)
+    if (asset->GetAssetContainerType() == CAsset::ContainerType::PAK && allowDependencies)
     {
         std::deque<CPakAsset*> cpyAssets;
-        TraverseAssetDependencies(static_cast<CPakAsset*>(asset), cpyAssets);
+        std::deque<CPakAsset*> parentAssets;
+        TraverseAssetDependencies(static_cast<CPakAsset*>(asset), cpyAssets, parentAssets, nullptr);
 
-        for (CPakAsset* const dependency : cpyAssets)
+        ScopedExportRootContext rootContext(asset);
+
+        for (size_t idx = 0; idx < cpyAssets.size(); ++idx)
         {
+            CPakAsset* const dependency = cpyAssets[idx];
+            CAsset* const parent = parentAssets[idx];
+
+            ScopedExportAssetContext parentContext(parent);
             HandleExportBindingForAssetEx(dependency);
         }
     }

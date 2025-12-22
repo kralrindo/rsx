@@ -78,6 +78,8 @@ static void UtilSettings_ReadLine(ImGuiContext* const ctx, ImGuiSettingsHandler*
         ImGuiReadSetting("ExportThreads=%u", cfg->exportThreadCount, i, uint32_t);
         ImGuiReadSetting("ParseThreads=%u", cfg->parseThreadCount, i, uint32_t);
         ImGuiReadSetting("CompressionLevel=%u", cfg->compressionLevel, i, uint32_t);
+        int di;
+        ImGuiReadSetting("DiscordPresence=%i", cfg->discordPresenceEnabled, di, bool);
     }
 }
 
@@ -90,6 +92,7 @@ static void UtilSettings_WriteAll(ImGuiContext* const ctx, ImGuiSettingsHandler*
     buf->appendf("ExportThreads=%u\n", UtilsConfig->exportThreadCount);
     buf->appendf("ParseThreads=%u\n", UtilsConfig->parseThreadCount);
     buf->appendf("CompressionLevel=%u\n", UtilsConfig->compressionLevel);
+    buf->appendf("DiscordPresence=%i\n", UtilsConfig->discordPresenceEnabled ? 1 : 0);
     buf->append("\n");
 }
 
@@ -187,7 +190,7 @@ static void PreviewSettings_WriteAll(ImGuiContext* const ctx, ImGuiSettingsHandl
 {
     UNUSED(ctx);
 
-    buf->reserve(buf->size() + 128);
+    buf->reserve(buf->size() + 64);
     buf->appendf("[%s][general]\n", handler->TypeName);
     
     buf->appendf("PreviewCullDistance=%f\n",    g_PreviewSettings.previewCullDistance);
@@ -260,57 +263,58 @@ void ImGuiHandler::SetStyle()
     io.Fonts->AddFontFromFileTTF((fontsDir + "micross.ttf").c_str(), 18.f, &config, io.Fonts->GetGlyphRangesCyrillic());
 
     ImGuiStyle& style = ImGui::GetStyle();
+    ImGui::StyleColorsDark(&style);
     ImVec4* colors = style.Colors;
 
-    colors[ImGuiCol_Text] = ImVec4(0.81f, 0.81f, 0.81f, 1.00f);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.56f, 0.56f, 0.56f, 1.00f);
-    colors[ImGuiCol_TextSelectedBg] = ImVec4(0.12f, 0.37f, 0.75f, 0.50f);
-    colors[ImGuiCol_WindowBg] = ImVec4(0.13f, 0.15f, 0.18f, 1.00f);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.78f);
-    colors[ImGuiCol_PopupBg] = ImVec4(0.11f, 0.13f, 0.17f, 1.00f);
-    colors[ImGuiCol_Border] = ImVec4(0.61f, 0.61f, 0.61f, 0.50f);
-    colors[ImGuiCol_BorderShadow] = ImVec4(0.04f, 0.04f, 0.04f, 0.00f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.78f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.04f, 0.06f, 0.10f, 1.00f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.04f, 0.07f, 0.12f, 1.00f);
-    colors[ImGuiCol_TitleBg] = ImVec4(0.26f, 0.51f, 0.78f, 1.00f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.26f, 0.51f, 0.78f, 1.00f);
-    colors[ImGuiCol_MenuBarBg] = ImVec4(0.11f, 0.13f, 0.17f, 1.00f);
-    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.16f, 0.20f, 0.24f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.23f, 0.36f, 0.51f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.30f, 0.46f, 0.65f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.31f, 0.49f, 0.69f, 1.00f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.31f, 0.43f, 0.43f, 1.00f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.41f, 0.56f, 0.57f, 1.00f);
-    colors[ImGuiCol_Button] = ImVec4(0.31f, 0.43f, 0.43f, 1.00f);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(0.38f, 0.52f, 0.53f, 1.00f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.41f, 0.56f, 0.57f, 1.00f);
-    colors[ImGuiCol_Header] = ImVec4(0.31f, 0.43f, 0.43f, 1.00f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.38f, 0.53f, 0.53f, 1.00f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.41f, 0.56f, 0.57f, 1.00f);
-    colors[ImGuiCol_Separator] = ImVec4(0.53f, 0.53f, 0.57f, 0.50f);
-    colors[ImGuiCol_ResizeGrip] = ImVec4(0.81f, 0.81f, 0.81f, 0.50f);
-    colors[ImGuiCol_Tab] = ImVec4(0.31f, 0.43f, 0.43f, 1.00f);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.38f, 0.53f, 0.53f, 1.00f);
-    colors[ImGuiCol_TabActive] = ImVec4(0.41f, 0.56f, 0.57f, 1.00f);
-    colors[ImGuiCol_TableHeaderBg] = ImVec4(0.14f, 0.19f, 0.24f, 1.00f);
-    colors[ImGuiCol_TableBorderStrong] = ImVec4(0.20f, 0.26f, 0.33f, 1.00f);
-    colors[ImGuiCol_TableBorderLight] = ImVec4(0.22f, 0.29f, 0.37f, 1.00f);
-    colors[ImGuiCol_TableRowBgAlt] = colors[ImGuiCol_TableRowBg];
-    colors[ImGuiCol_PlotHistogram] = ImVec4(0.31f, 0.43f, 0.43f, 1.00f);
+    colors[ImGuiCol_Text] = ImVec4(0.93f, 0.91f, 1.00f, 1.00f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.45f, 0.40f, 0.60f, 1.00f);
+    colors[ImGuiCol_TextSelectedBg] = ImVec4(0.57f, 0.23f, 0.98f, 0.45f);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.03f, 0.11f, 1.00f);
+    colors[ImGuiCol_ChildBg] = ImVec4(0.04f, 0.02f, 0.08f, 0.65f);
+    colors[ImGuiCol_PopupBg] = ImVec4(0.09f, 0.04f, 0.16f, 0.98f);
+    colors[ImGuiCol_Border] = ImVec4(0.41f, 0.26f, 0.64f, 0.90f);
+    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_FrameBg] = ImVec4(0.14f, 0.06f, 0.23f, 0.95f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.29f, 0.10f, 0.45f, 1.00f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.43f, 0.08f, 0.63f, 1.00f);
+    colors[ImGuiCol_TitleBg] = ImVec4(0.19f, 0.07f, 0.34f, 1.00f);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.36f, 0.14f, 0.59f, 1.00f);
+    colors[ImGuiCol_MenuBarBg] = ImVec4(0.09f, 0.05f, 0.15f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.07f, 0.04f, 0.13f, 0.95f);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.32f, 0.14f, 0.51f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.41f, 0.21f, 0.67f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.52f, 0.29f, 0.84f, 1.00f);
+    colors[ImGuiCol_SliderGrab] = ImVec4(0.60f, 0.29f, 0.86f, 1.00f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.78f, 0.35f, 1.00f, 1.00f);
+    colors[ImGuiCol_Button] = ImVec4(0.38f, 0.17f, 0.55f, 0.95f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.52f, 0.24f, 0.74f, 1.00f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.72f, 0.33f, 0.97f, 1.00f);
+    colors[ImGuiCol_Header] = ImVec4(0.32f, 0.12f, 0.51f, 0.94f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.48f, 0.18f, 0.72f, 1.00f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.64f, 0.23f, 0.90f, 1.00f);
+    colors[ImGuiCol_Separator] = ImVec4(0.42f, 0.20f, 0.60f, 0.90f);
+    colors[ImGuiCol_ResizeGrip] = ImVec4(0.60f, 0.29f, 0.86f, 0.70f);
+    colors[ImGuiCol_Tab] = ImVec4(0.27f, 0.11f, 0.43f, 0.95f);
+    colors[ImGuiCol_TabHovered] = ImVec4(0.49f, 0.20f, 0.73f, 1.00f);
+    colors[ImGuiCol_TabActive] = ImVec4(0.63f, 0.26f, 0.92f, 1.00f);
+    colors[ImGuiCol_TableHeaderBg] = ImVec4(0.16f, 0.07f, 0.27f, 1.00f);
+    colors[ImGuiCol_TableBorderStrong] = ImVec4(0.27f, 0.12f, 0.41f, 1.00f);
+    colors[ImGuiCol_TableBorderLight] = ImVec4(0.32f, 0.16f, 0.48f, 1.00f);
+    colors[ImGuiCol_TableRowBgAlt] = ImVec4(0.10f, 0.05f, 0.18f, 1.00f);
+    colors[ImGuiCol_PlotHistogram] = ImVec4(0.78f, 0.35f, 1.00f, 1.00f);
 
     style.WindowBorderSize = 1.0f;
     style.FrameBorderSize = 0.0f;
     style.ChildBorderSize = 0.0f;
     style.PopupBorderSize = 1.0f;
-    style.TabBorderSize = 1.0f;
+    style.TabBorderSize = 0.0f;
 
-    style.WindowRounding = 4.0f;
-    style.FrameRounding = 1.0f;
-    style.ChildRounding = 1.0f;
-    style.PopupRounding = 3.0f;
-    style.TabRounding = 1.0f;
-    style.ScrollbarRounding = 3.0f;
+    style.WindowRounding = 6.0f;
+    style.FrameRounding = 3.0f;
+    style.ChildRounding = 3.0f;
+    style.PopupRounding = 4.0f;
+    style.TabRounding = 3.0f;
+    style.ScrollbarRounding = 5.0f;
 }
 
 void ImGuiHandler::HelpMarker(const char* const desc)
@@ -369,9 +373,12 @@ void ImGuiHandler::FinishProgressBarEvent(const ProgressBarEvent_t* const event)
     pbAvailSlots.push(eventIdx);
 }
 
+// RequestFinishProgressEvent removed
+
 void ImGuiHandler::HandleProgressBar()
 {
     std::unique_lock<std::mutex> lock(eventMutex);
+
 
     bool foundTopLevelBar = false;
     for (int i = 0; i < PB_SIZE; ++i)
@@ -387,7 +394,12 @@ void ImGuiHandler::HandleProgressBar()
             ImGui::SetNextWindowSize(ImVec2(0, 0));
             ImGui::SetNextWindowPos(viewportCenter, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
-            if (!ImGui::Begin(event->eventName, nullptr, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoScrollWithMouse))
+            constexpr ImGuiWindowFlags progressFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+                ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoScrollWithMouse |
+                ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoInputs;
+
+            // prevent the transient progress window from stealing focus away from active widgets (e.g., the search bar)
+            if (!ImGui::Begin(event->eventName, nullptr, progressFlags))
                 continue;
         }
         else
@@ -459,6 +471,8 @@ ImGuiHandler::ImGuiHandler()
 
     // standard config setting for compression
     cfg.compressionLevel = eCompressionLevel::CMPR_LVL_VERYFAST;
+    // discord presence is enabled by default
+    cfg.discordPresenceEnabled = true;
 
     memset(pbEvents, 0, sizeof(pbEvents));
     for (int8_t i = PB_SIZE - 1; i >= 0; --i) // in reverse order
