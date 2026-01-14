@@ -25,7 +25,7 @@ void HandleBPKLoad(std::vector<std::string> filePaths)
         if (!pakfile->ParseFromFile())
         {
             assertm(false, "failed to parse bluepoint pakfile");
-            Log("%s failed to load!\n", pakfile->GetFileName());
+            Log("BPK: %s failed to load!\n", pakfile->GetFileName());
 
             delete pakfile;
 

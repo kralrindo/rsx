@@ -137,16 +137,16 @@ namespace r1
 	//};
 	//static_assert(sizeof(mstudio_rle_anim_v53_t) == 0x8);
 
-	struct mstudiomovement_t
-	{
-		int					endframe;
-		int					motionflags;
-		float				v0;			// velocity at start of block
-		float				v1;			// velocity at end of block
-		float				angle;		// YAW rotation at end of this blocks movement
-		Vector				vector;		// movement vector relative to this blocks initial angle
-		Vector				position;	// relative to start of animation???
-	};
+	//struct mstudiomovement_t
+	//{
+	//	int					endframe;
+	//	int					motionflags;
+	//	float				v0;			// velocity at start of block
+	//	float				v1;			// velocity at end of block
+	//	float				angle;		// YAW rotation at end of this blocks movement
+	//	Vector				vector;		// movement vector relative to this blocks initial angle
+	//	Vector				position;	// relative to start of animation???
+	//};
 
 	// new in Titanfall 1
 	// translation track for origin bone, used in lots of animated scenes, requires STUDIO_FRAMEMOVEMENT
@@ -483,6 +483,4 @@ namespace r1
 	// for everything r2 and before
 	void ExtractAnimValue(int frame, const mstudioanimvalue_t* panimvalue, float scale, float& v1, float& v2);
 	void ExtractAnimValue(int frame, const mstudioanimvalue_t* panimvalue, float scale, float& v1);
-
-	bool Studio_AnimPosition(const animdesc_t* const panim, float flCycle, Vector& vecPos, QAngle& vecAngle);
 }

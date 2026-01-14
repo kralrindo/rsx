@@ -312,7 +312,7 @@ void PostLoadShaderAsset(CAssetContainer* const pak, CAsset* const asset)
 	}
 #endif
 
-	ShaderAsset* const shaderAsset = reinterpret_cast<ShaderAsset*>(pakAsset->extraData());
+	ShaderAsset* const shaderAsset = pakAsset->extraData<ShaderAsset* const>();
 
 	if (shaderAsset->numShaders != -1)
 	{
@@ -478,8 +478,7 @@ void* PreviewShaderAsset(CAsset* const asset, const bool firstFrameForAsset)
 
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	const ShaderAsset* const shaderAsset = reinterpret_cast<ShaderAsset*>(pakAsset->extraData());
-	assertm(shaderAsset, "Extra data should be valid at this point.");
+	const ShaderAsset* const shaderAsset = pakAsset->extraData<const ShaderAsset* const>();
 
 	ImGui::Text("Features: %016X", *(uint64_t*)shaderAsset->shaderFeatures);
 
@@ -668,18 +667,18 @@ bool ExportShaderAsset(CAsset* const asset, const int setting)
 {
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	const ShaderAsset* const shaderAsset = reinterpret_cast<ShaderAsset*>(pakAsset->extraData());
+	const ShaderAsset* const shaderAsset = pakAsset->extraData<const ShaderAsset* const>();
 	assertm(shaderAsset, "Extra asset data should be valid at this point.");
 
 	// shaders with no data/invalid type need to be skipped until we properly handle them
 	if (shaderAsset->type >= eShaderType::Invalid)
 	{
-		Log("Tried to export %s with invalid shader type, skipping...\n");
+		Log("Tried to export %s with invalid shader type, skipping...\n", asset->GetAssetName().c_str());
 		return false;
 	}
 
 	// Create exported path + asset path.
-	std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+	std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
 	const std::filesystem::path shaderPath(asset->GetAssetName());
 
 	if (g_ExportSettings.exportPathsFull)
@@ -717,25 +716,9 @@ bool ExportShaderAsset(CAsset* const asset, const int setting)
 	unreachable();
 }
 
-void InitShaderAssetType()
-{
-	static const char* settings[] = { "Raw", "MSW" };
-	AssetTypeBinding_t type =
-	{
-		.type = 'rdhs',
-		.headerAlignment = 8,
-		.loadFunc = LoadShaderAsset,
-		.postLoadFunc = PostLoadShaderAsset,
-		.previewFunc = PreviewShaderAsset,
-		.e = { ExportShaderAsset, 0, settings, ARRSIZE(settings) },
-	};
-
-	REGISTER_TYPE(type);
-}
-
 std::map<uint32_t, ShaderResource> ResourceBindingFromDXBlob(CPakAsset* const asset, D3D_SHADER_INPUT_TYPE inputType)
 {
-	const ShaderAsset* const shaderAsset = reinterpret_cast<ShaderAsset*>(asset->extraData());
+	const ShaderAsset* const shaderAsset = asset->extraData<const ShaderAsset* const>();
 	assertm(shaderAsset, "Extra asset data should be valid at this point.");
 
 	std::map<uint32_t, ShaderResource> bindings;
@@ -774,7 +757,7 @@ std::map<uint32_t, ShaderResource> ResourceBindingFromDXBlob(CPakAsset* const as
 
 std::vector<TmpConstBufVar> ConstBufVarFromDXBlob(CPakAsset* const asset, const char* constBufName)
 {
-	const ShaderAsset* const shaderAsset = reinterpret_cast<ShaderAsset*>(asset->extraData());
+	const ShaderAsset* const shaderAsset = asset->extraData<const ShaderAsset* const>();
 	assertm(shaderAsset, "Extra asset data should be valid at this point.");
 
 	std::vector<TmpConstBufVar> vars;
@@ -817,4 +800,21 @@ std::vector<TmpConstBufVar> ConstBufVarFromDXBlob(CPakAsset* const asset, const 
 	}
 
 	return vars;
+}
+
+void InitShaderAssetType()
+{
+	static const char* settings[] = { "Raw", "MSW" };
+	AssetTypeBinding_t type =
+	{
+		.name = "Shader",
+		.type = 'rdhs',
+		.headerAlignment = 8,
+		.loadFunc = LoadShaderAsset,
+		.postLoadFunc = PostLoadShaderAsset,
+		.previewFunc = PreviewShaderAsset,
+		.e = { ExportShaderAsset, 0, settings, ARRSIZE(settings) },
+	};
+
+	REGISTER_TYPE(type);
 }

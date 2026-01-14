@@ -12,12 +12,16 @@ void HandlePakLoad(std::vector<std::string> filePaths)
     std::atomic<uint32_t> pakLoadingProgress = 0;
     const ProgressBarEvent_t* const pakLoadProgress = g_pImGuiHandler->AddProgressBarEvent("Loading Paks..", static_cast<uint32_t>(filePaths.size()), &pakLoadingProgress, true);
 
-    if (g_assetData.m_pakPatchMaster)
-        delete g_assetData.m_pakPatchMaster;
+    // If post-load has already been done when this function is called, then an ODL pak has been requested
+    if (!g_assetData.m_donePostLoad)
+    {
+        if (g_assetData.m_pakPatchMaster)
+            delete g_assetData.m_pakPatchMaster;
 
-    g_assetData.m_patchMasterEntries.clear();
-    g_assetData.m_pakLoadStatusMap.clear();
-
+        g_assetData.m_patchMasterEntries.clear();
+        g_assetData.m_pakLoadStatusMap.clear();
+    }
+    
     for (const std::string& path : filePaths)
     {
         std::filesystem::path fsPath = path;
@@ -157,11 +161,17 @@ void HandlePakAssetExportList(std::deque<CAsset*> selectedAssets, const bool exp
             }, 1u);
     }
 
-    const ProgressBarEvent_t* const exportAssetListEvent = g_pImGuiHandler->AddProgressBarEvent("Exporting asset list..", parallelProcessTask.getRemainingTasks(), &parallelProcessTask, PB_FNCLASS_TO_VOID(&CParallelTask::getRemainingTasks));
+    const ProgressBarEvent_t* const exportAssetListEvent = g_pImGuiHandler->AddProgressBarEvent(
+        "Exporting asset list...",
+        parallelProcessTask.getRemainingTasks(),
+        &parallelProcessTask,
+        PB_FNCLASS_TO_VOID(&CParallelTask::getRemainingTasks));
     parallelProcessTask.execute();
     parallelProcessTask.wait();
     g_pImGuiHandler->FinishProgressBarEvent(exportAssetListEvent);
 }
+
+
 
 void HandleExportAllPakAssets(std::vector<CGlobalAssetData::AssetLookup_t>* const pakAssets, const bool exportDependencies)
 {
@@ -178,7 +188,12 @@ void HandleExportAllPakAssets(std::vector<CGlobalAssetData::AssetLookup_t>* cons
             }, 1u);
     }
 
-    const ProgressBarEvent_t* const exportAllAssetsEvent = g_pImGuiHandler->AddProgressBarEvent("Exporting all assets..", parallelProcessTask.getRemainingTasks(), &parallelProcessTask, PB_FNCLASS_TO_VOID(&CParallelTask::getRemainingTasks));
+    const ProgressBarEvent_t* const exportAllAssetsEvent = g_pImGuiHandler->AddProgressBarEvent(
+        "Exporting all assets...",
+        parallelProcessTask.getRemainingTasks(),
+        &parallelProcessTask,
+        PB_FNCLASS_TO_VOID(&CParallelTask::getRemainingTasks)
+    );
     parallelProcessTask.execute();
     parallelProcessTask.wait();
     g_pImGuiHandler->FinishProgressBarEvent(exportAllAssetsEvent);

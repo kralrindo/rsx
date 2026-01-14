@@ -355,7 +355,7 @@ namespace r2
 		const studiohdr_t* const pStudiohdr() const { return reinterpret_cast<const studiohdr_t* const>((char*)this + baseptr); }
 
 		int sznameindex;
-		inline const char* pszName() const { return ((char*)this + sznameindex); }
+		inline const char* const pszName() const { return reinterpret_cast<const char* const>(this) + sznameindex; }
 
 		float fps; // frames per second	
 		int flags; // looping/non-looping flags
@@ -368,7 +368,7 @@ namespace r2
 		inline const mstudiomovement_t* const pMovement(int i) const { return reinterpret_cast<const mstudiomovement_t* const>((char*)this + movementindex) + i; };
 
 		int framemovementindex; // new in v52
-		inline const r1::mstudioframemovement_t* pFrameMovement() const { return reinterpret_cast<const r1::mstudioframemovement_t* const>((char*)this + framemovementindex); }
+		inline const r1::mstudioframemovement_t* const pFrameMovement() const { return reinterpret_cast<const r1::mstudioframemovement_t* const>((char*)this + framemovementindex); }
 
 		int animindex; // non-zero when anim data isn't in sections
 		//const mstudio_rle_anim_t* const pAnim(int* piFrame) const; // returns pointer to data and new frame index
@@ -388,21 +388,68 @@ namespace r2
 	};
 	static_assert(sizeof(mstudioanimdesc_t) == 0x5C);
 
-	//struct mstudioevent_t
+#define NEW_EVENT_STYLE ( 1 << 10 )
 
-	//struct mstudioautolayer_t
+	struct mstudioevent_t
+	{
+		float cycle;
+		int event;
+		int type;
+		char options[64];
 
-	//struct mstudioactivitymodifier_t
+		int szeventindex;
+		inline const char* const pszEvent() const { return reinterpret_cast<const char* const>(this) + szeventindex; }
+	};
+
+	// autolayer flags
+	//							0x0001
+	//							0x0002
+	//							0x0004
+	//							0x0008
+	#define STUDIO_AL_POST		0x0010		// 
+	//							0x0020
+	#define STUDIO_AL_SPLINE	0x0040		// convert layer ramp in/out curve is a spline instead of linear
+	#define STUDIO_AL_XFADE		0x0080		// pre-bias the ramp curve to compense for a non-1 weight, assuming a second layer is also going to accumulate
+	//							0x0100
+	#define STUDIO_AL_NOBLEND	0x0200		// animation always blends at 1.0 (ignores weight)
+	//							0x0400
+	//							0x0800
+	#define STUDIO_AL_LOCAL		0x1000		// layer is a local context sequence
+	#define STUDIO_AL_2000		0x2000		// skips parsing in AddSequenceLayer and AddLocalLayer if set
+	#define STUDIO_AL_POSE		0x4000		// layer blends using a pose parameter instead of parent cycle
+	#define STUDIO_AL_REALTIME	0x8000		// treats the layer sequence as if it uses STUDIO_REALTIME (sub_1401D9AD0 in R5pc_r5launch_N1094_CL456479_2019_10_30_05_20_PM)
+
+	struct mstudioautolayer_t
+	{
+		short iSequence;
+		short iPose;
+
+		int flags;
+		float start;	// beginning of influence
+		float peak;		// start of full influence
+		float tail;		// end of full influence
+		float end;		// end of all influence
+	};
+
+	struct mstudioactivitymodifier_t
+	{
+		int sznameindex;
+		bool negate; // if true will return false when checking if this layer (sequence) has this activity modifier, however it still has this activity modifier when checked in other places (?)
+
+		inline const char* const pszName() const { return (reinterpret_cast<const char* const>(this) + sznameindex); }
+	};
+	static_assert(sizeof(mstudioactivitymodifier_t) == 0x8);
 
 	struct mstudioseqdesc_t
 	{
 		int baseptr;
+		const studiohdr_t* const pStudiohdr() const { return reinterpret_cast<const studiohdr_t* const>((char*)this + baseptr); }
 
 		int	szlabelindex;
-		inline const char* pszLabel() const { return ((char*)this + szlabelindex); }
+		inline const char* const pszLabel() const { return reinterpret_cast<const char* const>(this) + szlabelindex; }
 
 		int szactivitynameindex;
-		inline const char* pszActivityName() const { return ((char*)this + szactivitynameindex); }
+		inline const char* const pszActivityName() const { return reinterpret_cast<const char* const>(this) + szactivitynameindex; }
 
 		int flags; // looping/non-looping flags
 
@@ -411,7 +458,7 @@ namespace r2
 
 		int numevents;
 		int eventindex;
-		//inline const mstudioevent_t* const pEvent(const int i) const { return reinterpret_cast<mstudioevent_t*>((char*)this + eventindex) + i; }
+		inline const mstudioevent_t* const pEvent(const int i) const { return reinterpret_cast<mstudioevent_t*>((char*)this + eventindex) + i; }
 
 		Vector bbmin; // per sequence bounding box
 		Vector bbmax;
@@ -450,11 +497,11 @@ namespace r2
 
 		int numautolayers;
 		int autolayerindex;
-		//inline const mstudioautolayer_t* const pAutoLayer(const int i) const { return reinterpret_cast<mstudioautolayer_t*>((char*)this + autolayerindex) + i; }
+		inline const mstudioautolayer_t* const pAutoLayer(const int i) const { return reinterpret_cast<mstudioautolayer_t*>((char*)this + autolayerindex) + i; }
 
 		int weightlistindex;
-		inline const float* const pWeightList() const { return reinterpret_cast<float*>((char*)this + weightlistindex); }
-		inline const float weight(const int weightidx) const { return pWeightList()[weightidx]; }
+		inline const float* const pBoneweight(const int i) const { return reinterpret_cast<float*>((char*)this + weightlistindex) + i; }
+		inline const float weight(const int i) const { return *pBoneweight(i); }
 
 		int posekeyindex;
 		inline const float* const pPoseKey(int iParam, int iAnim) const { return reinterpret_cast<float*>((char*)this + posekeyindex) + (iParam * groupsize[0]) + iAnim; }
@@ -467,13 +514,13 @@ namespace r2
 		// Key values
 		int keyvalueindex;
 		int keyvaluesize;
-		inline const char* pKeyValues() const { return ((char*)this + keyvalueindex); }
+		inline const char* const pKeyValues() const { return  keyvaluesize ? (reinterpret_cast<const char* const>(this) + keyvalueindex) : nullptr; }
 
 		int cycleposeindex; // index of pose parameter to use as cycle index
 
 		int activitymodifierindex;
 		int numactivitymodifiers;
-		//inline const mstudioactivitymodifier_t* const pActMod(const int i) const { return reinterpret_cast<mstudioactivitymodifier_t*>((char*)this + activitymodifierindex) + i; }
+		inline const mstudioactivitymodifier_t* const pActivityModifier(const int i) const { return reinterpret_cast<mstudioactivitymodifier_t*>((char*)this + activitymodifierindex) + i; }
 
 		int ikResetMask; // mask this ik rule type for reset, can't find the code for this, but it would either prevent reset of this type, or only allow reset of this time. only ever observed as IK_GROUND
 		int unk_C4;

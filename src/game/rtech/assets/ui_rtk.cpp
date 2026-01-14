@@ -92,7 +92,7 @@ bool ExportRTKAsset(CAsset* const asset, const int setting)
     const RTKAsset* const hdr = reinterpret_cast<RTKAsset*>(pakAsset->extraData());
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path rtkPath(pakAsset->GetAssetName());
 
     // truncate paths?
@@ -121,6 +121,7 @@ void InitRTKAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "RTK UI",
         .type = '\0ktr',
         .headerAlignment = 8,
         .loadFunc = LoadRTKAsset,

@@ -16,7 +16,7 @@ void LoadMaterialSnapshotAsset(CAssetContainer* const container, CAsset* const a
     {
     case 1:
     {
-        assertm(pakAsset->data()->headerStructSize == sizeof(MaterialSnapshotAssetHeader_v1_t), "incorrect header");
+        assertm(pakAsset->data()->headerStructSize == sizeof(MaterialSnapshotAssetHeader_v1_t), "Invalid header size for Material Snapshot asset version 1");
 
         const MaterialSnapshotAssetHeader_v1_t* const hdr = reinterpret_cast<const MaterialSnapshotAssetHeader_v1_t* const>(pakAsset->header());
         snapshotAsset = new MaterialSnapshotAsset(hdr);
@@ -38,8 +38,7 @@ void PostLoadMaterialSnapshotAsset(CAssetContainer* const container, CAsset* con
 
     CPakAsset* const pakAsset = static_cast<CPakAsset*>(asset);
 
-    MaterialSnapshotAsset* const snapshotAsset = reinterpret_cast<MaterialSnapshotAsset*>(pakAsset->extraData());
-    assertm(snapshotAsset, "Extra data should be valid at this point.");
+    MaterialSnapshotAsset* const snapshotAsset = pakAsset->extraData<MaterialSnapshotAsset* const>();
 
     CPakAsset* const shaderSetAsset = g_assetData.FindAssetByGUID<CPakAsset>(snapshotAsset->shaderSet);
     if (shaderSetAsset)
@@ -55,8 +54,7 @@ void* PreviewMaterialSnapshotAsset(CAsset* const asset, const bool firstFrameFor
 
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-    const MaterialSnapshotAsset* const snapshotAsset = reinterpret_cast<const MaterialSnapshotAsset* const>(pakAsset->extraData());
-    assertm(snapshotAsset, "Extra data should be valid at this point.");
+    const MaterialSnapshotAsset* const snapshotAsset = pakAsset->extraData<const MaterialSnapshotAsset* const>();
 
     ImGui::Text("Shaderset: %s (0x%llx)", snapshotAsset->shaderSetAsset ? snapshotAsset->shaderSetAsset->GetAssetName().c_str() : "unloaded", snapshotAsset->shaderSet);
 
@@ -74,6 +72,7 @@ void InitMaterialSnapshotAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Material Snapshot",
         .type = 'pnsm',
         .headerAlignment = 16,
         .loadFunc = LoadMaterialSnapshotAsset,

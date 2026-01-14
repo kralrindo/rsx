@@ -23,13 +23,12 @@ static bool ExportAnimRecordingAsset(CAsset* const asset, const int setting)
     UNUSED(setting);
 
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
-    const int assetVersion = pakAsset->version();
 
-    if (assetVersion != 1)
+    if (pakAsset->version() != 1)
         return false; // 1 is currently the only supported version.
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path anirPath(pakAsset->GetAssetName());
 
     // truncate paths?
@@ -151,6 +150,7 @@ void InitAnimRecordingAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Animation Recording",
         .type = 'rina',
         .headerAlignment = 8,
         .loadFunc = nullptr,

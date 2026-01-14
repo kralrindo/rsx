@@ -106,6 +106,12 @@ public:
         threads.clear();
     }
 
+    void clear()
+    {
+        // https://stackoverflow.com/questions/709146/how-do-i-clear-the-stdqueue-efficiently#comment4574774_709161
+        std::queue<std::function<void()>>().swap(tasks);
+    }
+
     const uint32_t getRemainingTasks()
     {
         std::unique_lock<std::mutex> lock(queueMutex);

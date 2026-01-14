@@ -133,7 +133,7 @@ public:
 		case eSeqVersion::VERSION_8:
 		case eSeqVersion::VERSION_10:
 		{
-			seqdesc = seqdesc_t(reinterpret_cast<r5::mstudioseqdesc_v8_t*>(data), dataExtraPerm);
+			seqdesc = ModelSeq_t(reinterpret_cast<r5::mstudioseqdesc_v8_t*>(data), dataExtraPerm);
 
 			RawSizeV7();
 
@@ -143,7 +143,7 @@ public:
 		{
 			r5::mstudioseqdesc_v16_t* const tmp = reinterpret_cast<r5::mstudioseqdesc_v16_t* const>(data);
 
-			seqdesc = seqdesc_t(tmp, dataExtraPerm);
+			seqdesc = ModelSeq_t(tmp, dataExtraPerm);
 
 			const int boneCount = (tmp->activitymodifierindex - tmp->weightlistindex) / 4;
 
@@ -155,7 +155,7 @@ public:
 		{
 			r5::mstudioseqdesc_v18_t* const tmp = reinterpret_cast<r5::mstudioseqdesc_v18_t* const>(data);
 
-			seqdesc = seqdesc_t(tmp, dataExtraPerm, 0u);
+			seqdesc = ModelSeq_t(tmp, dataExtraPerm, 0u);
 
 			if (tmp->weightlistindex == 1 || tmp->weightlistindex == 3)
 			{
@@ -173,7 +173,7 @@ public:
 		{
 			r5::mstudioseqdesc_v18_t* const tmp = reinterpret_cast<r5::mstudioseqdesc_v18_t* const>(data);
 
-			seqdesc = seqdesc_t(tmp, dataExtraPerm, 1u);
+			seqdesc = ModelSeq_t(tmp, dataExtraPerm, 1u);
 			dataSize = 0;
 
 			const int boneCount = (tmp->activitymodifierindex - tmp->weightlistindex) / 4;
@@ -209,7 +209,7 @@ public:
 
 	eSeqVersion version;
 
-	seqdesc_t seqdesc;
+	ModelSeq_t seqdesc;
 
 	inline const bool UseStall() const { return version == eSeqVersion::VERSION_7 ? false : true; };
 	inline void UpdateDataSize_V12(const int boneCount) { RawSizeV11(boneCount); }
@@ -223,8 +223,11 @@ private:
 		// the single sequence that doesn't have animations only has a label string, to set up parsing for all other strings would be a waste.
 
 		// animation names will always be last
-		for (auto& anim : seqdesc.anims)
-			end = anim.name > end ? anim.name : end;
+		for (int i = 0; i < seqdesc.AnimCount(); i++)
+		{
+			const ModelAnim_t* const anim = seqdesc.anims + i;
+			end = anim->name > end ? anim->name : end;
+		}
 
 		end += strnlen_s(end, MAX_PATH) + 1; // plus null terminator
 		dataSize = IALIGN4(end - (char*)seqdesc.baseptr);
@@ -248,13 +251,13 @@ private:
 		// start at the last, and work back if required.
 		for (int i = 0; i < animCount; i++)
 		{
-			const animdesc_t* const anim = &seqdesc.anims.at(i);
+			const ModelAnim_t* const anim = seqdesc.anims + i;
 
 			const r5::mstudioanimdesc_v16_t* const animdesc = reinterpret_cast<const r5::mstudioanimdesc_v16_t* const>(anim->baseptr);
 			int lastFrame = anim->numframes - 1;
 
 			const bool useDatapointAnim = (anim->flags & ANIM_DATAPOINT) ? true : false;
-			const bool useFrameMovement = (anim->flags & ANIM_FRAMEMOVEMENT) && (anim->framemovementindex > 0);
+			const bool useFrameMovement = (anim->flags & ANIM_FRAMEMOVEMENT) && (anim->framemovement);
 
 			// [rika]: if the last data is framemovement data
 			// [rika]: framemovement is datapoint
@@ -466,13 +469,13 @@ private:
 		// start at the last, and work back if required.
 		for (int i = 0; i < animCount; i++)
 		{
-			const animdesc_t* const anim = &seqdesc.anims.at(i);
+			const ModelAnim_t* const anim = seqdesc.anims + i;
 
 			const r5::mstudioanimdesc_v19_1_t* const animdesc = reinterpret_cast<const r5::mstudioanimdesc_v19_1_t* const>(anim->baseptr);
 			int lastFrame = anim->numframes - 1;
 
 			const bool useDatapointAnim = (anim->flags & ANIM_DATAPOINT) ? true : false;
-			const bool useFrameMovement = (anim->flags & ANIM_FRAMEMOVEMENT) && (anim->framemovementindex > 0);
+			const bool useFrameMovement = (anim->flags & ANIM_FRAMEMOVEMENT) && (anim->framemovement);
 
 			// [rika]: if the last data is framemovement data
 			// [rika]: framemovement is datapoint

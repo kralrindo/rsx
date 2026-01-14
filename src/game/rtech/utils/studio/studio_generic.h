@@ -6,205 +6,6 @@
 #include <game/rtech/utils/studio/studio_r5_v12.h>
 #include <game/rtech/utils/studio/studio_r5_v16.h>
 
-struct animmovement_t
-{
-	animmovement_t(const animmovement_t& movement);
-	animmovement_t(const r1::mstudioframemovement_t* const movement);
-	animmovement_t(const r5::mstudioframemovement_t* const movement, const int frameCount, const bool indexType);
-
-	~animmovement_t()
-	{
-		// [rika]: make sure we're using sections in this
-		if (sectioncount > 0)
-		{
-			FreeAllocArray(sections);
-		}
-	}
-
-	const void* baseptr;
-	float scale[4];
-
-	union
-	{
-		int* sections;
-		short offset[4];
-	};
-	int sectionframes;
-	int sectioncount;
-
-	inline int SectionIndex(const int frame) const { return frame / sectionframes; } // get the section index for this frame
-	inline int SectionOffset(const int frame) const { return sections[SectionIndex(frame)]; }
-	inline uint16_t* pSection(const int frame) const { return reinterpret_cast<uint16_t*>((char*)baseptr + SectionOffset(frame)); }
-
-	inline const mstudioanimvalue_t* const pAnimvalue(const int i, const uint16_t* section) const { return (section[i] > 0) ? reinterpret_cast<const mstudioanimvalue_t* const>((char*)section + section[i]) : nullptr; }
-	inline const mstudioanimvalue_t* const pAnimvalue(int i) const { return (offset[i] > 0) ? reinterpret_cast<const mstudioanimvalue_t* const>((char*)baseptr + offset[i]) : nullptr; }
-};
-
-struct animsection_t
-{
-	animsection_t() = default;
-	animsection_t(const int index, const bool bExternal = false) : animindex(index), isExternal(bExternal) {};
-
-	int animindex;
-	bool isExternal;
-};
-
-struct animdesc_t
-{
-	animdesc_t(const animdesc_t& animdesc);
-	animdesc_t(const r2::mstudioanimdesc_t* const animdesc);
-	animdesc_t(const r5::mstudioanimdesc_v8_t* const animdesc);
-	animdesc_t(const r5::mstudioanimdesc_v12_1_t* const animdesc, const char* const ext);
-	animdesc_t(const r5::mstudioanimdesc_v16_t* const animdesc, const char* const ext);
-	animdesc_t(const r5::mstudioanimdesc_v19_1_t* const animdesc, const char* const ext);
-
-	~animdesc_t()
-	{
-		if (nullptr != movement) delete movement;
-	}
-
-	const void* baseptr; // for getting to the animations
-
-	const char* name;
-
-	float fps;
-	int flags;
-
-	int numframes;
-
-	int nummovements;
-	int movementindex;
-	int framemovementindex;
-	animmovement_t* movement;
-	inline r1::mstudiomovement_t* const pMovement(int i) const { return reinterpret_cast<r1::mstudiomovement_t*>((char*)this + movementindex) + i; };
-
-	int animindex;
-
-	// data array, starting with per bone flags
-	const char* const pAnimdataNoStall(int* const piFrame, int* const _UNUSED) const;			// v8 - v12
-	const char* const pAnimdataStall_0(int* const piFrame, int* const _UNUSED) const;			// v12.1 - v18
-	const char* const pAnimdataStall_1(int* const piFrame, int* const sectionFrameCount) const;	// v19
-	const char* const pAnimdataStall_2(int* const piFrame, int* const sectionFrameCount) const;	// v19.1 - retail
-
-	int sectionindex; // can be safely removed
-	int sectionstallframes; // number of static frames inside the animation, the reset excluding the final frame are stored externally. when external data is not loaded(?)/found(?) it falls back on the last frame of this as a stall
-	int sectionframes; // number of frames used in each fast lookup section, zero if not used
-	std::vector<animsection_t> sections;
-	inline const bool HasStall() const { return sectionstallframes > 0; }
-	inline const animsection_t* pSection(const int i) const { return &sections.at(i); }
-
-	inline const int SectionCount(const bool useAnimData = false) const
-	{
-		const int useTrailSection = (flags & eStudioAnimFlags::ANIM_DATAPOINT) ? false : true; // rle anims have an extra section at the end, with only the last frame in full types (Quaternion48, Vector48, etc)
-		const int useStallSection = HasStall();
-
-		const int maxFrameIndex = (numframes - sectionstallframes - 1); // subtract to get the last frame index outside of stall
-
-		const int sectionBase = (maxFrameIndex / sectionframes); // basic section index
-		const int sectionMaxIndex = sectionBase + useTrailSection + useStallSection; // max index of a section
-
-		// [rika]: where we'd normally add one to get the count, in retail the first section omitted as it's expected to always be at offset 0 in animdata
-		// [rika]: only retail animations will have this set, and it is not optional, if not set there is no animation data
-		if (useAnimData)
-			return sectionMaxIndex;
-
-		return sectionMaxIndex + 1; // add one to make this max index a max count
-	}
-
-	const char* sectionDataExtra;
-	const char* animData;
-	uint64_t animDataAsset;
-
-	size_t parsedBufferIndex;
-
-	inline const float GetCycle(const int iframe) const
-	{ 
-		const float cycle = numframes > 1 ? static_cast<float>(iframe) / static_cast<float>(numframes - 1) : 0.0f;
-		assertm(isfinite(cycle), "cycle was nan");
-		return cycle;
-	}
-};
-typedef const char* const (animdesc_t::* AnimdataFunc_t)(int* const, int* const) const;
-
-enum AnimdataFuncType_t : uint8_t
-{
-	ANIM_FUNC_NOSTALL,
-	ANIM_FUNC_STALL_BASEPTR,
-	ANIM_FUNC_STALL_ANIMDATA,
-
-	ANIM_FUNC_COUNT,
-};
-
-static AnimdataFunc_t s_AnimdataFuncs_RLE[AnimdataFuncType_t::ANIM_FUNC_COUNT] =
-{
-	&animdesc_t::pAnimdataNoStall,
-	&animdesc_t::pAnimdataStall_0,
-	&animdesc_t::pAnimdataStall_2,
-};
-
-static AnimdataFunc_t s_AnimdataFuncs_DP[AnimdataFuncType_t::ANIM_FUNC_COUNT] =
-{
-	&animdesc_t::pAnimdataNoStall,
-	&animdesc_t::pAnimdataStall_1,
-	&animdesc_t::pAnimdataStall_2,
-};
-
-struct seqdesc_t
-{
-	// todo: studio version 12.3 has a different event struct, will need to parse this for qc
-	seqdesc_t() = default;
-	seqdesc_t(const r2::mstudioseqdesc_t* const seqdesc);
-	seqdesc_t(const r5::mstudioseqdesc_v8_t* const seqdesc);
-	seqdesc_t(const r5::mstudioseqdesc_v8_t* const seqdesc, const char* const ext);
-	seqdesc_t(const r5::mstudioseqdesc_v16_t* const seqdesc, const char* const ext);
-	seqdesc_t(const r5::mstudioseqdesc_v18_t* const seqdesc, const char* const ext, const uint32_t version);
-
-	seqdesc_t& operator=(seqdesc_t&& seqdesc) noexcept
-	{
-		if (this != &seqdesc)
-		{
-			baseptr = seqdesc.baseptr;
-			szlabel = seqdesc.szlabel;
-			szactivityname = seqdesc.szactivityname;
-			flags = seqdesc.flags;
-			weightlistindex = seqdesc.weightlistindex;
-
-			anims.swap(seqdesc.anims);
-			parsedData.move(seqdesc.parsedData);
-		}
-
-		return *this;
-	}
-
-	const void* baseptr;
-
-	const char* szlabel;
-	const char* szactivityname;
-
-	int flags; // looping/non-looping flags
-
-	int weightlistindex;
-	const float* pWeightList() const
-	{
-		switch (weightlistindex)
-		{
-		case 1:
-			return r5::s_StudioWeightList_1;
-		case 3:
-			return r5::s_StudioWeightList_3;
-		default:
-			return reinterpret_cast<const float*>((char*)baseptr + weightlistindex);
-		}
-	}
-	const float* pWeight(const int i) const { return pWeightList() + i; };
-	const float Weight(const int i) const { return *pWeight(i); };
-
-	std::vector<animdesc_t> anims;
-	CRamen parsedData;
-
-	const int AnimCount() const { return static_cast<int>(anims.size()); }
-};
-
 struct studio_hw_groupdata_t
 {
 	studio_hw_groupdata_t() = default;
@@ -233,7 +34,7 @@ struct studiohdr_generic_t
 	studiohdr_generic_t(const r5::studiohdr_v12_1_t* const pHdr);
 	studiohdr_generic_t(const r5::studiohdr_v12_2_t* const pHdr);
 	studiohdr_generic_t(const r5::studiohdr_v12_4_t* const pHdr);
-	studiohdr_generic_t(const r5::studiohdr_v14_t* const pHdr);
+	studiohdr_generic_t(const r5::studiohdr_v14_t* const pHdr, const int version);
 	studiohdr_generic_t(const r5::studiohdr_v16_t* const pHdr, int dataSizePhys, int dataSizeModel);
 	studiohdr_generic_t(const r5::studiohdr_v17_t* const pHdr, int dataSizePhys, int dataSizeModel);
 
@@ -316,7 +117,9 @@ struct studiohdr_generic_t
 	int localAttachmentCount;
 	int localAttachmentOffset;	// offset to mstudioattachment_t
 
-	// node
+	int localNodeCount;
+	int localNodeNameOffset;
+	int localNodeNameType;
 
 	int ikChainCount;
 	int ikChainOffset;

@@ -97,7 +97,7 @@ namespace r5
 		int baseptr;
 
 		int sznameindex;
-		inline const char* pszName() const { return ((char*)this + sznameindex); }
+		inline const char* const pszName() const { return reinterpret_cast<const char* const>(this) + sznameindex; }
 
 		float fps; // frames per second	
 		int flags; // looping/non-looping flags
@@ -107,6 +107,7 @@ namespace r5
 		// piecewise movement
 		int nummovements;
 		int movementindex;
+		inline mstudiomovement_t* const pMovement(int i) const { return reinterpret_cast<mstudiomovement_t*>((char*)this + movementindex) + i; };
 
 		int framemovementindex; // new in v52
 		inline r5::mstudioframemovement_t* pFrameMovement() const { return reinterpret_cast<r5::mstudioframemovement_t*>((char*)this + framemovementindex); }
@@ -116,6 +117,7 @@ namespace r5
 
 		int numikrules;
 		int ikruleindex; // non-zero when IK data is stored in the mdl
+		inline const mstudioikrule_v8_t* const pIKRule(const int i) const { return reinterpret_cast<const mstudioikrule_v8_t* const>((char*)this + ikruleindex) + i; }
 
 		int sectionindex;
 		int sectionstallframes; // number of stall frames inside the animation, the reset excluding the final frame are stored externally. when external data is not loaded(?)/found(?) it falls back on the last frame of this as a stall
@@ -586,7 +588,10 @@ namespace r5
 		char options[256];
 
 		int szeventindex;
+		inline const char* const pszEvent() const { return reinterpret_cast<const char* const>(this) + szeventindex; }
 	};
+
+	inline const mstudioevent_v12_3_t* const mstudioseqdesc_v8_t::pEvent_V12_3(const int i) const { return reinterpret_cast<mstudioevent_v12_3_t*>((char*)this + eventindex) + i; }
 
 
 	//

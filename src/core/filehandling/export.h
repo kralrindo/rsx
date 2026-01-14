@@ -8,5 +8,7 @@ void HandleExportAllPakAssets(std::vector<CGlobalAssetData::AssetLookup_t>* cons
 void HandleExportSelectedAssetType(std::vector<CGlobalAssetData::AssetLookup_t> pakAssets, const bool exportDependencies);
 
 // list.cpp
+void ExportAssetListCSVToFileStream(std::vector<CGlobalAssetData::AssetLookup_t>* assets, std::ofstream* ofs);
+void ExportAssetListTXTToFileStream(std::vector<CGlobalAssetData::AssetLookup_t>* assets, std::ofstream* ofs);
 void HandleListExportPakAssets(const HWND handle, std::vector<CGlobalAssetData::AssetLookup_t>* assets);
 void HandleListExport(const HWND handle, std::vector<std::string> listElements);

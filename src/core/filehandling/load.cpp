@@ -7,7 +7,9 @@ extern CBufferManager g_BufferManager;
 
 extern std::atomic<bool> inJobAction;
 
-static void HandleFileLoad(std::vector<std::string> filePaths)
+typedef void(HandleFileLoadCallback_t)(const CCommandLine* const);
+
+static void HandleFileLoad(std::vector<std::string> filePaths, HandleFileLoadCallback_t cb = nullptr, const CCommandLine* const cli = nullptr)
 {
     std::vector<std::string> pathsByExtension[CAsset::ContainerType::_COUNT];
 
@@ -24,7 +26,7 @@ static void HandleFileLoad(std::vector<std::string> filePaths)
         else if (extension == ".bpk")
             pathsByExtension[CAsset::ContainerType::BP_PAK].emplace_back(path);
         else
-            Log("Invalid file extension found in path: %s.\n", path.c_str());
+            Log("LOAD: Invalid file extension found in path: %s.\n", path.c_str());
     }
 
     for (uint32_t i = 0; i < CAsset::ContainerType::_COUNT; ++i)
@@ -51,21 +53,94 @@ static void HandleFileLoad(std::vector<std::string> filePaths)
     }
 
     g_assetData.ProcessAssetsPostLoad();
+
+    // This callback is only really needed for CLI, since users aren't able to access the assets before postloading anyway
+    if (cli && cli->HasParam("-nogui"))
+    {
+        if (cb && cli)
+            cb(cli);
+    }
+}
+
+void OnCLILoadComplete(const CCommandLine* const cli)
+{
+    // Hold this thread until asset loading is done on the newly spawned threads
+    while (true)
+    {
+        if (g_assetData.m_donePostLoad)
+            break;
+    }
+
+    if (cli->HasParam("-export"))
+    {
+        std::vector<CGlobalAssetData::AssetLookup_t>& assets = g_assetData.v_assets;
+
+        std::vector<uint32_t> filterTypes = GetExportFilterTypes(cli);
+
+        if (filterTypes.size() != 0)
+        {
+            printf("\nEXPORT: Filtering assets for export using type string \"%s\" (%lld valid type%s)\n", cli->GetParamValue("--exporttypes"), filterTypes.size(), filterTypes.size() == 1 ? "" : "s");
+
+            std::vector<CGlobalAssetData::AssetLookup_t> filteredAssets;
+
+            for (auto& it : assets)
+            {
+                bool addedToFilter = false;
+                for (const uint32_t type : filterTypes)
+                {
+                    if (it.m_asset->GetAssetType() == type)
+                    {
+                        addedToFilter = true;
+                        break;
+                    }
+                }
+
+                if (addedToFilter)
+                    filteredAssets.push_back(it);
+            }
+
+            CThread(HandleExportAllPakAssets, &filteredAssets, g_ExportSettings.exportAssetDeps).join();
+        }
+        else
+            CThread(HandleExportAllPakAssets, &g_assetData.v_assets, g_ExportSettings.exportAssetDeps).join();
+    }
+
+    if (const char* const listPathStr = cli->GetParamValue("--list"))
+    {
+        std::ofstream ofs(listPathStr, std::ios::out | std::ios::binary);
+
+        const char* const listFormat = cli->GetParamValue("--listformat");
+
+        if (!listFormat || !_stricmp(listFormat, "txt"))
+            ExportAssetListTXTToFileStream(&g_assetData.v_assets, &ofs);
+        else if (!_stricmp(listFormat, "csv"))
+            ExportAssetListCSVToFileStream(&g_assetData.v_assets, &ofs);
+    }
 }
 
 void HandleLoadFromCommandLine(const CCommandLine* const cli)
 {
     std::vector<std::string> filePaths;
-    for (int i = 1; i < cli->GetArgC(); ++i) // we skip 0 since its selfpath
+
+    for (int i = cli->GetFirstNonFlagArgIdx(); i < cli->GetArgC(); ++i) // we skip 0 since its selfpath
     {
         std::filesystem::path path = std::filesystem::path(cli->GetParamValue(i));
+
         if (std::filesystem::exists(path) && std::filesystem::is_regular_file(path))
         {
             filePaths.emplace_back(path.string());
         }
     }
 
-    CThread(HandleFileLoad, std::move(filePaths)).detach();
+    CThread thread = CThread(HandleFileLoad, std::move(filePaths), OnCLILoadComplete, cli);
+
+    // If this gets detached when running without the usual windows msg loop to hold up main thread, the main thread will exit
+    // and clean up static vars before the other threads have finished execution. This will cause a crash when accessing anything static
+    // such as s_AssetTypePaths in pakfile's ProcessAssets
+    if (cli->HasParam("-nogui"))
+        thread.join();
+    else
+        thread.detach();
 }
 
 void HandleOpenFileDialog(const HWND windowHandle)

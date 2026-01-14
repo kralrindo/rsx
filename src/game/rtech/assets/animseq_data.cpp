@@ -1,5 +1,5 @@
 #include <pch.h>
-#include <game/rtech/utils/studio/studio_generic.h>
+#include <core/mdl/animdata.h>
 #include <game/rtech/assets/animseq_data.h>
 
 void LoadAnimSeqDataAsset(CAssetContainer* const container, CAsset* const asset)
@@ -35,17 +35,16 @@ bool ExportAnimSeqDataAsset(CAsset* const asset, const int setting)
 
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	const AnimSeqDataAsset* const animSeqDataAsset = reinterpret_cast<AnimSeqDataAsset*>(pakAsset->extraData());
-	assertm(animSeqDataAsset, "Extra data should be valid at this point.");
+	const AnimSeqDataAsset* const animSeqDataAsset = pakAsset->extraData<const AnimSeqDataAsset* const>();
 
 	if (animSeqDataAsset->dataSize == 0)
 	{
-		Log("animseq data %llx had a size of 0, skipping...\n", pakAsset->GetAssetGUID());
+		Log("ASQD: Asset had size of 0. Skipping export\n", pakAsset->GetAssetGUID());
 		return true;
 	}
 
 	// Create exported path + asset path.
-	std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+	std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
 	const std::filesystem::path animPath(pakAsset->GetAssetName());
 	const std::string animStem(animPath.stem().string());
 
@@ -69,26 +68,11 @@ bool ExportAnimSeqDataAsset(CAsset* const asset, const int setting)
 	return true;
 }
 
-void InitAnimSeqDataAssetType()
-{
-	AssetTypeBinding_t type =
-	{
-		.type = 'dqsa',
-		.headerAlignment = 8,
-		.loadFunc = LoadAnimSeqDataAsset,
-		.postLoadFunc = nullptr,
-		.previewFunc = nullptr,
-		.e = { ExportAnimSeqDataAsset, 0, nullptr, 0ull },
-	};
-
-	REGISTER_TYPE(type);
-}
-
-void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount)
+void ParseAnimSeqDataForSeq(ModelSeq_t* const seqdesc, const size_t boneCount)
 {
 	for (size_t i = 0; i < seqdesc->AnimCount(); i++)
 	{
-		animdesc_t* const animdesc = &seqdesc->anims.at(i);
+		ModelAnim_t* const animdesc = seqdesc->anims + i;
 
 		// [rika]: the animdesc has no animation
 		if (!animdesc->animDataAsset)
@@ -101,7 +85,7 @@ void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount
 			continue;
 		}
 
-		AnimSeqDataAsset* const animSeqDataAsset = reinterpret_cast<AnimSeqDataAsset* const>(dataAsset->extraData());
+		AnimSeqDataAsset* const animSeqDataAsset = dataAsset->extraData<AnimSeqDataAsset* const>();
 
 		if (!animSeqDataAsset->data)
 		{
@@ -121,7 +105,7 @@ void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount
 		{
 			for (int section = animdesc->SectionCount(true) - 1; section >= 0; section--)
 			{
-				const animsection_t* const pSection = &animdesc->sections.at(section);
+				const ModelAnimSection_t* const pSection = animdesc->sections + section;
 
 				if (pSection->isExternal)
 					continue;
@@ -149,4 +133,20 @@ void ParseAnimSeqDataForSeqdesc(seqdesc_t* const seqdesc, const size_t boneCount
 		animSeqDataAsset->dataSize = reinterpret_cast<const char* const>(panim) - animdesc->animData;
 		assertm(animSeqDataAsset->dataSize, "parsed asqd had a size of 0");
 	}
+}
+
+void InitAnimSeqDataAssetType()
+{
+	AssetTypeBinding_t type =
+	{
+		.name = "Animation Sequence Data",
+		.type = 'dqsa',
+		.headerAlignment = 8,
+		.loadFunc = LoadAnimSeqDataAsset,
+		.postLoadFunc = nullptr,
+		.previewFunc = nullptr,
+		.e = { ExportAnimSeqDataAsset, 0, nullptr, 0ull },
+	};
+
+	REGISTER_TYPE(type);
 }

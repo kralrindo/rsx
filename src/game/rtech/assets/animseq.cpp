@@ -7,6 +7,7 @@
 #include <core/mdl/stringtable.h>
 #include <core/mdl/cast.h>
 #include <core/mdl/modeldata.h>
+#include <core/mdl/animdata.h>
 
 #include <thirdparty/imgui/misc/imgui_utility.h>
 
@@ -71,11 +72,11 @@ void PostLoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	assertm(pakAsset->extraData(), "extra data should be valid");
-	AnimSeqAsset* const seqAsset = reinterpret_cast<AnimSeqAsset*>(pakAsset->extraData());
+	AnimSeqAsset* const seqAsset = pakAsset->extraData<AnimSeqAsset*>();
 	if (!seqAsset)
 		return;
 
+#ifndef DEBUG_NO_ASEQ_POSTLOAD
 	// do not parse this animation if there is no skeleton, if we go to export a sequence from a model/rig that has not been parsed, we will have to parse on export.
 	// this also means this sequence will not export data when exported standalone
 	if (nullptr == seqAsset->parentRig && nullptr == seqAsset->parentModel)
@@ -97,7 +98,7 @@ void PostLoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 	{
 	case eSeqVersion::VERSION_7:
 	{
-		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_NOSTALL);
+		ParseSequence(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_NOSTALL);
 
 		break;
 	}
@@ -106,7 +107,7 @@ void PostLoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 	case eSeqVersion::VERSION_10:
 	case eSeqVersion::VERSION_11:
 	{
-		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
+		ParseSequence(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
 
 		break;
 	}
@@ -116,7 +117,7 @@ void PostLoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 		if (seqAsset->dataSize == 0)
 			seqAsset->UpdateDataSize_V12(static_cast<int>(bones->size()));
 
-		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
+		ParseSequence(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_BASEPTR);
 
 		break;
 	}
@@ -126,8 +127,8 @@ void PostLoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 			seqAsset->UpdateDataSize_V12_1(static_cast<int>(bones->size()));
 
 		// [rika]: I love changing assets, but never ever would change a version!
-		ParseAnimSeqDataForSeqdesc(&seqAsset->seqdesc, bones->size());
-		ParseSeqDesc_R5(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_ANIMDATA);
+		ParseAnimSeqDataForSeq(&seqAsset->seqdesc, bones->size());
+		ParseSequence(&seqAsset->seqdesc, bones, AnimdataFuncType_t::ANIM_FUNC_STALL_ANIMDATA);
 
 		break;
 	}
@@ -137,6 +138,7 @@ void PostLoadAnimSeqAsset(CAssetContainer* const container, CAsset* const asset)
 
 	// the sequence has been parsed for exporting
 	seqAsset->animationParsed = true;
+#endif
 }
 
 void* PreviewAnimSeqAsset(CAsset* const asset, const bool firstFrameForAsset)
@@ -145,8 +147,7 @@ void* PreviewAnimSeqAsset(CAsset* const asset, const bool firstFrameForAsset)
 
 	CPakAsset* const pakAsset = static_cast<CPakAsset*>(asset);
 
-	assertm(pakAsset->extraData(), "extra data should be valid");
-	const AnimSeqAsset* const animSeqAsset = reinterpret_cast<const AnimSeqAsset* const>(pakAsset->extraData());
+	const AnimSeqAsset* const animSeqAsset = pakAsset->extraData<const AnimSeqAsset* const>();
 	if (!animSeqAsset)
 		return nullptr;
 
@@ -274,12 +275,12 @@ bool ExportAnimSeqFromAsset(const std::filesystem::path& exportPath, const std::
 
 			if (nullptr == animSeq)
 			{
-				Log("RMDL EXPORT: animseq asset 0x%llX was not loaded, skipping...\n", guid);
+				Log("RSEQ DEP: animseq asset 0x%llX was not loaded, skipping...\n", guid);
 
 				continue;
 			}
 
-			const AnimSeqAsset* const animSeqAsset = reinterpret_cast<AnimSeqAsset*>(animSeq->extraData());
+			const AnimSeqAsset* const animSeqAsset = animSeq->extraData<const AnimSeqAsset* const>();
 
 			// skip this animation if for some reason it has not been parsed. if a loaded mdl/animrig has sequence children, it should always be parsed. possibly move this to an assert.
 			if (!animSeqAsset->animationParsed)
@@ -302,8 +303,8 @@ bool ExportAnimSeqAsset(CAsset* const asset, const int setting)
 {
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	const AnimSeqAsset* const animSeqAsset = reinterpret_cast<AnimSeqAsset*>(pakAsset->extraData());
-	assertm(animSeqAsset, "Extra data should be valid at this point.");
+	const AnimSeqAsset* const animSeqAsset = pakAsset->extraData<const AnimSeqAsset* const>();
+
 	if (!animSeqAsset)
 		return false;
 
@@ -319,7 +320,7 @@ bool ExportAnimSeqAsset(CAsset* const asset, const int setting)
 	}
 
 	// Create exported path + asset path.
-	std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+	std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
 	const std::filesystem::path seqPath(animSeqAsset->name);
 	const std::string seqStem(seqPath.stem().string());
 
@@ -338,32 +339,42 @@ bool ExportAnimSeqAsset(CAsset* const asset, const int setting)
 	exportPath.append(std::format("{}.rseq", seqStem));
 
 	// [rika]: get our rig if there is one available
-	const std::vector<ModelBone_t>* bones = nullptr;
-	char* skeletonName = nullptr;
+	const ModelParsedData_t* parsedData = nullptr;
+	const char* rigName = nullptr;
 
 	// [rika]: only bother with this if we are going to use it!
 	if (!exportAsRaw)
 	{
 		if (animSeqAsset->parentModel)
 		{
-			bones = animSeqAsset->parentModel->GetRig();
-			skeletonName = animSeqAsset->parentModel->name;
+			parsedData = animSeqAsset->parentModel->GetParsedData();
+			rigName = animSeqAsset->parentModel->name;
 		}
 		else if (animSeqAsset->parentRig)
 		{
-			bones = animSeqAsset->parentRig->GetRig();
-			skeletonName = animSeqAsset->parentRig->name;
+			parsedData = animSeqAsset->parentRig->GetParsedData();
+			rigName = animSeqAsset->parentRig->name;
 		}
-		assertm(bones && !bones->empty(), "we should have bones at this point.");
+		assertm(parsedData && parsedData->BoneCount(), "we should have bones at this point.");
 	}
 
-	return ExportAnimSeqAsset(pakAsset, setting, animSeqAsset, exportPath, skeletonName, bones);
+	if (setting == eAnimSeqExportSetting::ANIMSEQ_SMD)
+	{
+		const bool result = ExportSeqQC(parsedData, &animSeqAsset->seqdesc, exportPath, setting, 54);
+		if (result == false)
+		{
+			return false;
+		}
+	}
+
+	return ExportAnimSeqAsset(pakAsset, setting, animSeqAsset, exportPath, rigName, parsedData->GetRig());
 }
 
 void InitAnimSeqAssetType()
 {
 	AssetTypeBinding_t type =
 	{
+		.name = "Animation Sequence",
 		.type = 'qesa',
 		.headerAlignment = 8,
 		.loadFunc = LoadAnimSeqAsset,

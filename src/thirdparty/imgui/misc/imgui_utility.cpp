@@ -1,6 +1,7 @@
 #include <pch.h>
 #include <core/fonts/sourcesans.h>
 #include <thirdparty/imgui/misc/imgui_utility.h>
+#include <thirdparty/imgui/misc/cpp/imgui_stdlib.h>
 
 #include <game/rtech/cpakfile.h>
 #include <game/rtech/utils\utils.h>
@@ -196,6 +197,122 @@ static void PreviewSettings_WriteAll(ImGuiContext* const ctx, ImGuiSettingsHandl
     buf->appendf("\n");
 }
 
+bool ImGuiCustomTextFilter::Draw(const char* label, float width)
+{
+    if (width != 0.0f)
+    {
+        ImGui::SetNextItemWidth(width);
+    }
+
+    const bool valChanged = ImGui::InputText(label, &inputBuf);
+    if (valChanged)
+    {
+        Build();
+    }
+
+    return valChanged;
+}
+
+void ImGuiCustomTextFilter::TxtRange::split(const char separator, std::vector<TxtRange>* out) const
+{
+    assert(out->size() == 0);
+
+    const char* wb = b;
+    const char* we = wb;
+    while (we < e)
+    {
+        if (*we == separator)
+        {
+            out->push_back(TxtRange(wb, we));
+            wb = (we + 1);
+        }
+        we++;
+    }
+
+    if (wb != we)
+    {
+        out->push_back(TxtRange(wb, we));
+    }
+}
+
+void ImGuiCustomTextFilter::Build()
+{
+    filters.clear();
+    TxtRange txtInputRange(inputBuf.c_str(), inputBuf.end()._Ptr);
+    txtInputRange.split(',', &filters);
+
+    grepCnt = 0;
+    for (TxtRange& f : filters)
+    {
+        while (f.b < f.e && charIsBlank(f.b[0]))
+        {
+            f.b++;
+        }
+
+        while (f.e > f.b && charIsBlank(f.e[-1]))
+        {
+            f.e--;
+        }
+
+        if (f.empty())
+        {
+            continue;
+        }
+
+        if (f.b[0] != '-')
+        {
+            grepCnt += 1;
+        }
+    }
+}
+
+bool ImGuiCustomTextFilter::PassFilter(const char* text, const char* text_end) const
+{
+    if (filters.size() == 0)
+    {
+        return true;
+    }
+
+    if (text == nullptr)
+    {
+        text = "";
+        text_end = "";
+    }
+
+    for (const TxtRange& f : filters)
+    {
+        if (f.b == f.e)
+        {
+            continue;
+        }
+
+        if (f.b[0] == '-')
+        {
+            // exclude lookup
+            if (ImStristr(text, text_end, f.b + 1, f.e) != NULL)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // normal grep lookup
+            if (ImStristr(text, text_end, f.b, f.e) != NULL)
+            {
+                return true;
+            }
+        }
+    }
+
+    // implicit * grep
+    if (grepCnt == 0)
+    {
+        return true;
+    }
+
+    return false;
+}
+
 void ImGuiHandler::SetupHandler()
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -328,6 +445,10 @@ void ImGuiHandler::HelpMarker(const char* const desc)
 
 const ProgressBarEvent_t* const ImGuiHandler::AddProgressBarEvent(const char* const eventName, const uint32_t eventNum, std::atomic<uint32_t>* const remainingEvents, const bool isInverted)
 {
+    // Don't bother doing any of this if ImGui isn't running - it's not going to get rendered anyway
+    if (noImGui)
+        return nullptr;
+
     std::unique_lock<std::mutex> lock(eventMutex);
 
     if (eventNum != 0 && !pbAvailSlots.empty())
@@ -342,6 +463,8 @@ const ProgressBarEvent_t* const ImGuiHandler::AddProgressBarEvent(const char* co
         event->remainingEvents = remainingEvents;
         event->eventClass = nullptr;
         event->fnRemainingEvents = nullptr;
+        event->fnCancelEvents = nullptr; // These progress bar events are currently used for loading assets, which requires a bit more cleanup to cancel
+                                         // So for now, only export events (using ImGuiHandler::AddProgressBarEvent as defined in imgui_utility.h) are cancellable
 
         event->slotIsUsed = true;
         return event;
@@ -356,7 +479,7 @@ const ProgressBarEvent_t* const ImGuiHandler::AddProgressBarEvent(const char* co
 
 void ImGuiHandler::FinishProgressBarEvent(const ProgressBarEvent_t* const event)
 {
-    if (!event)
+    if (!event || noImGui)
         return;
 
     assert(event->slotIsUsed);
@@ -371,12 +494,16 @@ void ImGuiHandler::FinishProgressBarEvent(const ProgressBarEvent_t* const event)
 
 void ImGuiHandler::HandleProgressBar()
 {
+    // If the app is running without ImGui being initialised, don't try and run this method
+    if (noImGui)
+        return;
+
     std::unique_lock<std::mutex> lock(eventMutex);
 
     bool foundTopLevelBar = false;
     for (int i = 0; i < PB_SIZE; ++i)
     {
-        const ProgressBarEvent_t* const event = &pbEvents[i];
+        ProgressBarEvent_t* const event = &pbEvents[i];
         if (!event->slotIsUsed)
             continue;
 
@@ -401,7 +528,7 @@ void ImGuiHandler::HandleProgressBar()
 
         const uint32_t leftOverEvents = event->isInverted ? remainingEvents : numEvents - remainingEvents;
         const float progressFraction = std::clamp(static_cast<float>(leftOverEvents) / static_cast<float>(numEvents), 0.0f, 1.0f);
-        ProgressBarCentered(progressFraction, ImVec2(485, 48), std::format("{}/{}", leftOverEvents, numEvents).c_str());
+        ProgressBarCentered(progressFraction, ImVec2(485, 48), std::format("{}/{}", leftOverEvents, numEvents).c_str(), event);
 
         foundTopLevelBar = true;
     }
@@ -411,8 +538,11 @@ void ImGuiHandler::HandleProgressBar()
 }
 
 // size_arg (for each axis) < 0.0f: align to end, 0.0f: auto, > 0.0f: specified size
-void ImGuiHandler::ProgressBarCentered(float fraction, const ImVec2& size_arg, const char* overlay)
+void ImGuiHandler::ProgressBarCentered(float fraction, const ImVec2& size_arg, const char* overlay, ProgressBarEvent_t* event)
 {
+    if (g_pImGuiHandler->noImGui)
+        return;
+
     using namespace ImGui;
 
     ImGuiWindow* window = GetCurrentWindow();
@@ -447,6 +577,17 @@ void ImGuiHandler::ProgressBarCentered(float fraction, const ImVec2& size_arg, c
     ImVec2 overlay_size = CalcTextSize(overlay, NULL);
     if (overlay_size.x > 0.0f)
         RenderTextClipped(ImVec2(bb.Min.x, bb.Min.y), bb.Max, overlay, NULL, &overlay_size, ImVec2(0.5f, 0.5f), &bb);
+
+    if (event->fnCancelEvents)
+    {
+        // https://github.com/ocornut/imgui/issues/4157
+        float cancelButtonWidth = ImGui::CalcTextSize("Cancel").x + style.FramePadding.x * 2.f;
+        float widthNeeded = style.ItemSpacing.x + cancelButtonWidth - 5.f;
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - widthNeeded);
+
+        if (ImGui::Button("Cancel"))
+            event->fnCancelEvents(event);
+    }
 }
 
 ImGuiHandler::ImGuiHandler()
@@ -465,6 +606,8 @@ ImGuiHandler::ImGuiHandler()
     {
         pbAvailSlots.push(static_cast<int8_t>(i));
     }
+
+    noImGui = false;
 }
 
 ImGuiHandler* g_pImGuiHandler = new ImGuiHandler();

@@ -10,6 +10,13 @@ enum class eWrapAssetParsedDataType
 	BSP,      // wrap asset is a base BSP file and contains a CBSPData pointer
 };
 
+struct WrapAssetHeader_v1_t
+{
+	uint32_t size;
+	uint32_t unk_4; // never used and we don't wanna accidently make a large file if it is
+	void* data;
+};
+
 struct WrapAssetHeader_v7_t
 {
 	char* path;
@@ -32,8 +39,13 @@ class WrapAsset
 {
 public:
 	WrapAsset() = default;
+	WrapAsset(WrapAssetHeader_v1_t* const hdr) : path(nullptr), data(hdr->data), cmpSize(hdr->size), dcmpSize(hdr->size), pathSize(0u), skipFirstFolderPos(0u),
+		fileNamePos(0u), flags(0u), skipSize(0u), isCompressed(false), isStreamed(false), parsedData(nullptr), parsedDataType(eWrapAssetParsedDataType::NONE)
+	{
+
+	}
 	WrapAsset(WrapAssetHeader_v7_t* const hdr) : path(hdr->path), data(hdr->data), cmpSize(hdr->cmpSize), dcmpSize(hdr->dcmpSize), pathSize(hdr->pathSize), skipFirstFolderPos(hdr->skipFirstFolderPos),
-		fileNamePos(hdr->fileNamePos), flags(hdr->flags) 
+		fileNamePos(hdr->fileNamePos), flags(hdr->flags), parsedData(nullptr), parsedDataType(eWrapAssetParsedDataType::NONE)
 	{
 		// This assert has been placed here in case we find an asset who's compressed
 		// size == decompressed size, since I don't know if we need to decompress in

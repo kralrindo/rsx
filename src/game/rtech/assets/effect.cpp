@@ -23,6 +23,7 @@ void InitEffectAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Particle Effect",
         .type = 'tcfe',
         .headerAlignment = 8,
         .loadFunc = nullptr,

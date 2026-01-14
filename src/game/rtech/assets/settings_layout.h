@@ -9,9 +9,14 @@ enum class eSettingsFieldType : uint16_t
 	ST_FLOAT3,
 	ST_STRING,
 	ST_ASSET,
-	ST_ASSET_2,
+	ST_ASSET_NOPRECACHE,
 	ST_ARRAY,
-	ST_ARRAY_2, // "dynamic array" - special type of array - need to check why it's a different type
+	ST_DYN_ARRAY, // "dynamic array" - special type of array - need to check why it's a different type
+
+
+	// Pseudo-type used to indicate an object contained within an array
+	// Data is contained as an array of SettingsKVField_t, count determined by SettingsKVValue_t::numChildren
+	_ST_OBJECT =0xfffe,
 
 	ST_Invalid = 0xffff
 };

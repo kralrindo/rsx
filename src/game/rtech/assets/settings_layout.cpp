@@ -14,7 +14,7 @@ uint32_t SettingsLayout_GetFieldAlignmentForType(const eSettingsFieldType type)
 	case eSettingsFieldType::ST_BOOL:
 		return sizeof(bool);
 	case eSettingsFieldType::ST_INTEGER:
-	case eSettingsFieldType::ST_ARRAY_2:
+	case eSettingsFieldType::ST_DYN_ARRAY:
 		return sizeof(int);
 	case eSettingsFieldType::ST_FLOAT:
 	case eSettingsFieldType::ST_FLOAT2:
@@ -22,7 +22,7 @@ uint32_t SettingsLayout_GetFieldAlignmentForType(const eSettingsFieldType type)
 		return sizeof(float);
 	case eSettingsFieldType::ST_STRING:
 	case eSettingsFieldType::ST_ASSET:
-	case eSettingsFieldType::ST_ASSET_2:
+	case eSettingsFieldType::ST_ASSET_NOPRECACHE:
 		return sizeof(void*);
 
 	default: assert(0); return 0;
@@ -140,7 +140,7 @@ void PostLoadSettingsLayoutAsset(CAssetContainer* pak, CAsset* asset)
 
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	SettingsLayoutAsset* layoutAsset = reinterpret_cast<SettingsLayoutAsset*>(pakAsset->extraData());
+	SettingsLayoutAsset* const layoutAsset = pakAsset->extraData<SettingsLayoutAsset* const>();
 
 	layoutAsset->ParseAndSortFields();
 }
@@ -197,7 +197,7 @@ void* PreviewSettingsLayoutAsset(CAsset* const asset, const bool firstFrameForAs
 	UNUSED(firstFrameForAsset);
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	const SettingsLayoutAsset* const layoutAsset = reinterpret_cast<SettingsLayoutAsset*>(pakAsset->extraData());
+	const SettingsLayoutAsset* const layoutAsset = pakAsset->extraData<const SettingsLayoutAsset* const>();
 
 	if (asset != s_settingsLayoutPreviewState.lastAssetCached)
 		s_settingsLayoutPreviewState.ResetIndices(asset, layoutAsset);
@@ -302,7 +302,7 @@ static bool ExportSettingsLayoutInternal(const SettingsLayoutAsset* const hdr, c
 
 		out << "\"" << field.fieldName << "\",\"" << s_settingsFieldTypeNames[(int)field.dataType] << "\",\"" << field.valueSubLayoutIdx <<  "\",\"" << field.helpText << end;
 
-		if (field.dataType == eSettingsFieldType::ST_ARRAY || field.dataType == eSettingsFieldType::ST_ARRAY_2)
+		if (field.dataType == eSettingsFieldType::ST_ARRAY || field.dataType == eSettingsFieldType::ST_DYN_ARRAY)
 		{
 			std::string subPath = path;
 
@@ -388,9 +388,9 @@ bool ExportSettingsLayout(CAsset* const asset, const int setting)
 	UNUSED(setting);
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	SettingsLayoutAsset* const hdr = reinterpret_cast<SettingsLayoutAsset*>(pakAsset->extraData());
+	SettingsLayoutAsset* const hdr = pakAsset->extraData<SettingsLayoutAsset* const>();
 
-	std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+	std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
 	const std::filesystem::path stltPath(asset->GetAssetName());
 
 	// +1 to skip the '/' at the end.
@@ -421,6 +421,7 @@ void InitSettingsLayoutAssetType()
 {
 	AssetTypeBinding_t type =
 	{
+		.name = "Settings Layout",
 		.type = 'tlts',
 		.headerAlignment = 8,
 		.loadFunc = LoadSettingsLayoutAsset,

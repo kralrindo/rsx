@@ -39,7 +39,7 @@ static bool ExportLcdScreenEffectAsset(CAsset* const asset, const int setting)
         return false;
     }
 
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     std::filesystem::path rlcdPath = asset->GetAssetName();
 
     exportPath.append(rlcdPath.parent_path().string());
@@ -83,6 +83,7 @@ void InitLcdScreenEffectAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "LCD Screen Effect",
         .type = 'dclr',
         .headerAlignment = 4,
         .loadFunc = nullptr,

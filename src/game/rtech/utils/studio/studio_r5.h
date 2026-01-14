@@ -332,6 +332,7 @@ namespace r5
 		float top; // top of the foot box
 
 		int szattachmentindex; // name of world attachment
+		inline const char* const pszAttachment() const { return szattachmentindex ? reinterpret_cast<const char* const>(this) + szattachmentindex : nullptr; }
 
 		float endHeight; // new in v52   
 	};
@@ -490,7 +491,7 @@ namespace r5
 		// cmd is the qc commands on the $animation qc line
 		// hash is an unknown number that trails it all
 		int sznameindex;
-		inline const char* pszName() const { return ((char*)this + sznameindex); }
+		inline const char* const pszName() const { return reinterpret_cast<const char* const>(this) + sznameindex; }
 
 		float fps; // frames per second	
 		int flags; // looping/non-looping flags
@@ -500,10 +501,10 @@ namespace r5
 		// piecewise movement
 		int nummovements;
 		int movementindex;
-		inline mstudiomovement_t* const pMovement(int i) const { return reinterpret_cast<mstudiomovement_t*>((char*)this + movementindex) + i; };
+		inline const mstudiomovement_t* const pMovement(int i) const { return reinterpret_cast<const mstudiomovement_t* const>((char*)this + movementindex) + i; };
 
 		int framemovementindex; // new in v52
-		inline const mstudioframemovement_t* pFrameMovement() const { return reinterpret_cast<mstudioframemovement_t*>((char*)this + framemovementindex); }
+		inline const mstudioframemovement_t* const pFrameMovement() const { return reinterpret_cast<const mstudioframemovement_t* const>((char*)this + framemovementindex); }
 
 		int animindex; // non-zero when anim data isn't in sections
 		//char* pAnimdata(int* piFrame) const; // data array, starting with per bone flags
@@ -511,10 +512,11 @@ namespace r5
 
 		int numikrules;
 		int ikruleindex; // non-zero when IK data is stored in the mdl
+		inline const mstudioikrule_v8_t* const pIKRule(const int i) const { return reinterpret_cast<const mstudioikrule_v8_t* const>((char*)this + ikruleindex) + i; }
 
 		int sectionindex;
 		int sectionframes; // number of frames used in each fast lookup section, zero if not used
-		inline const mstudioanimsections_v8_t* pSection(const int i) const { return reinterpret_cast<mstudioanimsections_v8_t*>((char*)this + sectionindex) + i; }
+		inline const mstudioanimsections_v8_t* const pSection(const int i) const { return reinterpret_cast<const mstudioanimsections_v8_t* const>((char*)this + sectionindex) + i; }
 		// numsections = ((numframes - 1) / sectionframes) + 2
 	};
 	static_assert(sizeof(mstudioanimdesc_v8_t) == 0x34);
@@ -527,11 +529,12 @@ namespace r5
 		char	options[256];
 
 		int		szeventindex;
+		inline const char* const pszEvent() const { return reinterpret_cast<const char* const>(this) + szeventindex; }
 	};
 
 	struct mstudioautolayer_v8_t
 	{
-		uint64_t iSequence; // hashed aseq guid asset, this needs to have a guid descriptor in rpak
+		uint64_t sequence; // hashed aseq guid asset, this needs to have a guid descriptor in rpak
 
 		int iPose;
 
@@ -548,6 +551,8 @@ namespace r5
 	{
 		int sznameindex;
 		bool negate; // negate all other activity modifiers when this one is active?
+
+		inline const char* const pszName() const { return (reinterpret_cast<const char* const>(this) + sznameindex); }
 	};
 	static_assert(sizeof(mstudioactivitymodifier_v8_t) == 0x8);
 
@@ -569,15 +574,16 @@ namespace r5
 	};
 
 	struct mstudioanimdesc_v12_1_t;
+	struct mstudioevent_v12_3_t;
 	struct mstudioseqdesc_v8_t
 	{
 		int baseptr;
 
 		int	szlabelindex;
-		const char* pszLabel() const { return ((char*)this + szlabelindex); }
+		inline const char* const pszLabel() const { return reinterpret_cast<const char* const>(this) + szlabelindex; }
 
 		int szactivitynameindex;
-		const char* pszActivity() const { return ((char*)this + szactivitynameindex); }
+		inline const char* const pszActivityName() const { return reinterpret_cast<const char* const>(this) + szactivitynameindex; }
 
 		int flags; // looping/non-looping flags
 
@@ -586,6 +592,8 @@ namespace r5
 
 		int numevents;
 		int eventindex;
+		inline const mstudioevent_v8_t* const pEvent_V8(const int i) const { return reinterpret_cast<mstudioevent_v8_t*>((char*)this + eventindex) + i; }
+		inline const mstudioevent_v12_3_t* const pEvent_V12_3(const int i) const;
 
 		Vector bbmin; // per sequence bounding box
 		Vector bbmax;
@@ -596,8 +604,8 @@ namespace r5
 		int animindexindex;
 		const int AnimIndex(const int i) const { return reinterpret_cast<int*>((char*)this + animindexindex)[i]; }
 		const int AnimCount() const { return  groupsize[0] * groupsize[1]; }
-		const mstudioanimdesc_v8_t* const pAnimDescV8(const int i) const { return reinterpret_cast<const mstudioanimdesc_v8_t* const>((char*)this + AnimIndex(i)); }
-		const mstudioanimdesc_v12_1_t* const pAnimDescV12_1(const int i) const;
+		const mstudioanimdesc_v8_t* const pAnimDesc_V8(const int i) const { return reinterpret_cast<const mstudioanimdesc_v8_t* const>((char*)this + AnimIndex(i)); }
+		const mstudioanimdesc_v12_1_t* const pAnimDesc_V12_1(const int i) const;
 
 		int movementindex;	// unused as of v49
 		int groupsize[2];	// width x height of blends
@@ -625,23 +633,30 @@ namespace r5
 
 		int numautolayers;
 		int autolayerindex;
+		inline const mstudioautolayer_v8_t* const pAutoLayer(const int i) const { return reinterpret_cast<mstudioautolayer_v8_t*>((char*)this + autolayerindex) + i; }
 
 		int weightlistindex;
-		float* pBoneweight(const int boneIdx) const { return &reinterpret_cast<float*>((char*)this + weightlistindex)[boneIdx]; }
+		inline const float* const pBoneweight(const int i) const { return reinterpret_cast<float*>((char*)this + weightlistindex) + i; }
+		inline const float weight(const int i) const { return *pBoneweight(i); }
 
 		int posekeyindex;
+		inline const float* const pPoseKey(int iParam, int iAnim) const { return reinterpret_cast<float*>((char*)this + posekeyindex) + (iParam * groupsize[0]) + iAnim; }
+		inline float poseKey(int iParam, int iAnim) const { return *(pPoseKey(iParam, iAnim)); }
 
 		int numiklocks;
 		int iklockindex;
+		inline const mstudioiklock_v8_t* const pIKLock(const int i) const { return reinterpret_cast<const mstudioiklock_v8_t* const>((char*)this + iklockindex) + i; }
 
 		// Key values
 		int keyvalueindex;
 		int keyvaluesize;
+		inline const char* const pKeyValues() const { return  keyvaluesize ? (reinterpret_cast<const char* const>(this) + keyvalueindex) : nullptr; }
 
 		int cycleposeindex; // index of pose parameter to use as cycle index
 
 		int activitymodifierindex;
 		int numactivitymodifiers;
+		inline const mstudioactivitymodifier_v8_t* const pActivityModifier(const int i) const { return reinterpret_cast<mstudioactivitymodifier_v8_t*>((char*)this + activitymodifierindex) + i; }
 
 		int ikResetMask; // mask this ik rule type for reset, can't find the code for this, but it would either prevent reset of this type, or only allow reset of this time. only ever observed as IK_GROUND
 		int unk_C4;
@@ -1145,7 +1160,4 @@ namespace r5
 			return;
 		}
 	}
-
-	// movements
-	bool Studio_AnimPosition(const animdesc_t* const panim, float flCycle, Vector& vecPos, QAngle& vecAngle);
 }

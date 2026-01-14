@@ -14,9 +14,8 @@ extern ExportSettings_t g_ExportSettings;
 
 void LoadAnimRigAsset(CAssetContainer* const container, CAsset* const asset)
 {
-    AnimRigAsset* arigAsset = nullptr;
-
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
+    AnimRigAsset* arigAsset = nullptr;
 
     switch (pakAsset->version())
     {
@@ -119,7 +118,7 @@ void LoadAnimRigAsset(CAssetContainer* const container, CAsset* const asset)
     case eMDLVersion::VERSION_UNK:
     default:
     {
-        assertm(false, "unaccounted asset version, will cause major issues!");
+        assertm(false, "Unknown AnimRig asset version");
         break;
     }
     }
@@ -136,27 +135,40 @@ void PostLoadAnimRigAsset(CAssetContainer* const pak, CAsset* const asset)
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
     AnimRigAsset* const arigAsset = reinterpret_cast<AnimRigAsset*>(pakAsset->extraData());
-    assertm(nullptr != arigAsset, "extra data should be valid by this point.");
+
     if (!arigAsset)
         return;
 
     // parse sequences for children
-    const uint64_t* const guids = reinterpret_cast<const uint64_t*>(arigAsset->animSeqs);
-    for (uint16_t seqIdx = 0; seqIdx < arigAsset->numAnimSeqs; seqIdx++)
+    if (arigAsset->numAnimSeqs)
     {
-        const uint64_t guid = guids[seqIdx];
-        CPakAsset* const animSeqAsset = g_assetData.FindAssetByGUID<CPakAsset>(guid);
-        if (!animSeqAsset)
-            continue;
+        ModelParsedData_t* const parsedData = arigAsset->GetParsedData();
 
-        AnimSeqAsset* const animSeq = reinterpret_cast<AnimSeqAsset* const>(animSeqAsset->extraData());
-        if (!animSeq)
+        parsedData->numExternalSequences = arigAsset->numAnimSeqs;
+        parsedData->externalSequences = arigAsset->animSeqs;
+
+        const uint64_t* guids = reinterpret_cast<const uint64_t*>(arigAsset->animSeqs);
+
+        for (uint16_t seqIdx = 0; seqIdx < arigAsset->numAnimSeqs; seqIdx++)
         {
-            assertm(false, "uuuuuuuhhhmm");
-            continue;
-        }
+            const uint64_t guid = guids[seqIdx];
 
-        animSeq->parentRig = !animSeq->parentRig ? arigAsset : animSeq->parentRig;
+            CPakAsset* const animSeqAsset = g_assetData.FindAssetByGUID<CPakAsset>(guid);
+
+            if (nullptr == animSeqAsset)
+            {
+                continue;
+            }
+
+            AnimSeqAsset* const animSeq = reinterpret_cast<AnimSeqAsset* const>(animSeqAsset->extraData());
+
+            if (nullptr == animSeq)
+            {
+                continue;
+            }
+
+            animSeq->parentRig = !animSeq->parentRig ? arigAsset : animSeq->parentRig;
+        }
     }
 
     // [rika]: this should never get hit
@@ -244,14 +256,14 @@ bool ExportAnimRigAsset(CAsset* const asset, const int setting)
 {
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
     const AnimRigAsset* const animRigAsset = reinterpret_cast<AnimRigAsset*>(pakAsset->extraData());
-    assertm(animRigAsset, "Extra data should be valid at this point.");
+
     if (!animRigAsset)
         return false;
 
     assertm(animRigAsset->name, "No name for anim rig.");
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path rigPath(animRigAsset->name);
     const std::string rigStem(rigPath.stem().string());
 
@@ -291,7 +303,7 @@ bool ExportAnimRigAsset(CAsset* const asset, const int setting)
 
         for (int i = 0; i < parsedData->NumLocalSeq(); i++)
         {
-            const seqdesc_t* const seqdesc = parsedData->LocalSeq(i);
+            const ModelSeq_t* const seqdesc = parsedData->LocalSeq(i);
 
             outputPath.replace_filename(seqdesc->szlabel);
 
@@ -335,6 +347,7 @@ void InitAnimRigAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Animation Rig",
         .type = 'gira',
         .headerAlignment = 8,
         .loadFunc = LoadAnimRigAsset,

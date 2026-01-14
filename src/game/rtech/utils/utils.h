@@ -200,13 +200,28 @@ public:
     static uint32_t __fastcall StringToUIMGHash(const char* str);
 };
 
-inline const std::string fourCCToString(int32_t n)
+inline const std::string fourCCToString(int32_t n, bool discardNullBytes=false)
 {
+
+	const char a = (char)((n & 0x000000ff) >> 0);
+	const char b = (char)((n & 0x0000ff00) >> 8);
+	const char c = (char)((n & 0x00ff0000) >> 16);
+	const char d = (char)((n & 0xff000000) >> 24);
+
+
     std::stringstream ss;
-    ss << (char)((n & 0x000000ff) >> 0);
-    ss << (char)((n & 0x0000ff00) >> 8);
-    ss << (char)((n & 0x00ff0000) >> 16);
-    ss << (char)((n & 0xff000000) >> 24);
+
+	if (discardNullBytes)
+	{
+		if (a != '\0') ss << a;
+		if (b != '\0') ss << b;
+		if (c != '\0') ss << c;
+		if (d != '\0') ss << d;
+	}
+	else
+		ss << a << b << c << d;
+	
+
     return ss.str();
 }
 

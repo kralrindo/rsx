@@ -104,6 +104,27 @@ struct MilesSource_v39_t
 static_assert(offsetof(MilesSource_v39_t, streamDataOffset) == 48);
 static_assert(sizeof(MilesSource_v39_t) == 72);
 
+struct MilesSource_v48_t
+{
+	uint64_t nameOffset; // relative to Something
+	uint16_t languageIdx; // sound language ID
+	uint16_t patchIdx; // index of the patch file that contains this sound
+	uint32_t unk8;
+	uint16_t sampleRate;
+	uint16_t bitRate;
+
+	char gap[16];
+
+	uint32_t streamHeaderSize;
+	uint64_t streamDataSize;
+	uint64_t streamHeaderOffset;
+	uint64_t streamDataOffset;
+	uint64_t minusOne;
+	char gap8[8];
+};
+static_assert(offsetof(MilesSource_v48_t, minusOne) == 0x40);
+static_assert(sizeof(MilesSource_v48_t) == 80);
+
 struct MilesSource_t
 {
 	MilesSource_t(const MilesSource_v39_t* const a) :
@@ -120,11 +141,18 @@ struct MilesSource_t
 		languageIdx(a->languageIdx), patchIdx(a->patchIdx)
 	{};
 
+	MilesSource_t(const MilesSource_v48_t* const a) :
+		streamDataOffset(a->streamDataOffset), streamHeaderOffset(a->streamHeaderOffset),
+		streamDataSize(a->streamDataSize), streamHeaderSize(a->streamHeaderSize),
+		nameOffset(a->nameOffset),
+		languageIdx(a->languageIdx), patchIdx(a->patchIdx)
+	{};
+
+	uint64_t nameOffset;
 	uint64_t streamDataOffset;
 	uint64_t streamHeaderOffset;
-	uint32_t streamDataSize;
+	uint64_t streamDataSize;
 	uint32_t streamHeaderSize;
-	uint32_t nameOffset;
 
 	uint16_t languageIdx;
 	uint16_t patchIdx;
@@ -295,7 +323,7 @@ public:
 
 	std::string GetStreamingFileNameForSource(const MilesSource_t* source) const;
 
-	const char* GetString(uint32_t offset) const
+	const char* GetString(uint64_t offset) const
 	{
 		return reinterpret_cast<const char*>(stringTable) + offset;
 	}

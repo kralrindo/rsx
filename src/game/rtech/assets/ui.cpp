@@ -56,10 +56,9 @@ void PostLoadUIAsset(CAssetContainer* const container, CAsset* const asset)
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
     // temp, remove once other versions are implemented
-    if (!pakAsset->extraData())
+    if (!pakAsset->hasExtraData())
         return;
 
-    assertm(pakAsset->extraData(), "extra data should be valid");
     UIAsset* const uiAsset = reinterpret_cast<UIAsset*>(pakAsset->extraData());
 
     if (!uiAsset->name)
@@ -146,8 +145,6 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
     }
 
     UIAsset* const uiAsset = reinterpret_cast<UIAsset*>(pakAsset->extraData());
-    assertm(uiAsset, "Extra data should be valid at this point.");
-
 
     static std::vector<UIPreviewData_t> previewData;
 
@@ -338,10 +335,9 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
 {
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
     UIAsset* const uiAsset = reinterpret_cast<UIAsset*>(pakAsset->extraData());
-    assertm(uiAsset, "Extra data should be valid at this point.");
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME); // 
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path uiPath(asset->GetAssetName());
 
     // truncate paths?
@@ -482,6 +478,7 @@ void InitUIAssetType()
     static const char* settings[] = { "TXT" };
     AssetTypeBinding_t type =
     {
+        .name = "RUI",
         .type = '\0iu',
         .headerAlignment = 8,
         .loadFunc = LoadUIAsset,

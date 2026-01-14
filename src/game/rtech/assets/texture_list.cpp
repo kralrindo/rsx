@@ -45,7 +45,6 @@ static void TextureList_PostLoadAsset(CAssetContainer* pak, CAsset* asset)
 
 	CPakAsset* const pakAsset = static_cast<CPakAsset*>(asset);
 
-	assertm(pakAsset->extraData(), "extra data should be valid");
 	TextureListAsset* const textureListAsset = reinterpret_cast<TextureListAsset* const>(pakAsset->extraData());
 
 	assertm(textureListAsset->textureNames, "texture list had invalid names?");
@@ -150,7 +149,7 @@ static bool TextureList_ExportAsset(CAsset* const asset, const int setting)
 	UNUSED(asset);
 	UNUSED(setting);
 
-	std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+	std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
 	std::filesystem::path stgsPath = asset->GetAssetName();
 
 	exportPath.append(stgsPath.parent_path().string());
@@ -194,6 +193,7 @@ void InitTextureListAssetType()
 {
 	AssetTypeBinding_t type =
 	{
+		.name = "Texture List",
 		.type = 'slxt',
 		.headerAlignment = 8,
 		.loadFunc = TextureList_LoadAsset,

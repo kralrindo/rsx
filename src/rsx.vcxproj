@@ -13,6 +13,8 @@
   <ItemGroup>
     <ClInclude Include="core\cache\cachedb.h" />
     <ClInclude Include="core\crashhandler.h" />
+    <ClInclude Include="core\features.h" />
+    <ClInclude Include="core\mdl\animdata.h" />
     <ClInclude Include="core\mdl\modeldata.h" />
     <ClInclude Include="core\mdl\qc.h" />
     <ClInclude Include="core\mdl\smd.h" />
@@ -41,6 +43,7 @@
     <ClInclude Include="core\shaderexp\multishader.h" />
     <ClInclude Include="core\splash.h" />
     <ClInclude Include="core\utils\buffermanager.h" />
+    <ClInclude Include="core\utils\cli_parser.h" />
     <ClInclude Include="core\utils\crc32.h" />
     <ClInclude Include="core\utils\exportsettings.h" />
     <ClInclude Include="core\utils\fileio.h" />
@@ -64,11 +67,13 @@
     <ClInclude Include="game\rtech\assets\effect.h" />
     <ClInclude Include="game\rtech\assets\impact.h" />
     <ClInclude Include="game\rtech\assets\lcd_screen_effect.h" />
-    <ClInclude Include="game\rtech\assets\localisation.h" />
+    <ClInclude Include="game\rtech\assets\localization.h" />
     <ClInclude Include="game\rtech\assets\map.h" />
     <ClInclude Include="game\rtech\assets\material.h" />
     <ClInclude Include="game\rtech\assets\material_snapshot.h" />
     <ClInclude Include="game\rtech\assets\model.h" />
+    <ClInclude Include="game\rtech\assets\odl_asset.h" />
+    <ClInclude Include="game\rtech\assets\odl_pak.h" />
     <ClInclude Include="game\rtech\assets\particle_script.h" />
     <ClInclude Include="game\rtech\assets\patch_master.h" />
     <ClInclude Include="game\rtech\assets\rson.h" />
@@ -128,7 +133,9 @@
     <ClCompile Include="core\filehandling\bpk.cpp" />
     <ClCompile Include="core\filehandling\list.cpp" />
     <ClCompile Include="core\filehandling\mbnk.cpp" />
+    <ClCompile Include="core\mdl\animdata.cpp" />
     <ClCompile Include="core\mdl\modeldata.cpp" />
+    <ClCompile Include="core\mdl\modeldata_qc.cpp" />
     <ClCompile Include="core\mdl\qc.cpp" />
     <ClCompile Include="core\mdl\smd.cpp" />
     <ClCompile Include="core\render\dx.cpp" />
@@ -151,6 +158,8 @@
     <ClCompile Include="core\render.cpp" />
     <ClCompile Include="core\render\dxutils.cpp" />
     <ClCompile Include="core\splash.cpp" />
+    <ClCompile Include="core\utils\cli_parser.cpp" />
+    <ClCompile Include="core\utils\exportsettings.cpp" />
     <ClCompile Include="core\utils\fileio.cpp" />
     <ClCompile Include="core\utils\keyvalue_parser.cpp" />
     <ClCompile Include="core\utils\ramen.cpp" />
@@ -171,11 +180,12 @@
     <ClCompile Include="game\rtech\assets\effect.cpp" />
     <ClCompile Include="game\rtech\assets\impact.cpp" />
     <ClCompile Include="game\rtech\assets\lcd_screen_effect.cpp" />
-    <ClCompile Include="game\rtech\assets\localisation.cpp" />
+    <ClCompile Include="game\rtech\assets\localization.cpp" />
     <ClCompile Include="game\rtech\assets\map.cpp" />
     <ClCompile Include="game\rtech\assets\material.cpp" />
     <ClCompile Include="game\rtech\assets\material_snapshot.cpp" />
     <ClCompile Include="game\rtech\assets\model.cpp" />
+    <ClCompile Include="game\rtech\assets\odl_asset.cpp" />
     <ClCompile Include="game\rtech\assets\particle_script.cpp" />
     <ClCompile Include="game\rtech\assets\patch_master.cpp" />
     <ClCompile Include="game\rtech\assets\rson.cpp" />
@@ -207,6 +217,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="render\ui\itemflav_window.cpp" />
     <ClCompile Include="thirdparty\imgui\backends\imgui_impl_dx11.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>

@@ -13,10 +13,16 @@ void LoadWrapAsset(CAssetContainer* const pak, CAsset* const asset)
 
     switch (pakAsset->version())
     {
+    case 1:
+    {
+        WrapAssetHeader_v1_t* hdr = reinterpret_cast<WrapAssetHeader_v1_t*>(pakAsset->header());
+        wrapAsset = new WrapAsset(hdr);
+        break;
+    }
     case 7:
     {
-        WrapAssetHeader_v7_t* v7 = reinterpret_cast<WrapAssetHeader_v7_t*>(pakAsset->header());
-        wrapAsset = new WrapAsset(v7);
+        WrapAssetHeader_v7_t* hdr = reinterpret_cast<WrapAssetHeader_v7_t*>(pakAsset->header());
+        wrapAsset = new WrapAsset(hdr);
         break;
     }
     default:
@@ -26,8 +32,12 @@ void LoadWrapAsset(CAssetContainer* const pak, CAsset* const asset)
     }
     }
 
-    const std::string name = std::string(wrapAsset->path + wrapAsset->skipFirstFolderPos);
-    pakAsset->SetAssetName(name, true);
+    if (wrapAsset->path)
+    {
+        const std::string name = std::string(wrapAsset->path + wrapAsset->skipFirstFolderPos);
+        pakAsset->SetAssetName(name, true);
+    }
+
     pakAsset->setExtraData(wrapAsset);
 }
 
@@ -57,7 +67,6 @@ std::unique_ptr<char[]> GetWrapAssetData(CAsset* const asset, uint64_t* outSize)
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
     const WrapAsset* const wrapAsset = reinterpret_cast<WrapAsset*>(pakAsset->extraData());
-    assertm(wrapAsset, "Extra data should be valid at this point.");
 
     const uint32_t wrapSize = wrapAsset->isCompressed ? wrapAsset->cmpSize : wrapAsset->dcmpSize;
     std::unique_ptr<char[]> wrapData = std::make_unique<char[]>(wrapSize);
@@ -72,7 +81,7 @@ std::unique_ptr<char[]> GetWrapAssetData(CAsset* const asset, uint64_t* outSize)
     }
     else
     {
-        const int staticAsset = WRAP_FLAG_FILE_IS_COMPRESSED | WRAP_FLAG_FILE_IS_PERMANENT;
+        constexpr uint16_t staticAsset = WRAP_FLAG_FILE_IS_COMPRESSED | WRAP_FLAG_FILE_IS_PERMANENT;
         const char* buf = (const char*)wrapAsset->data;
 
         // [amos]: if this condition is met, some internal header needs to be skipped.
@@ -105,25 +114,25 @@ void PostLoadWrapAsset(CAssetContainer* const pak, CAsset* const asset)
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
     WrapAsset* const wrapAsset = reinterpret_cast<WrapAsset*>(pakAsset->extraData());
-    assertm(wrapAsset, "Extra data should be valid at this point.");
 
     wrapAsset->parsedDataType = eWrapAssetParsedDataType::NONE;
 
-    // todo: bsp feature
-    //std::filesystem::path assetPath = std::filesystem::path(asset->GetAssetName());
-    //std::string extension = assetPath.extension().string();
+#if defined(HAS_BSP_SUPPORT)
+    std::filesystem::path assetPath = std::filesystem::path(asset->GetAssetName());
+    std::string extension = assetPath.extension().string();
 
-    //if (extension == ".bsp")
-    //{
-    //    wrapAsset->parsedDataType = eWrapAssetParsedDataType::BSP;
+    if (extension == ".bsp")
+    {
+        wrapAsset->parsedDataType = eWrapAssetParsedDataType::BSP;
 
-    //    std::unique_ptr<char[]> wrapData = GetWrapAssetData(asset, nullptr);
+        std::unique_ptr<char[]> wrapData = GetWrapAssetData(asset, nullptr);
 
-    //    CBSPData* bspData = new CBSPData(assetPath.stem().string());
-    //    bspData->PopulateFromPakAsset(pakAsset, wrapData.get());
+        CBSPData* bspData = new CBSPData(assetPath.stem().string());
+        bspData->PopulateFromPakAsset(pakAsset, wrapData.get());
 
-    //    wrapAsset->parsedData = bspData;
-    //}
+        wrapAsset->parsedData = bspData;
+    }
+#endif
 }
 
 bool ExportWrapAsset(CAsset* const asset, const int setting)
@@ -132,10 +141,9 @@ bool ExportWrapAsset(CAsset* const asset, const int setting)
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
     const WrapAsset* const wrapAsset = reinterpret_cast<WrapAsset*>(pakAsset->extraData());
-    assertm(wrapAsset, "Extra data should be valid at this point.");
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(std::format("{}\\{}", EXPORT_DIRECTORY_NAME, fourCCToString(asset->GetAssetType())));
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory() / fourCCToString(asset->GetAssetType());
     if (!CreateDirectories(exportPath))
     {
         assertm(false, "Failed to create asset type directory.");
@@ -172,8 +180,8 @@ bool ExportWrapAsset(CAsset* const asset, const int setting)
         wrapOut.close();
         break;
     }
-    // needs some stuff to be finished first
-    /*case eWrapAssetParsedDataType::BSP:
+#if defined(HAS_BSP_SUPPORT)
+    case eWrapAssetParsedDataType::BSP:
     {
         StreamIO wrapOut;
 
@@ -190,7 +198,8 @@ bool ExportWrapAsset(CAsset* const asset, const int setting)
         wrapOut.close();
 
         break;
-    }*/
+    }
+#endif
     }
 
     return true;
@@ -203,11 +212,17 @@ void* PreviewWrapAsset(CAsset* const asset, const bool firstFrameForAsset)
     assertm(pakAsset, "Asset should be valid.");
 
     WrapAsset* const wrapAsset = reinterpret_cast<WrapAsset*>(pakAsset->extraData());
-    assertm(wrapAsset, "Extra data should be valid at this point.");
+
+#if defined(HAS_BSP_SUPPORT)
+    ImGui::Text("WRAP asset preview is currently only available for .bsp files");
+#else
+    ImGui::Text("WRAP asset preview is unsupported on this build");
+#endif
 
     if (!wrapAsset || wrapAsset->parsedDataType == eWrapAssetParsedDataType::NONE)
         return nullptr;
 
+    // No need to include a preprocessor flag here. This data type isn't set unless the flag is defined
     if (wrapAsset->parsedDataType == eWrapAssetParsedDataType::BSP)
         return reinterpret_cast<CBSPData*>(wrapAsset->parsedData)->ConstructPreviewData();
 
@@ -219,6 +234,7 @@ void InitWrapAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Wrapped File",
         .type = 'parw',
         .headerAlignment = 8,
         .loadFunc = LoadWrapAsset,

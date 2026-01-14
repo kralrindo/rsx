@@ -16,6 +16,9 @@ bool CreateD3DBuffer(
 {
     assert(pBuffer);
 
+    if (!device)
+        return false;
+
     D3D11_BUFFER_DESC desc = {};
 
     desc.Usage = usage;

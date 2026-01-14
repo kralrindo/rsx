@@ -1,6 +1,7 @@
 #pragma once
 #include <thirdparty/imgui/imgui.h>
 #include <thirdparty/imgui/imgui_internal.h>
+#include <core/utils/thread.h>
 
 #define PB_SIZE 16
 #define PB_FNCLASS_TO_VOID(memberFunc) \
@@ -10,6 +11,8 @@
 
 struct ProgressBarEvent_t
 {
+    typedef void(*CancelEventCallback_f)(ProgressBarEvent_t*);
+
     const uint32_t getRemainingEvents() const
     {
         if (fnRemainingEvents)
@@ -29,6 +32,16 @@ struct ProgressBarEvent_t
         return 1;
     }
 
+    static void cancelEvents(ProgressBarEvent_t* event)
+    {
+        if (event->eventClass)
+        {
+            CParallelTask* task = reinterpret_cast<CParallelTask*>(event->eventClass);
+
+            task->clear();
+        }
+    }
+
     bool slotIsUsed;
     bool isInverted;
     const char* eventName;
@@ -36,6 +49,72 @@ struct ProgressBarEvent_t
     std::atomic<uint32_t>* remainingEvents;
     void* eventClass;
     void* fnRemainingEvents;
+    CancelEventCallback_f fnCancelEvents;
+};
+
+class ImGuiCustomTextFilter
+{
+public:
+
+    ImGuiCustomTextFilter()
+    {
+        inputBuf.clear();
+
+        grepCnt = 0;
+        Build();
+    }
+
+    bool Draw(const char* label = "Filter", float width = 0.0f);
+    bool PassFilter(const char* text, const char* textEnd = nullptr) const;
+    void Build();
+
+    void Clear()
+    {
+        inputBuf.clear();
+        Build();
+    };
+
+    bool IsActive() const
+    {
+        return !filters.empty();
+    };
+
+    inline char charToUpper(const char c)
+    {
+        return (c >= 'a' && c <= 'z') ? (c & ~0x20) : c;
+    }
+
+    inline bool charIsBlank(const char c)
+    {
+        return c == ' ' || c == '\t';
+    }
+
+    struct TxtRange
+    {
+        const char* b;
+        const char* e;
+
+        TxtRange()
+        {
+            b = nullptr;
+            e = nullptr;
+        }
+
+        TxtRange(const char* b, const char* e) : b(b), e(e)
+        {
+        };
+
+        bool empty() const
+        { 
+            return b == e;
+        }
+
+        void split(char separator, std::vector<TxtRange>* out) const;
+    };
+
+    std::string inputBuf;
+    std::vector<TxtRange> filters;
+    int grepCnt;
 };
 
 class ImGuiHandler
@@ -45,10 +124,12 @@ public:
     void SetupHandler();
     void SetStyle();
 
+    void SetNoImGui(bool state) { noImGui = state; };
+
     void HelpMarker(const char* const desc);
 
     template <typename T>
-    const ProgressBarEvent_t* const AddProgressBarEvent(const char* const eventName, const uint32_t eventNum, T const eventClass, void* const fnRemainingEvents)
+    const ProgressBarEvent_t* const AddProgressBarEvent(const char* const eventName, const uint32_t eventNum, T const eventClass, void* const fnRemainingEvents, ProgressBarEvent_t::CancelEventCallback_f fnCancelEvents=ProgressBarEvent_t::cancelEvents)
     {
         std::unique_lock<std::mutex> lock(eventMutex);
         if (eventNum != 0 && !pbAvailSlots.empty())
@@ -63,6 +144,7 @@ public:
             event->remainingEvents = nullptr;
             event->eventClass = reinterpret_cast<void*>(eventClass);
             event->fnRemainingEvents = fnRemainingEvents;
+            event->fnCancelEvents = fnCancelEvents;
 
             event->slotIsUsed = true;
             return event;
@@ -88,7 +170,7 @@ public:
 
     struct FilterSettings_t
     {
-        ImGuiTextFilter textFilter;
+        ImGuiCustomTextFilter textFilter;
     } filter;
 
     ImFont* GetDefaultFont() const { return defaultFont; };
@@ -96,7 +178,7 @@ public:
 
     // custom ImGui widgets
 
-    static void ProgressBarCentered(float fraction, const ImVec2& size_arg, const char* overlay);
+    static void ProgressBarCentered(float fraction, const ImVec2& size_arg, const char* overlay, ProgressBarEvent_t* event);
 
 private:
     std::mutex eventMutex;
@@ -105,6 +187,8 @@ private:
 
     ImFont* defaultFont;
     ImFont* monospaceFont;
+
+    bool noImGui;
 };
 
 extern ImGuiHandler* g_pImGuiHandler;

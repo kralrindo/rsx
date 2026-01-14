@@ -1,5 +1,7 @@
 #pragma once
 
+#include <core/utils/cli_parser.h>
+
 struct ExportSettings_t
 {
     // texture
@@ -29,6 +31,20 @@ struct ExportSettings_t
     uint32_t exportPhysicsContentsFilter;
     bool exportPhysicsFilterExclusive;
     bool exportPhysicsFilterAND;
+
+    std::filesystem::path exportDirectory;
+
+    void SetFromCLI(const CCommandLine* cli);
+
+    void SetExportDirectory(const std::filesystem::path& exportPath)
+    {
+        this->exportDirectory = exportPath;
+    }
+
+    const std::filesystem::path& GetExportDirectory() const
+    {
+        return this->exportDirectory;
+    }
 };
 
 enum eNormalExportRecalc : uint32_t

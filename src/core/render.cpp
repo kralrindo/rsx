@@ -17,12 +17,13 @@
 #include <game/rtech/cpakfile.h>
 #include <game/rtech/assets/model.h>
 #include <game/rtech/assets/texture.h>
+#include <game/rtech/assets/settings.h>
 
 extern CDXParentHandler* g_dxHandler;
 extern std::atomic<uint32_t> maxConcurrentThreads;
+extern ExportSettings_t g_ExportSettings;
 
-ExportSettings_t g_ExportSettings{ .exportNormalRecalcSetting = eNormalExportRecalc::NML_RECALC_NONE, .exportTextureNameSetting = eTextureExportName::TXTR_NAME_TEXT, .exportMaterialTextures = true,
-    .exportPathsFull = false, .exportAssetDeps = false, .disableCachedNames = false, .previewedSkinIndex = 0, .qcMajorVersion = 49, .qcMinorVersion = 0, .exportRigSequences = true, .exportModelSkin = false, .exportModelMatsTruncated = false, .exportQCIFiles = false, .exportPhysicsContentsFilter = static_cast<uint32_t>(TRACE_MASK_ALL) };
+
 PreviewSettings_t g_PreviewSettings { .previewCullDistance = PREVIEW_CULL_DEFAULT, .previewMovementSpeed = PREVIEW_SPEED_DEFAULT };
 
 CPreviewDrawData g_currentPreviewDrawData;
@@ -262,6 +263,126 @@ void ApplySelectionRequests(ImGuiMultiSelectIO* ms_io, std::deque<CAsset*>& sele
     }
 }
 
+void DrawSettingsWindow(CUIState* uiState)
+{
+    constexpr uint32_t minThreads = 1u;
+
+    ImGui::SetNextWindowSize(ImVec2(0.f, 0.f), ImGuiCond_Always);
+    if (ImGui::Begin("Settings", &uiState->settingsWindowVisible, ImGuiWindowFlags_NoResize))
+    {
+        // ===============================================================================================================
+        ImGui::SeparatorText("Export");
+
+        ImGui::Checkbox("Export full asset paths", &g_ExportSettings.exportPathsFull);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Enables exporting of assets to their full path within the export directory, as shown by the listed asset names.\nWhen disabled, assets will be exported into the root-level of a folder named after the asset's type (e.g. \"material/\",\"ui_image/\").");
+
+        ImGui::Checkbox("Export asset dependencies", &g_ExportSettings.exportAssetDeps);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Enables exporting of all dependencies that are associated with any asset that is being exported.");
+
+        ImGui::Checkbox("Disable CacheDB names", &g_ExportSettings.disableCachedNames);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Disables loading names from the cache file, new names will still be added.");
+
+        // texture settings
+        ImGui::SeparatorText("Export (Textures)");
+
+        ImGui::Combo("Material Texture Names", reinterpret_cast<int*>(&g_ExportSettings.exportTextureNameSetting), s_TextureExportNameSetting, static_cast<int>(ARRAYSIZE(s_TextureExportNameSetting)));
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Naming scheme for exporting textures via materials options are as follows:\nGUID: exports only using the asset's GUID as a name.\nReal: exports texture using a real name (asset name or guid if no name).\nText: exports the texture with a text name always, generating one if there is none provided.\nSemantic: exports with a generated name all the time, useful for models.");
+
+        ImGui::Combo("Normal Recalc", reinterpret_cast<int*>(&g_ExportSettings.exportNormalRecalcSetting), s_NormalExportRecalcSetting, static_cast<int>(ARRAYSIZE(s_NormalExportRecalcSetting)));
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("None: exports the normal as it is stored.\nDirectX: exports with a generated blue channel.\nOpenGL: exports with a generated blue channel and inverts the green channel.");
+
+        ImGui::Checkbox("Export Material Textures", &g_ExportSettings.exportMaterialTextures);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Enables exporting of all textures that are associated with any material asset that is being exported.");
+
+        // model settings
+        ImGui::SeparatorText("Export (Models)");
+
+        ImGui::Checkbox("Export Sequences", &g_ExportSettings.exportRigSequences);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Enables exporting of all animation sequences that are associated with any rig or model asset that is being exported.");
+
+        ImGui::Checkbox("Export Skin", &g_ExportSettings.exportModelSkin);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Enables exporting a model with the previewed skin.");
+
+        ImGui::Checkbox("Truncate Materials", &g_ExportSettings.exportModelMatsTruncated);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Truncates material names on SMD.");
+
+        ImGui::Checkbox("Enable QCI Files", &g_ExportSettings.exportQCIFiles);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("QC file will be split into multiple include files.");
+
+        ImGui::PushItemWidth(48.0f);
+        ImGui::InputScalar("##QCTargetMajor", ImGuiDataType_U16, reinterpret_cast<uint16_t*>(&g_ExportSettings.qcMajorVersion), nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
+        ImGui::SameLine();
+        ImGui::InputScalar("##QCTargetMinor", ImGuiDataType_U16, reinterpret_cast<uint16_t*>(&g_ExportSettings.qcMinorVersion), nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
+        ImGui::PopItemWidth();
+        ImGui::SameLine();
+        ImGui::Text("QC Target Version");
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Desired version for QC files to be compatible with.");
+
+        // physics settings
+        ImGui::InputInt("Physics contents filter", reinterpret_cast<int*>(&g_ExportSettings.exportPhysicsContentsFilter), 1, 100, ImGuiInputTextFlags_CharsHexadecimal);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Filter physics meshes in or out based on selected contents.");
+
+        ImGui::Checkbox("Physics contents filter exclusive", &g_ExportSettings.exportPhysicsFilterExclusive);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Exclude physics meshes containing any of the specified contents.");
+
+        ImGui::Checkbox("Physics contents filter require all", &g_ExportSettings.exportPhysicsFilterAND);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Filter only physics meshes containing all specified contents.");
+
+        // ===============================================================================================================
+        ImGui::SeparatorText("Parsing");
+
+        ImGui::Combo("Compression Level", reinterpret_cast<int*>(&UtilsConfig->compressionLevel), s_CompressionLevelSetting, static_cast<int>(ARRAYSIZE(s_CompressionLevelSetting)));
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Specifies the compression level used when storing parsed assets in memory.\nWARNING: Modify only if you know what you’re doing; otherwise, you may run out of memory.\nNone: no compression.\nSuper Fast: Fastest level with the lowest compression ratio.\nVery Fast: Standard setting; fastest level with a decent compression ratio.\nFast: Fastest level with a good compression ratio.\nNormal: Standard LZ speed with the highest compression ratio.");
+
+        ImGui::SliderScalar("Parse Threads", ImGuiDataType_U32, &UtilsConfig->parseThreadCount, &minThreads, reinterpret_cast<int*>(&maxConcurrentThreads));
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("The number of CPU threads that will be used for loading files.\n\nIn general, the higher the number, the faster RSX will be able to load the selected files.");
+
+        ImGui::SliderScalar("Export Threads", ImGuiDataType_U32, &UtilsConfig->exportThreadCount, &minThreads, reinterpret_cast<int*>(&maxConcurrentThreads));
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("The number of CPU threads that will be used for exporting assets.\n\nA higher number of threads will usually make RSX export assets more quickly, however the increased disk usage may cause decreased performance.");
+
+        // ===============================================================================================================
+        ImGui::SeparatorText("Preview");
+
+        ImGui::SliderFloat("Cull Distance", &g_PreviewSettings.previewCullDistance, PREVIEW_CULL_MIN, PREVIEW_CULL_MAX);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Distance at which render of 3D objects will stop. Note: only updated on startup.\n"); // todo: recreate projection matrix ?
+
+        ImGui::SliderFloat("Movement Speed", &g_PreviewSettings.previewMovementSpeed, PREVIEW_SPEED_MIN, PREVIEW_SPEED_MAX);
+        ImGui::SameLine();
+        g_pImGuiHandler->HelpMarker("Speed at which the camera moves through the 3D scene.\n");
+
+        // ===============================================================================================================
+        ImGui::SeparatorText("Export Formats");
+
+        for (auto& it : g_assetData.m_assetTypeBindings)
+        {
+            if (it.second.e.exportSettingArr)
+            {
+                ImGui::Combo(fourCCToString(it.first).c_str(), &it.second.e.exportSetting, it.second.e.exportSettingArr, static_cast<int>(it.second.e.exportSettingArrSize));
+            }
+        }
+
+        ImGui::End();
+    }
+}
+extern void ItemflavWindow_Draw(CUIState*);
 void HandleRenderFrame()
 {
     ImGui_ImplDX11_NewFrame();
@@ -292,7 +413,9 @@ void HandleRenderFrame()
 
     CUIState& uiState = g_dxHandler->GetUIState();
 
-    //ImGui::ShowDemoWindow();
+#if defined(DEBUG_IMGUI_DEMO)
+    ImGui::ShowDemoWindow();
+#endif
 
     static std::deque<CAsset*> selectedAssets;
     static std::vector<CGlobalAssetData::AssetLookup_t> filteredAssets;
@@ -301,7 +424,6 @@ void HandleRenderFrame()
     CDXDrawData* previewDrawData = nullptr;
     if (ImGui::BeginMainMenuBar())
     {
-
         if (ImGui::BeginMenu("File"))
         {
             if (ImGui::MenuItem("Open"))
@@ -313,6 +435,7 @@ void HandleRenderFrame()
                     filteredAssets.clear();
                     prevRenderInfoAsset = nullptr;
                     g_assetData.ClearAssetData();
+                    uiState.ClearAssetData();
 
                     // We kinda leak the thread here but it's okay, we want it to keep executing.
                     CThread(HandleOpenFileDialog, g_dxHandler->GetWindowHandle()).detach();
@@ -327,6 +450,7 @@ void HandleRenderFrame()
                     filteredAssets.clear();
                     prevRenderInfoAsset = nullptr;
                     g_assetData.ClearAssetData();
+                    uiState.ClearAssetData();
                 }
             }
 
@@ -342,6 +466,11 @@ void HandleRenderFrame()
 
             if (ImGui::MenuItem("Settings"))
                 uiState.ShowSettingsWindow(true);
+
+#if defined(HAS_ITEMFLAV_WINDOW)
+            if (ImGui::MenuItem("Itemflavors"))
+                uiState.ShowItemflavWindow(true);
+#endif
 
             ImGui::EndMenu();
         }
@@ -387,7 +516,7 @@ void HandleRenderFrame()
         }
     }
 
-
+    static size_t prevAssetCount = g_assetData.v_assets.size();
     // Only render window if we have a pak loaded and if we aren't currently in pakload.
     if (!inJobAction && !g_assetData.v_assetContainers.empty())
     {
@@ -402,7 +531,7 @@ void HandleRenderFrame()
                 {
                     const bool multipleAssetsSelected = selectedAssets.size() > 1;
 
-                    if (ImGui::Selectable("Export selected"))
+                    if (ImGui::Selectable(multipleAssetsSelected ? "Export selected assets" : "Export selected asset"))
                     {
                         if (!selectedAssets.empty())
                         {
@@ -475,7 +604,7 @@ void HandleRenderFrame()
                     }
 
                     // Exports the names of all assets in the currently shown filtered asset list (i.e., search results)
-                    if (ImGui::Selectable("Export list of assets"))
+                    if (ImGui::Selectable("Export list of assets..."))
                     {
                         CThread(HandleListExportPakAssets, g_dxHandler->GetWindowHandle(), &pakAssets).detach();
                     }
@@ -486,7 +615,7 @@ void HandleRenderFrame()
             }
 
             // OR case if we load a pak and the filter is not cleared yet.
-            if (FilterConfig->textFilter.Draw("##Filter", -1.f) || (filteredAssets.empty() && FilterConfig->textFilter.IsActive()))
+            if (FilterConfig->textFilter.Draw("##Filter", -1.f) || (filteredAssets.empty() && FilterConfig->textFilter.IsActive()) || prevAssetCount != g_assetData.v_assets.size())
             {
                 filteredAssets.clear();
                 for (auto& it : g_assetData.v_assets)
@@ -497,8 +626,8 @@ void HandleRenderFrame()
                         filteredAssets.push_back(it);
                     else
                     {
-                        const char* const inputText = FilterConfig->textFilter.InputBuf;
-                        const size_t inputLen = strlen(inputText);
+                        const char* const inputText = FilterConfig->textFilter.inputBuf.c_str();
+                        const size_t inputLen = FilterConfig->textFilter.inputBuf.size();
 
                         char* end;
                         const uint64_t guid = strtoull(inputText, &end, 0);
@@ -670,7 +799,7 @@ void HandleRenderFrame()
             ImGui::Separator();
 
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
-
+            ImGui::Dummy(ImVec2(0, 0));
             if (firstAsset)
             {
 
@@ -704,125 +833,13 @@ void HandleRenderFrame()
         ImGui::End();
     }
 
-    constexpr uint32_t minThreads = 1u;
-
     if (uiState.settingsWindowVisible)
-    {
-        ImGui::SetNextWindowSize(ImVec2(0.f, 0.f), ImGuiCond_Always);
-        if (ImGui::Begin("Settings", &uiState.settingsWindowVisible, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize))
-        {
-            // ===============================================================================================================
-            ImGui::SeparatorText("Export");
+        DrawSettingsWindow(&uiState);
 
-            ImGui::Checkbox("Export full asset paths", &g_ExportSettings.exportPathsFull);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Enables exporting of assets to their full path within the export directory, as shown by the listed asset names.\nWhen disabled, assets will be exported into the root-level of a folder named after the asset's type (e.g. \"material/\",\"ui_image/\").");
-            
-            ImGui::Checkbox("Export asset dependencies", &g_ExportSettings.exportAssetDeps);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Enables exporting of all dependencies that are associated with any asset that is being exported.");
-            
-            ImGui::Checkbox("Disable CacheDB names", &g_ExportSettings.disableCachedNames);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Disables loading names from the cache file, new names will still be added.");
-
-            // texture settings
-            ImGui::SeparatorText("Export (Textures)");
-
-            ImGui::Combo("Material Texture Names", reinterpret_cast<int*>(&g_ExportSettings.exportTextureNameSetting), s_TextureExportNameSetting, static_cast<int>(ARRAYSIZE(s_TextureExportNameSetting)));
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Naming scheme for exporting textures via materials options are as follows:\nGUID: exports only using the asset's GUID as a name.\nReal: exports texture using a real name (asset name or guid if no name).\nText: exports the texture with a text name always, generating one if there is none provided.\nSemantic: exports with a generated name all the time, useful for models.");
-
-            ImGui::Combo("Normal Recalc", reinterpret_cast<int*>(&g_ExportSettings.exportNormalRecalcSetting), s_NormalExportRecalcSetting, static_cast<int>(ARRAYSIZE(s_NormalExportRecalcSetting)));
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("None: exports the normal as it is stored.\nDirectX: exports with a generated blue channel.\nOpenGL: exports with a generated blue channel and inverts the green channel.");
-
-            ImGui::Checkbox("Export Material Textures", &g_ExportSettings.exportMaterialTextures);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Enables exporting of all textures that are associated with any material asset that is being exported.");
-
-            // model settings
-            ImGui::SeparatorText("Export (Models)");
-
-            ImGui::Checkbox("Export Sequences", &g_ExportSettings.exportRigSequences);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Enables exporting of all animation sequences that are associated with any rig or model asset that is being exported.");
-
-            ImGui::Checkbox("Export Skin", &g_ExportSettings.exportModelSkin);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Enables exporting a model with the previewed skin.");
-
-            ImGui::Checkbox("Truncate Materials", &g_ExportSettings.exportModelMatsTruncated);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Truncates material names on SMD.");
-
-            ImGui::Checkbox("Enable QCI Files", &g_ExportSettings.exportQCIFiles);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("QC file will be split into multiple include files.");
-
-            ImGui::PushItemWidth(48.0f);
-            ImGui::InputScalar("##QCTargetMajor", ImGuiDataType_U16, reinterpret_cast<uint16_t*>(&g_ExportSettings.qcMajorVersion), nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
-            ImGui::SameLine();
-            ImGui::InputScalar("##QCTargetMinor", ImGuiDataType_U16, reinterpret_cast<uint16_t*>(&g_ExportSettings.qcMinorVersion), nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
-            ImGui::PopItemWidth();
-            ImGui::SameLine();
-            ImGui::Text("QC Target Version");
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Desired version for QC files to be compatible with.");
-
-            // physics settings
-            ImGui::InputInt("Physics contents filter", reinterpret_cast<int*>(&g_ExportSettings.exportPhysicsContentsFilter), 1, 100, ImGuiInputTextFlags_CharsHexadecimal);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Filter physics meshes in or out based on selected contents.");
-
-            ImGui::Checkbox("Physics contents filter exclusive", &g_ExportSettings.exportPhysicsFilterExclusive);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Exclude physics meshes containing any of the specified contents.");
-
-            ImGui::Checkbox("Physics contents filter require all", &g_ExportSettings.exportPhysicsFilterAND);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Filter only physics meshes containing all specified contents.");
-
-            // ===============================================================================================================
-            ImGui::SeparatorText("Parsing");
-
-            ImGui::Combo("Compression Level", reinterpret_cast<int*>(&UtilsConfig->compressionLevel), s_CompressionLevelSetting, static_cast<int>(ARRAYSIZE(s_CompressionLevelSetting)));
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Specifies the compression level used when storing parsed assets in memory.\nWARNING: Modify only if you know what you’re doing; otherwise, you may run out of memory.\nNone: no compression.\nSuper Fast: Fastest level with the lowest compression ratio.\nVery Fast: Standard setting; fastest level with a decent compression ratio.\nFast: Fastest level with a good compression ratio.\nNormal: Standard LZ speed with the highest compression ratio.");
-
-            ImGui::SliderScalar("Parse Threads", ImGuiDataType_U32, &UtilsConfig->parseThreadCount, &minThreads, reinterpret_cast<int*>(&maxConcurrentThreads));
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("The number of CPU threads that will be used for loading files.\n\nIn general, the higher the number, the faster RSX will be able to load the selected files.");
-
-            ImGui::SliderScalar("Export Threads", ImGuiDataType_U32, &UtilsConfig->exportThreadCount, &minThreads, reinterpret_cast<int*>(&maxConcurrentThreads));
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("The number of CPU threads that will be used for exporting assets.\n\nA higher number of threads will usually make RSX export assets more quickly, however the increased disk usage may cause decreased performance.");
-
-            // ===============================================================================================================
-            ImGui::SeparatorText("Preview");
-
-            ImGui::SliderFloat("Cull Distance", &g_PreviewSettings.previewCullDistance, PREVIEW_CULL_MIN, PREVIEW_CULL_MAX);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Distance at which render of 3D objects will stop. Note: only updated on startup.\n"); // todo: recreate projection matrix ?
-
-            ImGui::SliderFloat("Movement Speed", &g_PreviewSettings.previewMovementSpeed, PREVIEW_SPEED_MIN, PREVIEW_SPEED_MAX);
-            ImGui::SameLine();
-            g_pImGuiHandler->HelpMarker("Speed at which the camera moves through the 3D scene.\n");
-            
-            // ===============================================================================================================
-            ImGui::SeparatorText("Export Formats");
-
-            for (auto& it : g_assetData.m_assetTypeBindings)
-            {
-                if (it.second.e.exportSettingArr)
-                {
-                    ImGui::Combo(fourCCToString(it.first).c_str(), &it.second.e.exportSetting, it.second.e.exportSettingArr, static_cast<int>(it.second.e.exportSettingArrSize));
-                }
-            }
-
-            ImGui::End();
-        }
-    }
+#if defined(HAS_ITEMFLAV_WINDOW)
+    if (uiState.itemflavWindowVisible)
+        ItemflavWindow_Draw(&uiState);
+#endif
 
     g_pImGuiHandler->HandleProgressBar();
 
@@ -1026,6 +1043,8 @@ void HandleRenderFrame()
             assertm(0, "Failed to load shaders for model preview.");
         }
     }
+
+    prevAssetCount = g_assetData.v_assets.size();
 
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 

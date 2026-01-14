@@ -25,8 +25,7 @@ void MaterialAsset::ParseSnapshot()
         {
             snapshotAsset = asset;
 
-            assertm(asset->extraData(), "extra data should be valid");
-            const MaterialSnapshotAsset* const materialSnapshot = reinterpret_cast<const MaterialSnapshotAsset* const>(asset->extraData());
+            const MaterialSnapshotAsset* const materialSnapshot = asset->extraData<const MaterialSnapshotAsset* const>();
 
             memcpy_s(&dxStates, sizeof(MaterialDXState_t), &materialSnapshot->dxStates, sizeof(MaterialDXState_t));
         }
@@ -69,7 +68,7 @@ const MaterialShaderType_t GetTypeFromMaterialName(const std::filesystem::path& 
         return type;
     }
 
-    Log("** failed to find type for material %s\n", materialPath.string().c_str());
+    Log("MATL: Failed to find material type in path: \n", materialPath.string().c_str());
 
     // [rika]: bad! bad! these materials should(should) be 'gen' but we can't really check that!
     // material\code_private\ui_mrt.rpak
@@ -188,7 +187,7 @@ void LoadMaterialAsset(CAssetContainer* const container, CAsset* const asset)
         }
         default:
         {
-            assertm(false, "incorrect header");
+            assertm(false, "Unknown header size for Material asset version 23");
             break;
         }
         }        
@@ -197,14 +196,14 @@ void LoadMaterialAsset(CAssetContainer* const container, CAsset* const asset)
     }
     default:
     {
-        assertm(false, "unaccounted asset version, will cause major issues!");
+        assertm(false, "Unknown Material asset version");
         return;
     }
     }
 
     std::string materialName = ParseMaterialAssetName(materialAsset);    
  
-    assertm(materialAsset->materialType != MaterialShaderType_t::_TYPE_LEGACY, "unable to parse material shader type");
+    //assertm(materialAsset->materialType != MaterialShaderType_t::_TYPE_LEGACY, "unable to parse material shader type");
 
     pakAsset->SetAssetName(materialName);
     pakAsset->setExtraData(materialAsset);
@@ -233,8 +232,7 @@ void PostLoadMaterialAsset(CAssetContainer* const container, CAsset* const asset
         return;
     }
 
-    MaterialAsset* const materialAsset = reinterpret_cast<MaterialAsset*>(pakAsset->extraData());
-    assertm(materialAsset, "Extra data should be valid at this point.");
+    MaterialAsset* const materialAsset = pakAsset->extraData<MaterialAsset* const>();
 
     // [rika]: parse our snapshot here!
     materialAsset->ParseSnapshot();
@@ -243,7 +241,7 @@ void PostLoadMaterialAsset(CAssetContainer* const container, CAsset* const asset
 
     if (materialAsset->shaderSetAsset)
     {
-        ShaderSetAsset* const shdsAsset = reinterpret_cast<ShaderSetAsset*>(materialAsset->shaderSetAsset->extraData());
+        ShaderSetAsset* const shdsAsset = materialAsset->shaderSetAsset->extraData<ShaderSetAsset*>();
 
         if (shdsAsset->pixelShaderAsset)
         {
@@ -410,8 +408,7 @@ void* PreviewMaterialAsset(CAsset* const asset, const bool firstFrameForAsset)
 {
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-    const MaterialAsset* const materialAsset = reinterpret_cast<MaterialAsset*>(pakAsset->extraData());
-    assertm(materialAsset, "Extra data should be valid at this point.");
+    const MaterialAsset* const materialAsset = pakAsset->extraData<MaterialAsset*>();
 
     static float textureZoom = 1.f;
     static MaterialTexturePreviewData_t selectedResource = { .resourceBindPoint = -1 };
@@ -448,7 +445,7 @@ void* PreviewMaterialAsset(CAsset* const asset, const bool firstFrameForAsset)
 
             if (entry.asset)
             {
-                const TextureAsset* const textureAssetData = reinterpret_cast<const TextureAsset*>(entry.asset->extraData());
+                const TextureAsset* const textureAssetData = entry.asset->extraData<const TextureAsset* const>();
 
                 previewTextureData.textureName = std::filesystem::path(entry.asset->GetAssetName()).filename().string();
                 previewTextureData.width = textureAssetData->width;
@@ -557,7 +554,7 @@ void* PreviewMaterialAsset(CAsset* const asset, const bool firstFrameForAsset)
                                         const TextureAssetEntry_t* const textureEntry = &materialAsset->txtrAssets.at(item->materialTextureIndex);
                                         CPakAsset* const texturePakAsset = textureEntry->asset;
 
-                                        const TextureAsset* const textureAssetData = reinterpret_cast<const TextureAsset*>(texturePakAsset->extraData());
+                                        const TextureAsset* const textureAssetData = texturePakAsset->extraData<const TextureAsset* const>();
 
                                         if (textureAssetData)
                                         {
@@ -847,7 +844,7 @@ void ParseMaterialTextureExportInfo(std::unordered_map<uint32_t, MaterialTexture
             continue;
 
         MaterialTextureExportInfo_s info(exportPath, txtrAsset);
-        TextureAsset* thisTexture = reinterpret_cast<TextureAsset*>(txtrAsset->extraData());
+        TextureAsset* const thisTexture = txtrAsset->extraData<TextureAsset* const>();
 
         // [rika]: when model export uses this function it can't it TextureNameReal as it could change the export path so that it's not local
         // to the model, which for the time being is not supported. modeled currently calls this with nameSetting as eTextureExportName::TXTR_NAME_SMTC so it's a non issue.
@@ -937,8 +934,7 @@ void ExportMaterialTextures(const int setting, const MaterialAsset* materialAsse
 
         exportPath.append(info->exportName);
 
-        TextureAsset* const textureAsset = reinterpret_cast<TextureAsset* const>(asset->extraData());
-        assertm(textureAsset, "Extra data was not valid");
+        TextureAsset* const textureAsset = asset->extraData<TextureAsset* const>();
 
         switch (setting)
         {
@@ -1083,7 +1079,7 @@ bool ExportMaterialStruct(const MaterialAsset* const materialAsset,
         {
             const MaterialTextureExportInfo_s& info = textureInfo.at(entry.index);
 
-            const TextureAsset* const textureAsset = reinterpret_cast<const TextureAsset*>(info.pTexture->extraData());
+            const TextureAsset* const textureAsset = info.pTexture->extraData<const TextureAsset* const>();
 
             if (textureAsset->type != eTextureType::_UNUSED)
                 toPrint = s_TextureTypeMap.at(textureAsset->type);
@@ -1129,8 +1125,7 @@ bool ExportMaterialAsset(CAsset* const asset, const int setting)
 {
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-    const MaterialAsset* const materialAsset = reinterpret_cast<MaterialAsset*>(pakAsset->extraData());
-    assertm(materialAsset, "Extra data should be valid at this point.");
+    const MaterialAsset* const materialAsset = pakAsset->extraData<const MaterialAsset* const>();
 
     const std::filesystem::path materialPath(asset->GetAssetName());
 
@@ -1216,6 +1211,7 @@ void InitMaterialAssetType()
     static const char* settings[] = { "Base (Textures)", "Uber (Raw)", "Uber (Struct)" }; // [rika]: I'm not a super big fan of these setting names, especially since the first one can do nothing in some cases.
     AssetTypeBinding_t type =
     {
+        .name = "Material",
         .type = 'ltam',
         .headerAlignment = 16,
         .loadFunc = LoadMaterialAsset,

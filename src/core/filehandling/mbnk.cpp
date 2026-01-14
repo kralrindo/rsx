@@ -12,7 +12,7 @@ void HandleMBNKLoad(std::vector<std::string> filePaths)
 	std::atomic<uint32_t> bankLoadingProgress = 0;
 	const ProgressBarEvent_t* const bankLoadProgressBar = g_pImGuiHandler->AddProgressBarEvent("Loading Audio Banks..", static_cast<uint32_t>(filePaths.size()), &bankLoadingProgress, true);
 
-	Log("Started MBNK load.\n");
+	Log("MBNK: Started loading %lld files\n", filePaths.size());
 
 	for (const std::string& path : filePaths)
 	{
@@ -22,7 +22,7 @@ void HandleMBNKLoad(std::vector<std::string> filePaths)
 		}
 		else
 		{
-			Log("bank failed to load!\n");
+			Log("MBNK: Bank '%s' failed to load\n", path.c_str());
 			delete bank;
 		}
 

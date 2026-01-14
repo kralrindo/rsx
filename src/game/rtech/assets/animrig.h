@@ -69,7 +69,14 @@ public:
 		}
 		case eMDLVersion::VERSION_14:
 		{
-			parsedData = ModelParsedData_t(reinterpret_cast<r5::studiohdr_v14_t*>(data));
+			parsedData = ModelParsedData_t(reinterpret_cast<r5::studiohdr_v14_t*>(data), 0);
+			break;
+		}
+		// todo: dected this on animrig! maybe we need to store a global version for models per pak? nodenames will not work on these versions
+		case eMDLVersion::VERSION_14_1:
+		case eMDLVersion::VERSION_15:
+		{
+			parsedData = ModelParsedData_t(reinterpret_cast<r5::studiohdr_v14_t*>(data), 1);
 			break;
 		}
 		}

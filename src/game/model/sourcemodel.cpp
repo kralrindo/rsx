@@ -496,7 +496,7 @@ bool ExportSourceModelAsset(CAsset* const asset, const int setting)
     assertm(srcMdlAsset, "Asset should be valid.");
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path modelPath(srcMdlAsset->GetAssetName());
     const std::string modelStem(modelPath.stem().string());
 
@@ -569,6 +569,7 @@ void InitSourceModelAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Source Model",
         .type = 'ldm',
         .headerAlignment = 8,
         .loadFunc = LoadSourceModelAsset,
@@ -585,7 +586,7 @@ void LoadSourceSequenceAsset(CAssetContainer* container, CAsset* asset)
     UNUSED(container);
 
     CSourceSequenceAsset* const srcSeqAsset = static_cast<CSourceSequenceAsset* const>(asset);
-    seqdesc_t* sequence = nullptr;
+    ModelSeq_t* sequence = nullptr;
 
     switch (srcSeqAsset->GetAssetVersion().majorVer)
     {
@@ -596,7 +597,7 @@ void LoadSourceSequenceAsset(CAssetContainer* container, CAsset* asset)
     case 53:
     {
         const r2::mstudioseqdesc_t* const pSeqdesc = reinterpret_cast<const r2::mstudioseqdesc_t* const>(srcSeqAsset->GetSequenceData());
-        sequence = new seqdesc_t(pSeqdesc);
+        sequence = new ModelSeq_t(pSeqdesc);
 
         break;
     }
@@ -627,7 +628,7 @@ void PostLoadSourceSequenceAsset(CAssetContainer* const container, CAsset* const
     const std::vector<ModelBone_t>* bones = srcSeqAsset->GetRig();
     assertm(!bones->empty(), "we should have bones at this point.");
 
-    seqdesc_t* const seqdesc = srcSeqAsset->GetSequence();
+    ModelSeq_t* const seqdesc = srcSeqAsset->GetSequence();
     switch (srcSeqAsset->GetAssetVersion().majorVer)
     {
     case 52:
@@ -636,7 +637,7 @@ void PostLoadSourceSequenceAsset(CAssetContainer* const container, CAsset* const
     }
     case 53:
     {
-        ParseSeqDesc_R2(seqdesc, bones, reinterpret_cast<const r2::studiohdr_t* const>(srcMdlAsset->GetAssetData()));
+        ParseSequence(seqdesc, bones, reinterpret_cast<const r2::studiohdr_t* const>(srcMdlAsset->GetAssetData()));
 
         break;
     }
@@ -689,7 +690,7 @@ bool ExportSourceSequenceAsset(CAsset* const asset, const int setting)
     }
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path seqPath(srcSeqAsset->GetAssetName());
     const std::string seqStem(seqPath.stem().string());
     const std::string srcStem(std::filesystem::path(srcSeqAsset->GetContainerFileName()).stem().string());
@@ -725,6 +726,7 @@ void InitSourceSequenceAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Source Sequence",
         .type = 'qes',
         .headerAlignment = 8,
         .loadFunc = LoadSourceSequenceAsset,

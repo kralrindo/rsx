@@ -1143,29 +1143,52 @@ void PostLoadModelAsset(CAssetContainer* const pak, CAsset* const asset)
     CPakAsset* const pakAsset = static_cast<CPakAsset*>(asset);
 
     ModelAsset* const modelAsset = reinterpret_cast<ModelAsset*>(pakAsset->extraData());
-    assertm(modelAsset, "Extra data should be valid at this point.");
+
     if (!modelAsset)
+    {
         return;
+    }
 
     // parse sequences for children
-    const uint64_t* guids = reinterpret_cast<const uint64_t*>(modelAsset->animSeqs);
-
-    for (uint16_t seqIdx = 0; seqIdx < modelAsset->numAnimSeqs; seqIdx++)
+    if (modelAsset->numAnimSeqs)
     {
-        const uint64_t guid = guids[seqIdx];
+        ModelParsedData_t* const parsedData = modelAsset->GetParsedData();
 
-        CPakAsset* const animSeqAsset = g_assetData.FindAssetByGUID<CPakAsset>(guid);
+        parsedData->numExternalSequences = modelAsset->numAnimSeqs;
+        parsedData->externalSequences = modelAsset->animSeqs;
 
-        if (nullptr == animSeqAsset)
-            continue;
+        const uint64_t* guids = reinterpret_cast<const uint64_t*>(modelAsset->animSeqs);
 
-        AnimSeqAsset* const animSeq = reinterpret_cast<AnimSeqAsset* const>(animSeqAsset->extraData());
+        for (uint16_t seqIdx = 0; seqIdx < modelAsset->numAnimSeqs; seqIdx++)
+        {
+            const uint64_t guid = guids[seqIdx];
 
-        if (nullptr == animSeq)
-            continue;
+            CPakAsset* const animSeqAsset = g_assetData.FindAssetByGUID<CPakAsset>(guid);
 
-        animSeq->parentModel = !animSeq->parentModel ? modelAsset : animSeq->parentModel;
+            if (nullptr == animSeqAsset)
+            {
+                continue;
+            }
+
+            AnimSeqAsset* const animSeq = reinterpret_cast<AnimSeqAsset* const>(animSeqAsset->extraData());
+
+            if (nullptr == animSeq)
+            {
+                continue;
+            }
+
+            animSeq->parentModel = !animSeq->parentModel ? modelAsset : animSeq->parentModel;
+        }
     }
+
+    // external include models
+    if (modelAsset->numAnimRigs)
+    {
+        ModelParsedData_t* const parsedData = modelAsset->GetParsedData();
+
+        parsedData->numExternalIncludeModels = modelAsset->numAnimRigs;
+        parsedData->externalIncludeModels = modelAsset->animRigs;
+    }    
 
     // [rika]: in post load now because it depends on asqd
     switch (modelAsset->version)
@@ -1224,7 +1247,6 @@ void* PreviewModelAsset(CAsset* const asset, const bool firstFrameForAsset)
     assertm(pakAsset, "Asset should be valid.");
 
     ModelAsset* const modelAsset = reinterpret_cast<ModelAsset*>(pakAsset->extraData());
-    assertm(modelAsset, "Extra data should be valid at this point.");
 
     ModelParsedData_t* const parsedData = modelAsset->GetParsedData();
 
@@ -1551,7 +1573,7 @@ bool ExportModelAsset(CAsset* const asset, const int setting)
     assertm(pakAsset, "Asset should be valid.");
 
     const ModelAsset* const modelAsset = reinterpret_cast<ModelAsset*>(pakAsset->extraData());
-    assertm(modelAsset, "Extra data should be valid at this point.");
+
     if (!modelAsset)
         return false;
 
@@ -1560,7 +1582,7 @@ bool ExportModelAsset(CAsset* const asset, const int setting)
     assertm(modelAsset->name, "No name for model.");
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path modelPath(modelAsset->name);
     const std::string modelStem(modelPath.stem().string());
 
@@ -1600,7 +1622,7 @@ bool ExportModelAsset(CAsset* const asset, const int setting)
 
         for (int i = 0; i < parsedData->NumLocalSeq(); i++)
         {
-            const seqdesc_t* const seqdesc = parsedData->LocalSeq(i);
+            const ModelSeq_t* const seqdesc = parsedData->LocalSeq(i);
 
             outputPath.replace_filename(seqdesc->szlabel);
 
@@ -1659,6 +1681,7 @@ void InitModelAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Model",
         .type = '_ldm',
         .headerAlignment = 8,
         .loadFunc = LoadModelAsset,

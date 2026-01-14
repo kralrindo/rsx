@@ -369,10 +369,14 @@ public:
 			break;
 		}
 		case eMDLVersion::VERSION_14:
+		{
+			parsedData = ModelParsedData_t(reinterpret_cast<r5::studiohdr_v14_t*>(data), 0);
+			break;
+		}
 		case eMDLVersion::VERSION_14_1:
 		case eMDLVersion::VERSION_15:
 		{
-			parsedData = ModelParsedData_t(reinterpret_cast<r5::studiohdr_v14_t*>(data));
+			parsedData = ModelParsedData_t(reinterpret_cast<r5::studiohdr_v14_t*>(data), 1);
 			break;
 		}
 		}
@@ -437,3 +441,5 @@ public:
 	const vvc::vertexColorFileHeader_t* const GetVVC() const { return StudioHdr().vvcSize > 0 ? reinterpret_cast<const vvc::vertexColorFileHeader_t* const>(vertexComponentData + StudioHdr().vvcOffset) : nullptr; }
 	const vvw::vertexBoneWeightsExtraFileHeader_t* const GetVVW() const { return StudioHdr().vvwSize > 0 ? reinterpret_cast<const vvw::vertexBoneWeightsExtraFileHeader_t* const>(vertexComponentData + StudioHdr().vvwOffset) : nullptr; }
 };
+
+void ParseExternalSequences(ModelParsedData_t* const parsedData, const ModelAsset* const modelAsset);

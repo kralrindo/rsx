@@ -53,15 +53,32 @@ public:
 		return reinterpret_cast<const char* const>(out);
 	}
 
+	// reserve a data block in this buffer
+	void* const ReserveBufferData(const size_t dataSize)
+	{
+		if (VerifyCapcity(dataSize) == false)
+		{
+			assertm(false, "insufficient capacity");
+			return nullptr;
+		}
+
+		void* const out = Writer();
+		AdvanceWriter(dataSize);
+
+		return out;
+	}
+
 	inline void WriteString(const char* const str, const size_t length)
 	{
-		strncpy_s(Writer(), Capacity(), str, length);
-		AdvanceWriter(length);
+		const size_t SIZE = strncpy_mem(Writer(), Capacity(), str, length);
+
+		AdvanceWriter(SIZE);
 	}
 
 	inline void WriteString(const char* const str)
 	{
 		const size_t length = strnlen_s(str, Capacity());
+
 		WriteString(str, length);
 	}
 

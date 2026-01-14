@@ -121,19 +121,17 @@ void PostLoadUIImageAtlasAsset(CAssetContainer* const pak, CAsset* const asset)
 
     // Setup main texture.
     UIImageAtlasAsset* const uiAsset = reinterpret_cast<UIImageAtlasAsset*>(pakAsset->extraData());
-    assertm(uiAsset, "Extra data should be valid at this point.");
 
     CPakAsset* const textureAsset = g_assetData.FindAssetByGUID<CPakAsset>(uiAsset->atlasGUID);
     assertm(textureAsset, "Asset should be valid.");
 
     TextureAsset* const txtrAsset = reinterpret_cast<TextureAsset*>(textureAsset->extraData());
-    assertm(txtrAsset, "Extra data should be valid.");
 
     if (txtrAsset->name)
     {
         std::string atlasName = "ui_image_atlas/" + std::string(txtrAsset->name) + ".rpak";
 
-        assertm(pakAsset->data()->guid == RTech::StringToGuid(atlasName.c_str()), "hashed name for atlas did not match existing guid\n");
+        //assertm(pakAsset->data()->guids == RTech::StringToGuid(atlasName.c_str()), "hashed name for atlas did not match existing guid\n");
 
         pakAsset->SetAssetName(atlasName, true);
     }
@@ -248,7 +246,6 @@ void* PreviewUIImageAtlasAsset(CAsset* const asset, const bool firstFrameForAsse
     }
 
     UIImageAtlasAsset* const uiAsset = reinterpret_cast<UIImageAtlasAsset*>(pakAsset->extraData());
-    assertm(uiAsset, "Extra data should be valid at this point.");
 
     static float textureZoom = 1.0f;
     static int lastSelectedTexture = -1;
@@ -470,6 +467,7 @@ enum eUIImageAtlasExportSetting
     PNG_T,  // PNG (Textures)
     DDS_AT, // DDS (Atlas)
     DDS_T,  // DDS (Textures)
+    META_J, // Metadata (JSON)
 };
 
 //static_assert(s_AssetTypePaths.count(PakAssetType_t::UIMG));
@@ -478,10 +476,9 @@ bool ExportUIImageAtlasAsset(CAsset* const asset, const int setting)
 {
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
     UIImageAtlasAsset* const uiAsset = reinterpret_cast<UIImageAtlasAsset*>(pakAsset->extraData());
-    assertm(uiAsset, "Extra data should be valid at this point.");
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME); // 
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path atlasPath(asset->GetAssetName());
 
     // truncate paths?
@@ -609,6 +606,64 @@ bool ExportUIImageAtlasAsset(CAsset* const asset, const int setting)
 
         return true;
     }
+    case eUIImageAtlasExportSetting::META_J:
+    {
+        // Add dds for file extension.
+        exportPath.replace_extension("json");
+
+        std::string jsonData;
+
+        jsonData += "{\n"
+                    "\t\"atlas\": \"" + atlasPath.stem().string() + "\",\n"
+                    "\t\"unkCount\": " + std::to_string(uiAsset->unkCount) + ",\n"
+                    "\t\"images\": [\n";
+
+        for (auto& it : uiAsset->imageArray)
+        {
+            // One final image always exists to preview the entire atlas in one go. We don't want it here.
+            if (!it.offsets)
+            {
+                // this is quite bad, but we need to remove the last two characters so we can get rid of the
+                // comma from the final object in the array
+                jsonData.pop_back(); // '\n'
+                jsonData.pop_back(); // ','
+
+                // Get our newline back!
+                jsonData += "\n";
+                continue;
+
+            }
+
+            jsonData += "\t\t{\n"
+                "\t\t\t\"path\": \"" + it.path + "\",\n"
+                "\t\t\t\"width\": " + std::to_string(it.width) + ",\n"
+                "\t\t\t\"height\": " + std::to_string(it.height) + ",\n"
+                "\t\t\t\"posX\": " + std::to_string(it.posX) + ",\n"
+                "\t\t\t\"posY\": " + std::to_string(it.posY) + ",\n"
+                "\t\t\t\"cropInsetLeft\": " + std::to_string(it.offsets->cropInsetLeft) + ",\n"
+                "\t\t\t\"cropInsetTop\": " + std::to_string(it.offsets->cropInsetTop) + ",\n"
+                "\t\t\t\"endAnchorX\": " + std::to_string(it.offsets->endAnchorX) + ",\n"
+                "\t\t\t\"endAnchorY\": " + std::to_string(it.offsets->endAnchorY) + ",\n"
+                "\t\t\t\"startAnchorX\": " + std::to_string(it.offsets->startAnchorX) + ",\n"
+                "\t\t\t\"startAnchorY\": " + std::to_string(it.offsets->startAnchorY) + ",\n"
+                "\t\t\t\"scaleRatioX\": " + std::to_string(it.offsets->scaleRatioX) + ",\n"
+                "\t\t\t\"scaleRatioY\": " + std::to_string(it.offsets->scaleRatioY) + "\n"
+                "\t\t},\n";
+        }
+        jsonData += "\t]\n}";
+
+        StreamIO out;
+        if (!out.open(exportPath.string(), eStreamIOMode::Write))
+        {
+            assertm(false, "Failed to open file for write.");
+            return false;
+        }
+
+        out.write(jsonData.c_str(), jsonData.length());
+
+        out.close();
+        return true;
+    }
     default:
     {
         assertm(false, "Export setting is not handled.");
@@ -621,9 +676,10 @@ bool ExportUIImageAtlasAsset(CAsset* const asset, const int setting)
 
 void InitUIImageAtlasAssetType()
 {
-    static const char* settings[] = { "PNG (Atlas)", "PNG (Textures)", "DDS (Atlas)", "DDS (Textures)" };
+    static const char* settings[] = { "PNG (Atlas)", "PNG (Textures)", "DDS (Atlas)", "DDS (Textures)", "Metadata (JSON)"};
     AssetTypeBinding_t type =
     {
+        .name = "UI Image Atlas",
         .type = 'gmiu',
         .headerAlignment = 8,
         .loadFunc = LoadUIImageAtlasAsset,

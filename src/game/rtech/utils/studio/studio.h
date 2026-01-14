@@ -16,8 +16,24 @@ static constexpr int s_MaxStudioTriangles	= 65536; // normal source 131072
 static constexpr int s_MaxStudioTriIndices	= s_MaxStudioTriangles * 3; // max number of indices, because a triangle is three indices, and the above value is just triangles
 #define MAXSTUDIOSRCVERTS		(8*65536)
 
+// https://github.com/Source-SDK-Archives/source-sdk-2006-ep1/blob/master/utils/studiomdl/studiomdl.h#L26
 #define IDSTUDIOHEADER				MAKEFOURCC('I', 'D', 'S', 'T') // little-endian "IDST"
 #define IDSTUDIOANIMGROUPHEADER		MAKEFOURCC('I', 'D', 'A', 'G') // little-endian "IDAG"
+
+#define MAXSTUDIOANIMFRAMES		2000	// max frames per animation
+#define MAXSTUDIOANIMS			2000	// total animations
+#define MAXSTUDIOSEQUENCES		1524	// total sequences
+#define MAXSTUDIOSRCBONES		512		// bones allowed at source movement
+#define MAXSTUDIOMODELS			32		// sub-models per model
+#define MAXSTUDIOBODYPARTS		32
+#define MAXSTUDIOMESHES			256
+#define MAXSTUDIOEVENTS			1024
+#define MAXSTUDIOBONEWEIGHTS	3
+#define MAXSTUDIOCMDS			64
+#define MAXSTUDIOMOVEKEYS		64
+#define MAXSTUDIOIKRULES		64
+#define MAXSTUDIONAME			128
+#define MAXSTUDIOWEIGHTLIST		128
 
 #define UNPACKWEIGHT(w) static_cast<float>(w / 32767.f) // weights in vvw and vg are packed into a signed 16 bit value that uses the entire number range
 
@@ -1164,15 +1180,33 @@ inline const char* StudioContentFlagString(const int contents)
 	switch (contents)
 	{
 	case CONTENTS_EMPTY:
+	{
 		return "notsolid";
+	}
 	case CONTENTS_SOLID:
+	{
 		return "solid";
+	}
+	case CONTENTS_WINDOW:
+	{
+		return "window";
+	}
 	case CONTENTS_GRATE:
+	{
 		return "grate";
+	}
+	case CONTENTS_WATER:
+	{
+		return "water";
+	}
 	case CONTENTS_MONSTER:
+	{
 		return "monster";
+	}
 	case CONTENTS_DEBRIS:
+	{
 		return "debris";
+	}
 	case CONTENTS_LADDER:
 	{
 		assertm(false, "reSource doesn't support this, would be different in r5 as well.");
@@ -1187,7 +1221,4 @@ inline const char* StudioContentFlagString(const int contents)
 }
 
 // generic pre def
-struct animmovement_t;
-struct animdesc_t;
-struct seqdesc_t;
 struct studiohdr_generic_t;

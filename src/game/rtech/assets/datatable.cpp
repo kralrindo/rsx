@@ -40,8 +40,7 @@ void* PreviewDatatableAsset(CAsset* const asset, const bool firstFrameForAsset)
 
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-    const DatatableAsset* const dtblAsset = reinterpret_cast<DatatableAsset*>(pakAsset->extraData());
-    assertm(dtblAsset, "Extra data should be valid at this point.");
+    const DatatableAsset* const dtblAsset = pakAsset->extraData<const DatatableAsset* const>();
 
     ImGui::TextUnformatted(std::format("Datatable: {} (0x{:X})", nullptr != dtblAsset->name ? dtblAsset->name : "null name", asset->GetAssetGUID()).c_str());
     ImGui::Text("Columns: %i Rows: %i", dtblAsset->numColumns, dtblAsset->numRows);
@@ -52,7 +51,7 @@ void* PreviewDatatableAsset(CAsset* const asset, const bool firstFrameForAsset)
 
     const ImVec2 outerSize = ImVec2(0.f, 0.f);
 
-    if (ImGui::BeginTable("Datatable", dtblAsset->numColumns, tableFlags, outerSize))
+    if (ImGui::BeginTable("DataTable", dtblAsset->numColumns, tableFlags, outerSize))
     {
         for (int i = 0; i < dtblAsset->numColumns; i++)
         {
@@ -112,7 +111,7 @@ void* PreviewDatatableAsset(CAsset* const asset, const bool firstFrameForAsset)
                     {
                         const char* const data = *reinterpret_cast<const char* const* const>(row + column->rowOffset);
 
-                        // catch excluded data
+                        // Detect data stripped by DFS
                         if (data[0] == 0xf)
                         {
                             ImGui::TextUnformatted("!!DATA EXCLUDED!!");
@@ -126,14 +125,14 @@ void* PreviewDatatableAsset(CAsset* const asset, const bool firstFrameForAsset)
                     }
                     default:
                     {
-                        assertm(false, "invalid datatable type");
+                        assertm(false, "Unknown or invalid DataTable column type");
                         break;
                     }
                     }
                 }
             }
 
-            ImGui::PopID(); // no longer working on this id
+            ImGui::PopID();
         }
 
         ImGui::EndTable();
@@ -209,7 +208,7 @@ bool ExportCSVDatatableAsset(CPakAsset* const asset, const DatatableAsset* const
             {
                 const char* const data = *reinterpret_cast<const char* const* const>(row + column->rowOffset);
 
-                // catch excluded data
+                // Detect data stripped by DFS
                 if (data[0] == 0xf)
                 {
                     out << "\"" << "!!DATA EXCLUDED!!" << "\"";
@@ -222,7 +221,7 @@ bool ExportCSVDatatableAsset(CPakAsset* const asset, const DatatableAsset* const
             }
             default:
             {
-                assertm(false, "invalid datatable type");
+                assertm(false, "Unknown or invalid DataTable column type");
                 break;
             }
             }
@@ -231,10 +230,12 @@ bool ExportCSVDatatableAsset(CPakAsset* const asset, const DatatableAsset* const
         }
     }
 
-    // final row to save the type of each column
+    // Write a final row to the CSV file as a "type row"
+    // This row simply contains the names of each column's data type
     for (int i = 0; i < dtblAsset->numColumns; i++)
     {
         out << s_DatatableColumnTypeName[static_cast<int>(dtblAsset->GetColumn(i)->type)];
+
         // rapidcsv handles an empty line as a new entry, so unlike other columns,
         // we shouldn't newline here when we reached the last column as otherwise
         // we will treat the empty line as the asset type row in repak.
@@ -251,10 +252,9 @@ bool ExportDatatableAsset(CAsset* const asset, const int setting)
 {
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-    const DatatableAsset* const dtblAsset = reinterpret_cast<DatatableAsset*>(pakAsset->extraData());
-    assertm(dtblAsset, "Extra data should be valid at this point.");
+    const DatatableAsset* const dtblAsset = pakAsset->extraData<const DatatableAsset* const>();
 
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     std::filesystem::path stgsPath = asset->GetAssetName();
 
     exportPath.append(stgsPath.parent_path().string());
@@ -297,6 +297,7 @@ void InitDatatableAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "DataTable",
         .type = 'lbtd',
         .headerAlignment = 8,
         .loadFunc = LoadDatatableAsset,

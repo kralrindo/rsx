@@ -49,12 +49,12 @@ void HandleMDLLoad(std::vector<std::string> filePaths)
         }
         case 54: // r5 (should be pak only)
         {
-            Log("Studio version 54 is only supported through RPak export, skipping...\n");
+            Log("SOURCEMDL: Studio version 54 is only supported through RPak export, skipping...\n");
             continue;
         }
         default:
         {
-            Log("Studio version %i is not supported, skipping...\n", pStudioHdr->version);
+            Log("SOURCEMDL: Studio version %i is not supported, skipping...\n", pStudioHdr->version);
             continue;
         }
         }

@@ -1422,33 +1422,53 @@ namespace qc
 			ANIM_OPT_FEATURE_ANIM,
 			ANIM_OPT_FEATURE_SEQ,
 			ANIM_OPT_FEATURE_ALL,
+
+			ANIM_OPT_FEATURE_COUNT,
 		};
 
 		enum Options_t : uint32_t
 		{
-			ANIM_OPTION_LOOPING			= 0x1,
-			ANIM_OPTION_SNAP			= 0x2,
-			ANIM_OPTION_DELTA			= 0x4,		
-			ANIM_OPTION_AUTOPLAY		= 0x8,
-			ANIM_OPTION_POST			= 0x10,
-			ANIM_OPTION_NOANIM			= 0x20,
-			ANIM_OPTION_CYCLEPOSE		= 0x80,
-			ANIM_OPTION_REALTIME		= 0x100,
-			ANIM_OPTION_HIDDEN			= 0x400,
+			ANIM_OPTION_NONE = 0x0,
 
-			ANIM_OPTION_WORLDSPACE		= 0x4000,
-			ANIM_OPTION_NOFORCELOOP		= 0x8000,	// do not force the animation loop
+			ANIM_OPTION_LOOPING = 0x1,
+			ANIM_OPTION_SNAP = 0x2,
+			ANIM_OPTION_DELTA = 0x4,
+			ANIM_OPTION_AUTOPLAY = 0x8,
+			ANIM_OPTION_POST = 0x10,
+			ANIM_OPTION_NOANIM = 0x20,
+			ANIM_OPTION_CYCLEPOSE = 0x80,
+			ANIM_OPTION_REALTIME = 0x100,
+			ANIM_OPTION_HIDDEN = 0x400,
 
-			ANIM_OPTION_ROOTMOTION		= 0x40000,	// uses rootmotion style animation track
-			ANIM_OPTION_DEFAULTPOSE		= 0x100000,	// 0x20000 HAS_ANIM flag from apex, if 'noanimation' or 'noanim_keepduration' (STUDIO_ALLZEROS) is used, it will yield different results (goes down different pose path, does not get default bone data)
-			ANIM_OPTION_SUPPGEST		= 0x200000,
+			ANIM_OPTION_WORLDSPACE = 0x4000,
+			ANIM_OPTION_NOFORCELOOP = 0x8000,	// do not force the animation loop
 
-			ANIM_OPTION_AUTOIK			= 0x1000000,
-			ANIM_OPTION_NOAUTOIK		= 0x2000000,
+			ANIM_OPTION_ROOTMOTION = 0x40000,	// uses rootmotion style animation track
+			ANIM_OPTION_DEFAULTPOSE = 0x100000,	// 0x20000 HAS_ANIM flag from apex, if 'noanimation' or 'noanim_keepduration' (STUDIO_ALLZEROS) is used, it will yield different results (goes down different pose path, does not get default bone data)
+			ANIM_OPTION_SUPPGEST = 0x200000,
+
+			ANIM_OPTION_AUTOIK = 0x1000000,
+			ANIM_OPTION_NOAUTOIK = 0x2000000,
+			ANIM_OPTION_FPS = 0x4000000,
 		};
+
+		const uint32_t FeatureMask() const
+		{
+			constexpr uint32_t mask[ANIM_OPT_FEATURE_COUNT] =
+			{
+				ANIM_OPTION_NONE,
+				~(ANIM_OPTION_WORLDSPACE),
+				~(ANIM_OPTION_NOANIM | ANIM_OPTION_DEFAULTPOSE | ANIM_OPTION_ROOTMOTION | ANIM_OPTION_AUTOIK | ANIM_OPTION_NOAUTOIK | ANIM_OPTION_FPS),
+				~(ANIM_OPTION_NONE),
+			};
+
+			return mask[features];
+		}
 
 		uint32_t flags;
 		FeatureSet_t features;
+
+		inline const uint32_t Flags() const { return (flags & FeatureMask()); }
 
 		inline void SetLooping() { flags |= ANIM_OPTION_LOOPING; }
 		inline void SetSnap() { flags |= ANIM_OPTION_SNAP; }
@@ -1467,44 +1487,40 @@ namespace qc
 		inline void SetSuppressGestures() { flags |= ANIM_OPTION_SUPPGEST; }
 
 		inline void SetAutoIK(const bool autoIk) { flags |= autoIk ? ANIM_OPTION_AUTOIK : ANIM_OPTION_NOAUTOIK; }
+		inline void SetFPS() { flags |= ANIM_OPTION_FPS; }
 
-		inline const bool IsLooping() const { return flags & ANIM_OPTION_LOOPING; }
-		inline const bool HasSnap() const { return flags & ANIM_OPTION_SNAP; }
-		inline const bool IsDelta() const { return flags & ANIM_OPTION_DELTA; }
-		inline const bool IsAutoPlay() const { return flags & ANIM_OPTION_AUTOPLAY; }
-		inline const bool HasPost() const { return flags & ANIM_OPTION_POST; }
-		inline const bool HasNoAnim() const { return flags & ANIM_OPTION_NOANIM; }
-		inline const bool HasCyclePose() const { return flags & ANIM_OPTION_CYCLEPOSE; }
-		inline const bool IsRealTime() const { return flags & ANIM_OPTION_REALTIME; }
-		inline const bool IsHidden() const { return flags & ANIM_OPTION_HIDDEN; }
-		inline const bool IsWorldSpace() const { return flags & ANIM_OPTION_WORLDSPACE; }
-		inline const bool HasNoForceLoop() const { return flags & ANIM_OPTION_NOFORCELOOP; }
+		inline const bool IsLooping() const { return Flags() & ANIM_OPTION_LOOPING; }
+		inline const bool HasSnap() const { return Flags() & ANIM_OPTION_SNAP; }
+		inline const bool IsDelta() const { return Flags() & ANIM_OPTION_DELTA; }
+		inline const bool IsAutoPlay() const { return Flags() & ANIM_OPTION_AUTOPLAY; }
+		inline const bool HasPost() const { return Flags() & ANIM_OPTION_POST; }
+		inline const bool HasNoAnim() const { return Flags() & ANIM_OPTION_NOANIM; }
+		inline const bool HasCyclePose() const { return Flags() & ANIM_OPTION_CYCLEPOSE; }
+		inline const bool IsRealTime() const { return Flags() & ANIM_OPTION_REALTIME; }
+		inline const bool IsHidden() const { return Flags() & ANIM_OPTION_HIDDEN; }
+		inline const bool IsWorldSpace() const { return Flags() & ANIM_OPTION_WORLDSPACE; }
+		inline const bool HasNoForceLoop() const { return Flags() & ANIM_OPTION_NOFORCELOOP; }
 
-		inline const bool HasRootMotion() const { return flags & ANIM_OPTION_ROOTMOTION; }
-		inline const bool UseDefaultPose() const { return flags & ANIM_OPTION_DEFAULTPOSE; }
-		inline const bool SuppressGestures() const { return flags & ANIM_OPTION_SUPPGEST; }
+		inline const bool HasRootMotion() const { return Flags() & ANIM_OPTION_ROOTMOTION; }
+		inline const bool UseDefaultPose() const { return Flags() & ANIM_OPTION_DEFAULTPOSE; }
+		inline const bool SuppressGestures() const { return Flags() & ANIM_OPTION_SUPPGEST; }
 
-		inline const bool UseAutoIK() const { return flags & ANIM_OPTION_AUTOIK; }
-		inline const bool UseNoAutoIK() const { return flags & ANIM_OPTION_NOAUTOIK; }
+		inline const bool UseAutoIK() const { return Flags() & ANIM_OPTION_AUTOIK; }
+		inline const bool UseNoAutoIK() const { return Flags() & ANIM_OPTION_NOAUTOIK; }
+		inline const bool UseFPS() const { return Flags() & ANIM_OPTION_FPS; }
 
 		const uint32_t GetUsedOptions() const
 		{
-			constexpr uint32_t maskSequence = ~(ANIM_OPTION_NOANIM | ANIM_OPTION_ROOTMOTION | ANIM_OPTION_DEFAULTPOSE | ANIM_OPTION_AUTOIK | ANIM_OPTION_NOAUTOIK);
-			constexpr uint32_t maskAnimation = ~(ANIM_OPTION_WORLDSPACE);
-
 			switch (features)
 			{
 			case ANIM_OPT_FEATURE_ANIM:
-			{
-				return __popcnt(flags & maskAnimation);
-			}
 			case ANIM_OPT_FEATURE_SEQ:
 			{
-				return __popcnt(flags & maskSequence);
+				return __popcnt(Flags());
 			}
 			case ANIM_OPT_FEATURE_ALL:
 			{
-				return __popcnt(flags & ~ANIM_OPTION_DELTA) + (flags & ANIM_OPTION_DELTA ? 2u : 0u);
+				return __popcnt(Flags()) + IsDelta();
 			}
 			default:
 			{
@@ -1853,7 +1869,7 @@ namespace qc
 			numOptions += GetHeight() + SEQ_ADD_OPT(numBlends > 1); // blends & blendwidth
 			numOptions += SEQ_ADD_OPT(param[0]);
 			numOptions += SEQ_ADD_OPT(param[1]);
-			numOptions += SEQ_ADD_OPT(localentrynode && localexitnode);
+			numOptions += SEQ_ADD_OPT(localentrynode || localexitnode);
 			numOptions += SEQ_ADD_OPT(exitphase!= 0.0f);
 			numOptions += SEQ_ADD_OPT(keyValues);
 

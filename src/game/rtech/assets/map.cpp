@@ -20,6 +20,7 @@ void InitMapAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Map",
         .type = 'pamr',
         .headerAlignment = 8,
         .loadFunc = LoadMapAsset,

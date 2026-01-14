@@ -2227,7 +2227,7 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandAnimation_Option_NoAnimKeepDuration(QC_OPT_NONE, "noanim_keepduration", s_CommandOptionFormatNameNewLine, s_QCVersion_CSGO, s_QCVersion_R5_RETAIL); // not in p2, but in csgo, and seemingly in r1
 	constexpr CommandOptionDesc_t s_CommandAnimation_Option_NoAutoIK(QC_OPT_NONE, "noautoik", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandAnimation_Option_AutoIK(QC_OPT_NONE, "autoik", s_CommandOptionFormatNameNewLine);
-	constexpr CommandOptionDesc_t s_CommandAnimation_Option_Subtract(QC_OPT_STRING, "subtract", s_CommandOptionFormatNameParentLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_Subtract(QC_OPT_STRING, "subtract", s_CommandOptionFormatNameNewLine); // move back to s_CommandOptionFormatNameParentLine when supported, being on end of line as comment fails compile
 	constexpr CommandOptionDesc_t s_CommandAnimation_Option_WeightList(QC_OPT_STRING, "weightlist", s_CommandOptionFormatNameNewLine);
 
 	// motions
@@ -2238,6 +2238,7 @@ namespace qc
 	// ik rule
 	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule(QC_OPT_ARRAY, "ikrule", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKFixup(QC_OPT_ARRAY, "ikfixup", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Chain(QC_OPT_STRING, "chain", s_CommandOptionFormatDefault);
 	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Touch(QC_OPT_STRING, "touch", s_CommandOptionFormatNameParentLine);
 	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Footstep(QC_OPT_NONE, "footstep", s_CommandOptionFormatNameParentLine);
 	constexpr CommandOptionDesc_t s_CommandAnimation_Option_IKRule_Attachment(QC_OPT_STRING, "attachment", s_CommandOptionFormatNameParentLine);
@@ -2285,6 +2286,8 @@ namespace qc
 	constexpr CommandOptionDesc_t s_CommandSequence_Option_Node(QC_OPT_STRING, "node", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandSequence_Option_Transition(QC_OPT_PAIR, "transition", s_CommandOptionFormatNameNewLine);
 	constexpr CommandOptionDesc_t s_CommandSequence_Option_RTransition(QC_OPT_PAIR, "rtransition", s_CommandOptionFormatNameNewLine);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_EntryNode(QC_OPT_STRING, "entrynode", s_CommandOptionFormatNameNewLine, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
+	constexpr CommandOptionDesc_t s_CommandSequence_Option_ExitNode(QC_OPT_STRING, "exitnode", s_CommandOptionFormatNameNewLine, s_QCVersion_R5_080, s_QCVersion_R5_RETAIL);
 
 	constexpr CommandOptionDesc_t s_CommandSequence_Option_ExitPhase(QC_OPT_FLOAT, "exitphase", s_CommandOptionFormatNameNewLine);
 
@@ -2356,6 +2359,10 @@ namespace qc
 	{
 		CommandOption_t* const options = ikRuleArray->options;
 		uint32_t optionsIndex = 0;
+
+		options[optionsIndex].Init(&s_CommandAnimation_Option_IKRule_Chain);
+		options[optionsIndex].SetPtr(ikRule->chainname);
+		optionsIndex++;
 
 		switch (ikRule->type)
 		{
@@ -2511,136 +2518,138 @@ namespace qc
 		const CommandFormat_t format = forceNoParentLine ? s_CommandOptionFormatNameNewLine : s_CommandOptionFormatNameParentLine;
 		const AnimationOptions_t animOptions = animData->options;
 
-		if (animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_SEQ)
+		if (animOptions.GetUsedOptions() == 0u)
+		{
+			return;
+		}
+
+		if (animOptions.UseFPS())
 		{
 			options[optionsIndex].Init(&s_CommandAnimation_Option_FPS);
 			options[optionsIndex].SetRaw(&animData->fps, 1, sizeof(float));
 			optionsIndex++;
 		}
 
-		if (animOptions.GetUsedOptions())
+		if (animOptions.IsLooping())
 		{
-			if (animOptions.IsLooping())
+			options[optionsIndex].Init(&s_CommandAnimation_Option_Loop);
+			options[optionsIndex].SetFormat(format);
+			optionsIndex++;
+		}
+
+		if (animOptions.HasSnap())
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_Snap);
+			options[optionsIndex].SetFormat(format);
+			optionsIndex++;
+		}
+
+		if (animOptions.IsDelta())
+		{
+			if (animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_SEQ)
 			{
-				options[optionsIndex].Init(&s_CommandAnimation_Option_Loop);
-				options[optionsIndex].SetFormat(format);
+				options[optionsIndex].Init(&s_CommandAnimation_Option_Subtract);
+				options[optionsIndex].SetPtr(animData->subtractPath);
+				options[optionsIndex].data.format |= QC_FMT_COMMENT; // temp
 				optionsIndex++;
 			}
 
-			if (animOptions.HasSnap())
+			if (animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM)
 			{
-				options[optionsIndex].Init(&s_CommandAnimation_Option_Snap);
-				options[optionsIndex].SetFormat(format);
+				options[optionsIndex].Init(&s_CommandSequence_Option_Delta);
 				optionsIndex++;
 			}
+		}
 
-			if (animOptions.IsDelta())
+		if (animOptions.IsAutoPlay())
+		{
+			assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "autoplay on animation?");
+
+			options[optionsIndex].Init(&s_CommandSequence_Option_AutoPlay);
+			optionsIndex++;
+		}
+
+		if (animOptions.HasPost())
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_Post);
+			options[optionsIndex].SetFormat(format);
+			optionsIndex++;
+		}
+
+		if (animOptions.HasNoAnim())
+		{
+			if (animData->numFrames > 1)
 			{
-				if (animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_SEQ)
-				{
-					options[optionsIndex].Init(&s_CommandAnimation_Option_Subtract);
-					options[optionsIndex].SetPtr(animData->subtractPath);
-					options[optionsIndex].data.format |= QC_FMT_COMMENT; // temp
-					optionsIndex++;
-				}
-
-				if (animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM)
-				{
-					options[optionsIndex].Init(&s_CommandSequence_Option_Delta);
-					optionsIndex++;
-				}
+				options[optionsIndex].Init(&s_CommandAnimation_Option_NoAnimKeepDuration);
+			}
+			else
+			{
+				options[optionsIndex].Init(&s_CommandAnimation_Option_NoAnim);
 			}
 
-			if (animOptions.IsAutoPlay())
-			{
-				assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "autoplay on animation?");
+			optionsIndex++;
+		}
 
-				options[optionsIndex].Init(&s_CommandSequence_Option_AutoPlay);
-				optionsIndex++;
-			}
+		if (animOptions.IsRealTime())
+		{
+			assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "realtime on animation?");
 
-			if (animOptions.HasPost())
-			{
-				options[optionsIndex].Init(&s_CommandAnimation_Option_Post);
-				options[optionsIndex].SetFormat(format);
-				optionsIndex++;
-			}
+			options[optionsIndex].Init(&s_CommandSequence_Option_RealTime);
+			optionsIndex++;
+		}
 
-			if (animOptions.HasNoAnim())
-			{
-				if (animData->numFrames > 1)
-				{
-					options[optionsIndex].Init(&s_CommandAnimation_Option_NoAnimKeepDuration);
-				}
-				else
-				{
-					options[optionsIndex].Init(&s_CommandAnimation_Option_NoAnim);
-				}
+		if (animOptions.IsHidden())
+		{
+			assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "hidden on animation?");
 
-				optionsIndex++;
-			}
+			options[optionsIndex].Init(&s_CommandSequence_Option_Hidden);
+			optionsIndex++;
+		}
 
-			if (animOptions.IsRealTime())
-			{
-				assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "realtime on animation?");
+		if (animOptions.IsWorldSpace())
+		{
+			assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "worldspace on animation?");
 
-				options[optionsIndex].Init(&s_CommandSequence_Option_RealTime);
-				optionsIndex++;
-			}
+			options[optionsIndex].Init(&s_CommandSequence_Option_WorldSpace);
+			optionsIndex++;
+		}
 
-			if (animOptions.IsHidden())
-			{
-				assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "hidden on animation?");
+		if (animOptions.HasNoForceLoop())
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_NoForceLoop);
+			options[optionsIndex].SetFormat(format);
+			optionsIndex++;
+		}
 
-				options[optionsIndex].Init(&s_CommandSequence_Option_Hidden);
-				optionsIndex++;
-			}
+		if (animOptions.UseNoAutoIK())
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_NoAutoIK);
+			optionsIndex++;
+		}
 
-			if (animOptions.IsWorldSpace())
-			{
-				assertm(animOptions.features != AnimationOptions_t::ANIM_OPT_FEATURE_ANIM, "worldspace on animation?");
+		if (animOptions.UseAutoIK())
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_AutoIK);
+			optionsIndex++;
+		}
 
-				options[optionsIndex].Init(&s_CommandSequence_Option_WorldSpace);
-				optionsIndex++;
-			}
+		// respawn options
+		if (animOptions.HasRootMotion())
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_RootMotion);
+			optionsIndex++;
+		}
 
-			if (animOptions.HasNoForceLoop())
-			{
-				options[optionsIndex].Init(&s_CommandAnimation_Option_NoForceLoop);
-				options[optionsIndex].SetFormat(format);
-				optionsIndex++;
-			}
+		if (animOptions.SuppressGestures())
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_SuppressGesture);
+			optionsIndex++;
+		}
 
-			if (animOptions.UseNoAutoIK())
-			{
-				options[optionsIndex].Init(&s_CommandAnimation_Option_NoAutoIK);
-				optionsIndex++;
-			}
-
-			if (animOptions.UseAutoIK())
-			{
-				options[optionsIndex].Init(&s_CommandAnimation_Option_AutoIK);
-				optionsIndex++;
-			}
-
-			// respawn options
-			if (animOptions.HasRootMotion())
-			{
-				options[optionsIndex].Init(&s_CommandAnimation_Option_RootMotion);
-				optionsIndex++;
-			}
-
-			if (animOptions.SuppressGestures())
-			{
-				options[optionsIndex].Init(&s_CommandAnimation_Option_SuppressGesture);
-				optionsIndex++;
-			}
-
-			if (animOptions.UseDefaultPose())
-			{
-				options[optionsIndex].Init(&s_CommandAnimation_Option_DefaultPose);
-				optionsIndex++;
-			}
+		if (animOptions.UseDefaultPose())
+		{
+			options[optionsIndex].Init(&s_CommandAnimation_Option_DefaultPose);
+			optionsIndex++;
 		}
 	}
 
@@ -2715,7 +2724,7 @@ namespace qc
 
 		const AnimationData_t* const animData = reinterpret_cast<const AnimationData_t* const>(data);
 
-		const uint32_t usedOptions = 3u + animData->EstimateOptionCount_Anim();
+		const uint32_t usedOptions = 2u + animData->EstimateOptionCount_Anim(); // name & filepath always present
 		CommandOption_t* const options = new CommandOption_t[usedOptions];
 
 		uint32_t optionsIndex = 0u;
@@ -2906,9 +2915,7 @@ namespace qc
 
 		const SequenceData_t* const seqData = reinterpret_cast<const SequenceData_t* const>(data);
 
-		const bool animationImplied = seqData->options.features == AnimationOptions_t::ANIM_OPT_FEATURE_ALL;
-
-		const uint32_t usedOptions = animationImplied + seqData->EstimateOptionCount_Seq();
+		const uint32_t usedOptions = seqData->EstimateOptionCount_Seq();
 		CommandOption_t* options = new CommandOption_t[usedOptions];
 
 		uint32_t optionsIndex = 0u;
@@ -2923,7 +2930,16 @@ namespace qc
 			for (int i = 0; i < seqData->numBlends; i += seqData->GetWidth())
 			{
 				options[optionsIndex].Init(&s_CommandSequence_Option_Blends);
-				options[optionsIndex].SavePtr(file, seqData->blends + i, seqData->GetWidth(), sizeof(char*) * seqData->GetWidth());
+				
+				if (seqData->GetWidth() == 1)
+				{
+					options[optionsIndex].SetPtr(seqData->blends[i], seqData->GetWidth());
+				}
+				else
+				{
+					options[optionsIndex].SavePtr(file, seqData->blends + i, seqData->GetWidth(), sizeof(char*) * seqData->GetWidth());
+				}
+
 				optionsIndex++;
 			}
 
@@ -2942,7 +2958,7 @@ namespace qc
 		{
 			if (seqData->param[i] == nullptr)
 			{
-				break;
+				continue;
 			}
 
 			const float min_max[2] = { seqData->paramstart[i], seqData->paramend[i] };
@@ -3037,10 +3053,8 @@ namespace qc
 		}
 
 		// nodes
-		if (seqData->localentrynode || seqData->localexitnode)
+		if (seqData->localentrynode && seqData->localexitnode)
 		{
-			assertm(seqData->localentrynode && seqData->localexitnode, "both should be set");
-
 			if (seqData->nodeflags == 1)
 			{
 				const CommandOptionPair_t rTransition(seqData->entrynode, seqData->exitnode);
@@ -3063,6 +3077,19 @@ namespace qc
 				options[optionsIndex].SetPtr(seqData->entrynode);
 				optionsIndex++;
 			}
+		}
+		// apex seems to support setting these independently
+		else if (seqData->localentrynode)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_EntryNode);
+			options[optionsIndex].SetPtr(seqData->entrynode);
+			optionsIndex++;
+		}
+		else if (seqData->localexitnode)
+		{
+			options[optionsIndex].Init(&s_CommandSequence_Option_ExitNode);
+			options[optionsIndex].SetPtr(seqData->exitnode);
+			optionsIndex++;
 		}
 
 		// misc

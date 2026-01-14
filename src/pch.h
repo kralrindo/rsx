@@ -19,12 +19,15 @@
 #include <functional>
 #include <ranges>
 #include <mutex>
+#include <variant>
 
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <Windows.h>
 #include <io.h>
+
+#include <core/features.h>
 
 #include <core/utils/crc32.h>
 #include <core/utils/utils_general.h>

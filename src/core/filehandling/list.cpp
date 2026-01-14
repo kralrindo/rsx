@@ -4,6 +4,33 @@
 
 extern CBufferManager g_BufferManager;
 
+void ExportAssetListCSVToFileStream(std::vector<CGlobalAssetData::AssetLookup_t>* assets, std::ofstream* ofs)
+{
+    *ofs << "type,guid,file_name,asset_name\n";
+    for (size_t i = 0; i < assets->size(); ++i)
+    {
+        const CGlobalAssetData::AssetLookup_t& it = assets->at(i);
+
+        *ofs << fourCCToString(it.m_asset->GetAssetType(), true) << "," << std::hex << it.m_guid << "," << it.m_asset->GetContainerFileName() << "," << it.m_asset->GetAssetName();
+        
+        if(i != assets->size()-1)
+            *ofs << "\n";
+    }
+}
+
+void ExportAssetListTXTToFileStream(std::vector<CGlobalAssetData::AssetLookup_t>* assets, std::ofstream* ofs)
+{
+    for (size_t i = 0; i < assets->size(); ++i)
+    {
+        const CGlobalAssetData::AssetLookup_t& it = assets->at(i);
+
+        *ofs << it.m_asset->GetAssetName();
+
+        if (i != assets->size() - 1)
+            *ofs << "\n";
+    }
+}
+
 void HandleListExportPakAssets(const HWND handle, std::vector<CGlobalAssetData::AssetLookup_t>* assets)
 {
     std::vector<std::string> assetNames(assets->size());

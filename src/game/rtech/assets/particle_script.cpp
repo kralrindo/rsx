@@ -43,6 +43,7 @@ void InitParticleScriptAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Particle Script",
         .type = 'kspr',
         .headerAlignment = 8,
         .loadFunc = LoadParticleScriptAsset,

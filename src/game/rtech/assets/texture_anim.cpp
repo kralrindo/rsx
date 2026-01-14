@@ -48,8 +48,7 @@ bool ExportTextureAnimationAsset(CAsset* const asset, const int setting)
 
     TextureAnimAssetHeader_v1_t* const hdr = reinterpret_cast<TextureAnimAssetHeader_v1_t*>(pakAsset->header());
 
-    //// Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path txanPath(asset->GetAssetName());
 
     // truncate paths?
@@ -90,6 +89,7 @@ void InitTextureAnimationAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Texture Animation",
         .type = 'naxt',
         .headerAlignment = 8,
         .loadFunc = nullptr, // so far txan seems to have never changed, and is still version 1 in retail (R5pc_r5-230_J34_CL8040141_2024_11_27_12_52 as of time writing this).

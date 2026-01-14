@@ -41,6 +41,35 @@ struct SettingsMod_s
 	SettingsModValue_u value;
 };
 
+struct SettingsKVField_t;
+struct SettingsKVValue_t
+{
+	eSettingsFieldType type;
+	uint32_t numChildren;
+
+	std::variant<bool, int, float, float2, float3, const char*, SettingsKVValue_t*, SettingsKVField_t*> value;
+
+	template<typename T>
+	T getValue() const
+	{
+		return std::get<T>(value);
+	}
+
+	~SettingsKVValue_t();
+};
+
+struct SettingsKVField_t
+{
+	const char* key;
+	SettingsKVValue_t value;
+
+	template<typename T>
+	T getValue() const
+	{
+		return std::get<T>(value.value);
+	}
+};
+
 struct SettingsAssetHeader_v1_t
 {
 	uint64_t settingsLayoutGuid;
@@ -99,14 +128,25 @@ public:
 	SettingsAsset(SettingsAssetHeader_v1_t* hdr)
 		: layoutGuid(hdr->settingsLayoutGuid), layoutAsset(nullptr), valueData(hdr->valueData), name(hdr->name),
 		stringData(hdr->stringData), uniqueId(hdr->uniqueID), modNames(hdr->modNames), modValues(hdr->modValues), valueBufSize(hdr->valueBufSize),
-		modFlags(hdr->singlePlayerModCount), modNameCount(hdr->modNameCount), modValuesCount(hdr->modValuesCount)
+		modFlags(hdr->singlePlayerModCount), modNameCount(hdr->modNameCount), modValuesCount(hdr->modValuesCount),
+		_numFields(0), _fields(NULL)
 	{};
 
 	SettingsAsset(SettingsAssetHeader_v2_t* hdr)
 		: layoutGuid(hdr->settingsLayoutGuid), layoutAsset(nullptr), valueData(hdr->valueData), name(hdr->name),
 		stringData(hdr->stringData), uniqueId(hdr->uniqueID), modNames(hdr->modNames), modValues(hdr->modValues), valueBufSize(hdr->valueBufSize),
-		modFlags(hdr->singlePlayerModCount), modNameCount(hdr->modNameCount), modValuesCount(hdr->modValuesCount)
+		modFlags(hdr->singlePlayerModCount), modNameCount(hdr->modNameCount), modValuesCount(hdr->modValuesCount),
+		_numFields(0), _fields(NULL)
+
 	{};
+
+	~SettingsAsset()
+	{
+		if (_numFields > 0 && _fields)
+		{
+			delete[] _fields;
+		}
+	}
 
 	uint64_t layoutGuid;
 	CPakAsset* layoutAsset;
@@ -125,11 +165,46 @@ public:
 	uint32_t modNameCount;
 	uint32_t modValuesCount;
 
+	// runtime info
+	size_t _numFields;
+	SettingsKVField_t* _fields;
+
 public:
+
+	// Method to parse settings data out of both the STGS and STLT assets into a form that can be easily used programmatically
+	// This is a separate method so that if a settings layout is not initially available, we can retroactively load the required pak
+	// and then parse the data
+	bool ParseSettingsData();
+
+	FORCEINLINE bool GetSettingValue(const char* key, SettingsKVValue_t** outVal) const
+	{
+		// design-time issue, should always be set by the caller
+		assert(outVal);
+
+		if (!outVal)
+			return false;
+
+		for (size_t i = 0; i < _numFields; ++i)
+		{
+			SettingsKVField_t* const field = &_fields[i];
+
+			if (!strcmp(field->key, key))
+			{
+				*outVal = &field->value;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	void* GetPointerToValue(uint32_t valueOffset) const
 	{
 		return reinterpret_cast<char*>(valueData) + valueOffset;
 	}
+
+	void R_ParseSettingsField(SettingsKVField_t* field, const char* valueData, const SettingsLayoutAsset* layout, const SettingsField* const layoutField);
+	void R_ParseSettingsArray(SettingsKVField_t* field, const char* valueData, const size_t arrayElemCount, const SettingsLayoutAsset& layout);
 
 	void R_WriteSetFile(std::string& out, const size_t indentLevel, const char* valueData, const SettingsLayoutAsset* layout);
 	void R_WriteSetFile(std::string& out, const size_t indentLevel, const char* valueData, const SettingsLayoutAsset* layout, const SettingsField* const field);

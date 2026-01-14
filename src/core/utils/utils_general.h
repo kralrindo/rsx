@@ -33,6 +33,17 @@ inline const char* keepAfterLastSlashOrBackslash(const char* src)
 	return lastSeparator + 1;
 }
 
+inline char* const removeExtension(char* const src)
+{
+	char* const extension = strrchr(src, '.');
+	if (extension)
+	{
+		extension[0] = '\0';
+	}
+
+	return src;
+}
+
 // please do not call this with invalid pointers thank you
 FORCEINLINE const bool IsStringZeroLength(const char* const str)
 {
@@ -48,6 +59,22 @@ inline constexpr size_t strlen_ct(const char* str)
 	{
 		++length;
 	}
+
+	return length;
+}
+
+// use memcpy_s to copy strings (faster than normal strncpy_s)
+// returns size of data wrote sans null terminator
+FORCEINLINE const size_t strncpy_mem(char* dest, size_t destsz, const char* src, size_t count)
+{
+	const size_t length = strnlen_s(src, count);
+	const errno_t result = memcpy_s(dest, destsz, src, length + 1ull);
+
+	(void)(result); // guh
+	assert(result == 0);
+
+	// ensure null terminator, if memcpy_s did not fail, this should be valid memory
+	dest[length] = '\0';
 
 	return length;
 }

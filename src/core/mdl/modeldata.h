@@ -4,6 +4,7 @@
 #include <game/rtech/cpakfile.h>
 #include <game/rtech/assets/texture.h>
 #include <game/rtech/assets/material.h>
+#include <core/mdl/animdata.h>
 
 //
 // File contains data for exporting and storing 3D assets
@@ -486,25 +487,37 @@ struct ModelIKChain_t
 	ModelIKLink_t links[IKLINK_COUNT];
 };
 
-
 class ModelParsedData_t
 {
 public:
 	ModelParsedData_t() = default;
-	ModelParsedData_t(r1::studiohdr_t* const hdr, StudioLooseData_t* const data) : sequences(nullptr), ikchains(nullptr), iklocks(nullptr), poseparams(nullptr), studiohdr(hdr, data) {};
-	ModelParsedData_t(r2::studiohdr_t* const hdr) : sequences(nullptr), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
-	ModelParsedData_t(r5::studiohdr_v8_t* const hdr) : sequences(nullptr), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
-	ModelParsedData_t(r5::studiohdr_v12_1_t* const hdr) : sequences(nullptr), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
-	ModelParsedData_t(r5::studiohdr_v12_2_t* const hdr) : sequences(nullptr), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
-	ModelParsedData_t(r5::studiohdr_v12_4_t* const hdr) : sequences(nullptr), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
-	ModelParsedData_t(r5::studiohdr_v14_t* const hdr) : sequences(nullptr), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
-	ModelParsedData_t(r5::studiohdr_v16_t* const hdr, const int dataSizePhys, const int dataSizeModel) : sequences(nullptr), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr, dataSizePhys, dataSizeModel) {};
-	ModelParsedData_t(r5::studiohdr_v17_t* const hdr, const int dataSizePhys, const int dataSizeModel) : sequences(nullptr), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr, dataSizePhys, dataSizeModel) {};
+	ModelParsedData_t(r1::studiohdr_t* const hdr, StudioLooseData_t* const data) : localSequences(nullptr), numLocalSequences(0), externalSequences(nullptr), numExternalSequences(0), externalIncludeModels(nullptr), numExternalIncludeModels(0),
+		localNodeNames(nullptr), numLocalNodes(0), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr, data) {};
+	ModelParsedData_t(r2::studiohdr_t* const hdr) : localSequences(nullptr), numLocalSequences(0), externalSequences(nullptr), numExternalSequences(0), externalIncludeModels(nullptr), numExternalIncludeModels(0),
+		localNodeNames(nullptr), numLocalNodes(0), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
+	ModelParsedData_t(r5::studiohdr_v8_t* const hdr) : localSequences(nullptr), numLocalSequences(0), externalSequences(nullptr), numExternalSequences(0), externalIncludeModels(nullptr), numExternalIncludeModels(0),
+		localNodeNames(nullptr), numLocalNodes(0), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
+	ModelParsedData_t(r5::studiohdr_v12_1_t* const hdr) : localSequences(nullptr), numLocalSequences(0), externalSequences(nullptr), numExternalSequences(0), externalIncludeModels(nullptr), numExternalIncludeModels(0),
+		localNodeNames(nullptr), numLocalNodes(0), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
+	ModelParsedData_t(r5::studiohdr_v12_2_t* const hdr) : localSequences(nullptr), numLocalSequences(0), externalSequences(nullptr), numExternalSequences(0), externalIncludeModels(nullptr), numExternalIncludeModels(0),
+		localNodeNames(nullptr), numLocalNodes(0), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
+	ModelParsedData_t(r5::studiohdr_v12_4_t* const hdr) : localSequences(nullptr), numLocalSequences(0), externalSequences(nullptr), numExternalSequences(0), externalIncludeModels(nullptr), numExternalIncludeModels(0),
+		localNodeNames(nullptr), numLocalNodes(0), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr) {};
+	ModelParsedData_t(r5::studiohdr_v14_t* const hdr, const int version) : localSequences(nullptr), numLocalSequences(0), externalSequences(nullptr), numExternalSequences(0), externalIncludeModels(nullptr), numExternalIncludeModels(0),
+		localNodeNames(nullptr), numLocalNodes(0), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr, version) {};
+	ModelParsedData_t(r5::studiohdr_v16_t* const hdr, const int dataSizePhys, const int dataSizeModel) : localSequences(nullptr), numLocalSequences(0), externalSequences(nullptr), numExternalSequences(0), externalIncludeModels(nullptr), numExternalIncludeModels(0),
+		localNodeNames(nullptr), numLocalNodes(0), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr, dataSizePhys, dataSizeModel) {};
+	ModelParsedData_t(r5::studiohdr_v17_t* const hdr, const int dataSizePhys, const int dataSizeModel) : localSequences(nullptr), numLocalSequences(0), externalSequences(nullptr), numExternalSequences(0), externalIncludeModels(nullptr), numExternalIncludeModels(0),
+		localNodeNames(nullptr), numLocalNodes(0), poseparams(nullptr), ikchains(nullptr), iklocks(nullptr), studiohdr(hdr, dataSizePhys, dataSizeModel) {};
 
 	~ModelParsedData_t()
 	{
-		FreeAllocArray(sequences);
+		FreeAllocArray(localSequences);
+		FreeAllocArray(localNodeNames);
+
 		FreeAllocArray(poseparams);
+		FreeAllocArray(ikchains);
+		FreeAllocArray(iklocks);
 	}
 
 	ModelParsedData_t& operator=(ModelParsedData_t&& parsed)
@@ -522,12 +535,23 @@ public:
 
 			this->bodyParts.swap(parsed.bodyParts);
 
-			this->sequences = parsed.sequences;
+			localSequences = parsed.localSequences;
+			numLocalSequences = parsed.numLocalSequences;
+			numExternalSequences = parsed.numExternalSequences;
+			externalSequences = parsed.externalSequences;
+
+			externalIncludeModels = parsed.externalIncludeModels;
+			numExternalIncludeModels = parsed.numExternalIncludeModels;
+			numLocalNodes = parsed.numLocalNodes;
+			localNodeNames = parsed.localNodeNames;
+
 			this->poseparams = parsed.poseparams;
 			this->ikchains = parsed.ikchains;
 			this->iklocks = parsed.iklocks;
 
-			parsed.sequences = nullptr;
+			parsed.localSequences = nullptr;
+			parsed.externalSequences = nullptr;
+
 			parsed.poseparams = nullptr;
 			parsed.ikchains = nullptr;
 			parsed.iklocks = nullptr;
@@ -553,7 +577,16 @@ public:
 	// Resolved vector of animation sequences for use in model preview
 	// [rika]: unused, not quite sure why this was added
 	//std::vector<ModelAnimSequence_t> animSequences;
-	seqdesc_t* sequences;
+	ModelSeq_t* localSequences;
+	int numLocalSequences;
+	int numExternalSequences;
+	const AssetGuid_t* externalSequences;
+
+	const AssetGuid_t* externalIncludeModels;
+	int numExternalIncludeModels;
+	int numLocalNodes;
+	const char** localNodeNames;
+
 	ModelPoseParam_t* poseparams;
 	ModelIKChain_t* ikchains;
 	ModelIKLock_t* iklocks;
@@ -569,9 +602,20 @@ public:
 	inline const ModelLODData_t* const pLOD(const size_t i) const { return &lods.at(i); }
 
 	inline const int BoneCount() const { return studiohdr.boneCount; }
+	inline const std::vector<ModelBone_t>* const GetRig() const { return &bones; } // slerp them bones
 
-	inline const int NumLocalSeq() const { return studiohdr.localSequenceCount; }
-	inline const seqdesc_t* const LocalSeq(const int seq) const { return &sequences[seq]; }
+	inline const int NumLocalAnim() const { return studiohdr.localAnimationCount; }
+
+	inline const int NumLocalSeq() const { return numLocalSequences; }
+	inline const int NumExternalSeq() const { return numExternalSequences; }
+	inline const ModelSeq_t* const LocalSeq(const int i) const { return localSequences + i; }
+
+	inline const char* const pszNodeName(const int i) const { return localNodeNames[i]; }
+
+	inline const int NumIkChain() const { return studiohdr.ikChainCount; };
+	inline const ModelIKChain_t* const pIKChain(const int i) const { return ikchains + i; }
+
+	inline const ModelPoseParam_t* const pPoseParam(const int i) const { return poseparams + i; }
 
 	FORCEINLINE void SetupBodyPart(int i, const char* partName, const int modelIndex, const int numModels)
 	{
@@ -597,16 +641,6 @@ void ParseModelHitboxData_v8(ModelParsedData_t* const parsedData);
 void ParseModelHitboxData_v16(ModelParsedData_t* const parsedData);
 
 void ParseModelDrawData(ModelParsedData_t* const parsedData, CDXDrawData* const drawData, const uint64_t lod);
-
-void ParseSeqDesc_R2(seqdesc_t* const seqdesc, const std::vector<ModelBone_t>* const bones, const r2::studiohdr_t* const pStudioHdr);
-void ParseSeqDesc_R5(seqdesc_t* const seqdesc, const std::vector<ModelBone_t>* const bones, const AnimdataFuncType_t funcType);
-
-// [rika]: this is for model internal sequence data (r5)
-void ParseModelSequenceData_NoStall(ModelParsedData_t* const parsedData, char* const baseptr);
-void ParseModelSequenceData_Stall_V8(ModelParsedData_t* const parsedData, char* const baseptr);
-void ParseModelSequenceData_Stall_V16(ModelParsedData_t* const parsedData, char* const baseptr);
-void ParseModelSequenceData_Stall_V18(ModelParsedData_t* const parsedData, char* const baseptr);
-void ParseModelSequenceData_Stall_V19_1(ModelParsedData_t* const parsedData, char* const baseptr);
 
 void ParseModelAnimTypes_V8(ModelParsedData_t* const parsedData);
 void ParseModelAnimTypes_V16(ModelParsedData_t* const parsedData);
@@ -809,7 +843,8 @@ bool ExportModelCast(const ModelParsedData_t* const parsedData, std::filesystem:
 bool ExportModelSMD(const ModelParsedData_t* const parsedData, std::filesystem::path& exportPath);
 bool ExportModelQC(const ModelParsedData_t* const parsedData, std::filesystem::path& exportPath, const int setting, const int version);
 
-bool ExportSeqDesc(const int setting, const seqdesc_t* const seqdesc, std::filesystem::path& exportPath, const char* const skelName, const std::vector<ModelBone_t>* const bones, const uint64_t guid);
+bool ExportSeqDesc(const int setting, const ModelSeq_t* const seqdesc, std::filesystem::path& exportPath, const char* const skelName, const std::vector<ModelBone_t>* const bones, const uint64_t guid);
+bool ExportSeqQC(const ModelParsedData_t* const parsedData, const ModelSeq_t* const sequence, std::filesystem::path& exportPath, const int setting, const int version);
 
 void UpdateModelBoneMatrix(CDXDrawData* const drawData, const ModelParsedData_t* const parsedData);
 void InitModelBoneMatrix(CDXDrawData* const drawData, const ModelParsedData_t* const parsedData);
@@ -835,4 +870,4 @@ struct ModelPreviewInfo_t
 };
 
 void* PreviewParsedData(ModelPreviewInfo_t* const info, ModelParsedData_t* const parsedData, char* const assetName, const uint64_t assetGUID, const bool firstFrameForAsset);
-void PreviewSeqDesc(const seqdesc_t* const seqdesc);
+void PreviewSeqDesc(const ModelSeq_t* const seqdesc);

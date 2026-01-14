@@ -88,6 +88,9 @@
     <Filter Include="game\rtech\utils\bsp">
       <UniqueIdentifier>{6cfd2ed6-9eb3-4b23-b70e-eb1804348882}</UniqueIdentifier>
     </Filter>
+    <Filter Include="core\render\ui">
+      <UniqueIdentifier>{fb013ca8-0617-476d-afc3-15fb69bf68d7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -243,7 +246,7 @@
     <ClInclude Include="core\render.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="game\rtech\assets\localisation.h">
+    <ClInclude Include="game\rtech\assets\localization.h">
       <Filter>game\rtech\assets</Filter>
     </ClInclude>
     <ClInclude Include="core\filehandling\load.h">
@@ -402,6 +405,21 @@
     <ClInclude Include="core\utils\keyvalue_parser.h">
       <Filter>core\utils</Filter>
     </ClInclude>
+    <ClInclude Include="game\rtech\assets\odl_asset.h">
+      <Filter>game\rtech\assets</Filter>
+    </ClInclude>
+    <ClInclude Include="game\rtech\assets\odl_pak.h">
+      <Filter>game\rtech\assets</Filter>
+    </ClInclude>
+    <ClInclude Include="core\features.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="core\mdl\animdata.h">
+      <Filter>core\mdl</Filter>
+    </ClInclude>
+    <ClInclude Include="core\utils\cli_parser.h">
+      <Filter>core\utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -545,7 +563,7 @@
     <ClCompile Include="core\filehandling\load.cpp">
       <Filter>core\filehandling</Filter>
     </ClCompile>
-    <ClCompile Include="game\rtech\assets\localisation.cpp">
+    <ClCompile Include="game\rtech\assets\localization.cpp">
       <Filter>game\rtech\assets</Filter>
     </ClCompile>
     <ClCompile Include="core\mdl\rmax.cpp">
@@ -676,6 +694,24 @@
       <Filter>game\rtech\assets</Filter>
     </ClCompile>
     <ClCompile Include="core\utils\keyvalue_parser.cpp">
+      <Filter>core\utils</Filter>
+    </ClCompile>
+    <ClCompile Include="game\rtech\assets\odl_asset.cpp">
+      <Filter>game\rtech\assets</Filter>
+    </ClCompile>
+    <ClCompile Include="core\mdl\animdata.cpp">
+      <Filter>core\mdl</Filter>
+    </ClCompile>
+    <ClCompile Include="render\ui\itemflav_window.cpp">
+      <Filter>core\render\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="core\mdl\modeldata_qc.cpp">
+      <Filter>core\mdl</Filter>
+    </ClCompile>
+    <ClCompile Include="core\utils\exportsettings.cpp">
+      <Filter>core\utils</Filter>
+    </ClCompile>
+    <ClCompile Include="core\utils\cli_parser.cpp">
       <Filter>core\utils</Filter>
     </ClCompile>
   </ItemGroup>

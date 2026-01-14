@@ -159,6 +159,7 @@ static std::map<AssetType_t, Color4> s_AssetTypeColours =
 	// bpwf
 };
 
+
 static const std::map<AssetType_t, const char*> s_AssetTypePaths =
 {
 	// model
@@ -197,6 +198,8 @@ static const std::map<AssetType_t, const char*> s_AssetTypePaths =
 	{ AssetType_t::UI,   "ui" },
 
 	// pak
+	{ AssetType_t::PTCH, "patch_master" },
+	{ AssetType_t::VERS, "patch_version" },
 	// Ptch "Pak Patch"
 	// vers "Pak Version"
 
@@ -238,6 +241,27 @@ struct AssetVersion_t
 	}
 };
 
+struct ContainerMessage_t
+{
+	enum class MessageType_e : int8_t
+	{
+		MSG_INVALID = -1,
+		MSG_INFO = 0,
+		MSG_WARNING,
+		MSG_ERROR,
+	};
+
+	ContainerMessage_t(MessageType_e _type, const char* _message) : type(_type), message(_message) {};
+
+	~ContainerMessage_t()
+	{
+		delete[] message;
+	}
+
+	const char* message;
+	MessageType_e type;
+};
+
 class CAssetContainer;
 
 class CAsset
@@ -269,6 +293,8 @@ public:
 	virtual uint32_t GetAssetType() const = 0;
 
 	const bool GetExportedStatus() const { return m_exported; }
+
+	const bool GetPostLoadStatus() const { return m_postLoadStatus; }
 
 	void* GetAssetData() const { return m_assetData; }
 
@@ -328,11 +354,20 @@ public:
 		m_exported = exported;
 	}
 
+	// TODO TODO TODO:
+	// init this as false on bpk/bsp/audio/mdl!
+	void SetPostLoadStatus(bool postLoaded)
+	{
+		m_postLoadStatus = postLoaded;
+	}
+
 private:
 	std::string m_assetName;
 	AssetVersion_t m_assetVersion;
 
 	bool m_exported;
+
+	bool m_postLoadStatus;
 
 protected:
 	void* m_assetData;
@@ -349,10 +384,22 @@ public:
 
 	virtual const ContainerType GetContainerType() const = 0;
 
+	void LoadMsg_Info(const char* msg)
+	{
+		realloc(m_loadMessages, sizeof(ContainerMessage_t)*(m_numLoadMessages+1));
+
+		m_loadMessages[m_numLoadMessages++] = ContainerMessage_t(ContainerMessage_t::MessageType_e::MSG_INFO, msg);
+	}
+
+private:
+	ContainerMessage_t* m_loadMessages;
+	uint32_t m_numLoadMessages;
 };
 
 // functions for asset loading.
 typedef void(*AssetLoadFunc_t)(CAssetContainer* container, CAsset* asset);
+
+typedef void(*AssetLoadCallback_t)(CAsset* asset);
 
 // functions for previewing the asset
 typedef void* (*AssetPreviewFunc_t)(CAsset* const asset, const bool firstFrameForAsset);
@@ -364,11 +411,12 @@ typedef bool(*AssetExportFunc_t)(CAsset* const asset, const int setting);
 
 struct AssetTypeBinding_t
 {
+	const char* name;
 	uint32_t type;
 	uint32_t headerAlignment;
-	AssetLoadFunc_t loadFunc;
-	AssetLoadFunc_t postLoadFunc;
-	AssetPreviewFunc_t previewFunc;
+	AssetLoadFunc_t loadFunc; // void(*AssetLoadFunc_t)(CAssetContainer* container, CAsset* asset);
+	AssetLoadFunc_t postLoadFunc; // void(*AssetLoadFunc_t)(CAssetContainer* container, CAsset* asset);
+	AssetPreviewFunc_t previewFunc; // void* (*AssetPreviewFunc_t)(CAsset* const asset, const bool firstFrameForAsset);
 
 	struct
 	{
@@ -398,7 +446,19 @@ public:
 
 	std::unordered_map<std::string, uint8_t> m_patchMasterEntries;
 
+	std::unordered_map<uint64_t, std::unordered_set<AssetLoadCallback_t>> m_assetPostLoadCallbacks;
+
 	CAssetContainer* m_pakPatchMaster;
+
+	bool m_donePostLoad;
+
+	void AddAssetPostLoadCallback(uint64_t guid, AssetLoadCallback_t callback)
+	{
+		if (m_assetPostLoadCallbacks.find(guid) == m_assetPostLoadCallbacks.end())
+			m_assetPostLoadCallbacks.emplace(guid, std::unordered_set<AssetLoadCallback_t>());
+
+		m_assetPostLoadCallbacks[guid].insert(callback);
+	}
 
 	CAsset* const FindAssetByGUID(const uint64_t guid)
 	{
@@ -440,6 +500,8 @@ public:
 
 		m_patchMasterEntries.clear();
 		m_pakLoadStatusMap.clear();
+
+		m_donePostLoad = false;
 	}
 
 	void ProcessAssetsPostLoad();

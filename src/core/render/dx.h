@@ -282,7 +282,11 @@ class CDXParentHandler
 {
 public:
 	CDXParentHandler() = default;
-	CDXParentHandler(const HWND windowHandle) : m_windowHandle(windowHandle), m_pDevice(nullptr), m_pDeviceContext(nullptr), m_pSwapChain(nullptr), m_pMainView(nullptr), m_pRasterizerState(nullptr), m_pShaderManager(nullptr), m_pCamera(nullptr) {};
+	CDXParentHandler(const HWND windowHandle) : m_windowHandle(windowHandle), m_pDevice(nullptr), m_pDeviceContext(nullptr), m_pSwapChain(nullptr), m_pMainView(nullptr), m_pRasterizerState(nullptr), m_pShaderManager(nullptr), m_pCamera(nullptr)
+    {
+        m_UIState.ClearAssetData();
+    };
+
 	~CDXParentHandler() { CleanupD3D(); };
 
 	bool SetupDeviceD3D();

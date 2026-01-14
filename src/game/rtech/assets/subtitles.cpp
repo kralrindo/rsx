@@ -52,8 +52,7 @@ void PostLoadSubtitlesAsset(CAssetContainer* const pak, CAsset* const asset)
 		return;
 	}
 
-	assertm(pakAsset->extraData(), "extra data should be valid");
-	SubtitlesAsset* const subtitlesAsset = reinterpret_cast<SubtitlesAsset* const>(pakAsset->extraData());
+	SubtitlesAsset* const subtitlesAsset = pakAsset->extraData<SubtitlesAsset* const>();
 	subtitlesAsset->parsed.reserve(subtitlesAsset->stringCount);
 
 	for (int i = 0; i < subtitlesAsset->entryCount; i++)
@@ -102,8 +101,7 @@ void* PreviewSubtitlesAsset(CAsset* const asset, const bool firstFrameForAsset)
         return nullptr;
     }
 
-    SubtitlesAsset* const subtitlesAsset = reinterpret_cast<SubtitlesAsset*>(pakAsset->extraData());
-    assertm(subtitlesAsset, "Extra data should be valid at this point.");
+    SubtitlesAsset* const subtitlesAsset = pakAsset->extraData<SubtitlesAsset* const>();
 
     constexpr ImGuiTableFlags tableFlags =
         ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable
@@ -218,11 +216,10 @@ bool ExportSubtitlesAsset(CAsset* const asset, const int setting)
 {
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-    SubtitlesAsset* const subtitlesAsset = reinterpret_cast<SubtitlesAsset*>(pakAsset->extraData());
-    assertm(subtitlesAsset, "Extra data should be valid at this point.");
+    const SubtitlesAsset* const subtitlesAsset = pakAsset->extraData<const SubtitlesAsset* const>();
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME); // 
+	std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path subtitlesPath(pakAsset->GetAssetName());
 
     // truncate paths?
@@ -262,6 +259,7 @@ void InitSubtitlesAsset()
 	static const char* settings[] = { "TXT", "CSV" };
 	AssetTypeBinding_t type =
 	{
+		.name = "Subtitles",
 		.type = 'tbus',
 		.headerAlignment = 8,
 		.loadFunc = LoadSubtitlesAsset,

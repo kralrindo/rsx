@@ -573,6 +573,6 @@ namespace r5
 	}
 
 	// not definted when declared
-	const mstudioanimdesc_v12_1_t* const mstudioseqdesc_v8_t::pAnimDescV12_1(const int i) const { return reinterpret_cast<const mstudioanimdesc_v12_1_t* const>((char*)this + AnimIndex(i)); }
+	const mstudioanimdesc_v12_1_t* const mstudioseqdesc_v8_t::pAnimDesc_V12_1(const int i) const { return reinterpret_cast<const mstudioanimdesc_v12_1_t* const>((char*)this + AnimIndex(i)); }
 	const mstudioanimdesc_v19_1_t* const mstudioseqdesc_v18_t::pAnimDesc_V19_1(const uint16_t i) const { return reinterpret_cast<const mstudioanimdesc_v19_1_t* const>((char*)this + AnimIndex(i)); }
 }

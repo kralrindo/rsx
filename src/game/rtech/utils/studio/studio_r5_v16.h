@@ -221,6 +221,7 @@ namespace r5
 		uint16_t ikerrorindex;
 
 		uint16_t szattachmentindex; // name of world attachment
+		inline const char* const pszAttachment() const { return szattachmentindex ? reinterpret_cast<const char* const>(this) + FIX_OFFSET(szattachmentindex) : nullptr; }
 
 		float start; // beginning of influence
 		float peak; // start of full influence
@@ -257,7 +258,7 @@ namespace r5
 		int numframes;
 
 		uint16_t sznameindex;
-		inline const char* pszName() const { return ((char*)this + FIX_OFFSET(sznameindex)); }
+		inline const char* const pszName() const { return reinterpret_cast<const char* const>(this) + FIX_OFFSET(sznameindex); }
 
 		uint16_t framemovementindex; // new in v52
 		inline const mstudioframemovement_t* const pFrameMovement() const { return reinterpret_cast<const mstudioframemovement_t* const>((char*)this + FIX_OFFSET(framemovementindex)); }
@@ -267,7 +268,7 @@ namespace r5
 
 		uint16_t numikrules;
 		uint16_t ikruleindex; // non-zero when IK data is stored in the mdl
-		inline const mstudioikrule_v16_t* const pIKRule(const int i) const { return reinterpret_cast<mstudioikrule_v16_t*>((char*)this + FIX_OFFSET(ikruleindex)) + i; };
+		inline const mstudioikrule_v16_t* const pIKRule(const int i) const;
 
 		char* sectionDataExternal; // set on pak asset load
 		uint16_t unk1; // maybe some sort of thread/mutic for the external data? set on pak asset load from unk_10
@@ -275,7 +276,7 @@ namespace r5
 		uint16_t sectionindex;
 		uint16_t sectionstallframes; // number of stall frames inside the animation, the reset excluding the final frame are stored externally. when external data is not loaded(?)/found(?) it falls back on the last frame of this as a stall
 		uint16_t sectionframes; // number of frames used in each fast lookup section, zero if not used
-		inline const mstudioanimsections_v16_t* pSection(int i) const { return reinterpret_cast<mstudioanimsections_v16_t*>((char*)this + FIX_OFFSET(sectionindex)) + i; }
+		inline const mstudioanimsections_v16_t* const pSection(int i) const { return reinterpret_cast<mstudioanimsections_v16_t*>((char*)this + FIX_OFFSET(sectionindex)) + i; }
 		// numsections = ((numframes - sectionstallframes - 1) / sectionframes) + 2;
 		// numsections after stall section, if stall frames > zero add one section
 	};
@@ -291,22 +292,25 @@ namespace r5
 		// bad names, "optionsOffset" and "eventOffset"?
 		uint16_t optionsindex;
 		uint16_t szeventindex;
+		inline const char* const pszOptions() const { return (reinterpret_cast<const char* const>(this) + FIX_OFFSET(optionsindex)); }
+		inline const char* const pszEvent() const { return (reinterpret_cast<const char* const>(this) + FIX_OFFSET(szeventindex)); }
 	};
 
 	struct mstudioactivitymodifier_v16_t
 	{
 		uint16_t sznameindex;
-
 		bool negate; // 0 or 1 observed.
+
+		inline const char* const pszName() const { return (reinterpret_cast<const char* const>(this) + FIX_OFFSET(sznameindex)); }
 	};
 
 	struct mstudioseqdesc_v16_t
 	{
 		uint16_t szlabelindex;
-		inline const char* pszLabel() const { return ((char*)this + FIX_OFFSET(szlabelindex)); }
+		inline const char* const pszLabel() const { return reinterpret_cast<const char* const>(this) + FIX_OFFSET(szlabelindex); }
 
 		uint16_t szactivitynameindex;
-		inline const char* pszActivity() const { return ((char*)this + FIX_OFFSET(szactivitynameindex)); }
+		inline const char* const pszActivityName() const { return reinterpret_cast<const char* const>(this) + FIX_OFFSET(szactivitynameindex); }
 
 		int flags; // looping/non-looping flags
 
@@ -315,6 +319,7 @@ namespace r5
 
 		uint16_t numevents;
 		uint16_t eventindex;
+		inline const mstudioevent_v16_t* const pEvent(const int i) const { return reinterpret_cast<mstudioevent_v16_t*>((char*)this + FIX_OFFSET(eventindex)) + i; }
 
 		Vector bbmin; // per sequence bounding box
 		Vector bbmax;
@@ -342,17 +347,23 @@ namespace r5
 
 		uint16_t numautolayers;
 		uint16_t autolayerindex;
+		inline const mstudioautolayer_v8_t* const pAutoLayer(const int i) const { return reinterpret_cast<mstudioautolayer_v8_t*>((char*)this + FIX_OFFSET(autolayerindex)) + i; }
 
 		uint16_t weightlistindex;
+		inline const float* const pBoneweight(const int i) const { return reinterpret_cast<float*>((char*)this + FIX_OFFSET(weightlistindex)) + i; }
+		inline const float weight(const int i) const { return *pBoneweight(i); }
 
 		uint8_t groupsize[2]; // width x height of blends
 
 		// animseq/humans/class/medium/mp_pilot_medium_core/medium_bow_charge_pose.rseq
 		uint16_t posekeyindex;
+		inline const float* const pPoseKey(int iParam, int iAnim) const { return reinterpret_cast<float*>((char*)this + FIX_OFFSET(posekeyindex)) + (iParam * groupsize[0]) + iAnim; }
+		inline float poseKey(int iParam, int iAnim) const { return *(pPoseKey(iParam, iAnim)); }
 
 		// never used?
 		uint16_t numiklocks;
 		uint16_t iklockindex;
+		inline const mstudioiklock_v16_t* const pIKLock(const int i) const { return reinterpret_cast<const mstudioiklock_v16_t* const>((char*)this + FIX_OFFSET(iklockindex)) + i; }
 
 		// whar
 		uint16_t unk_5C;
@@ -362,6 +373,7 @@ namespace r5
 
 		uint16_t activitymodifierindex;
 		uint16_t numactivitymodifiers;
+		inline const mstudioactivitymodifier_v16_t* const pActivityModifier(const int i) const { return reinterpret_cast<mstudioactivitymodifier_v16_t*>((char*)this + FIX_OFFSET(activitymodifierindex)) + i; }
 
 		int ikResetMask; // mask this ik rule type for reset, can't find the code for this, but it would either prevent reset of this type, or only allow reset of this time. only ever observed as IK_GROUND
 		int unk_68;	// unk_C4
@@ -719,10 +731,10 @@ namespace r5
 	struct mstudioseqdesc_v18_t
 	{
 		uint16_t szlabelindex;
-		inline const char* pszLabel() const { return reinterpret_cast<const char* const>(this) + FIX_OFFSET(szlabelindex); }
+		inline const char* const pszLabel() const { return reinterpret_cast<const char* const>(this) + FIX_OFFSET(szlabelindex); }
 
 		uint16_t szactivitynameindex;
-		inline const char* pszActivity() const { return reinterpret_cast<const char* const>(this) + FIX_OFFSET(szactivitynameindex); }
+		inline const char* const pszActivityName() const { return reinterpret_cast<const char* const>(this) + FIX_OFFSET(szactivitynameindex); }
 
 		int flags; // looping/non-looping flags
 
@@ -731,6 +743,7 @@ namespace r5
 
 		uint16_t numevents;
 		uint16_t eventindex;
+		inline const mstudioevent_v16_t* const pEvent(const int i) const { return reinterpret_cast<mstudioevent_v16_t*>((char*)this + FIX_OFFSET(eventindex)) + i; }
 
 		Vector bbmin; // per sequence bounding box
 		Vector bbmax;
@@ -759,17 +772,24 @@ namespace r5
 
 		uint16_t numautolayers;
 		uint16_t autolayerindex;
+		inline const mstudioautolayer_v8_t* const pAutoLayer(const int i) const { return reinterpret_cast<mstudioautolayer_v8_t*>((char*)this + FIX_OFFSET(autolayerindex)) + i; }
 
 		uint16_t weightlistindex;
+		inline const float* const pWeightList() const;
+		inline const float* const pBoneweight(const int i) const { return pWeightList() + i; }
+		inline const float weight(const int i) const { return *pBoneweight(i); }
 
 		uint8_t groupsize[2]; // width x height of blends
 
 		// animseq/humans/class/medium/mp_pilot_medium_core/medium_bow_charge_pose.rseq
 		uint16_t posekeyindex;
+		inline const float* const pPoseKey(int iParam, int iAnim) const { return reinterpret_cast<float*>((char*)this + FIX_OFFSET(posekeyindex)) + (iParam * groupsize[0]) + iAnim; }
+		inline float poseKey(int iParam, int iAnim) const { return *(pPoseKey(iParam, iAnim)); }
 
 		// never used?
 		uint16_t numiklocks;
 		uint16_t iklockindex;
+		inline const mstudioiklock_v16_t* const pIKLock(const int i) const { return reinterpret_cast<const mstudioiklock_v16_t* const>((char*)this + FIX_OFFSET(iklockindex)) + i; }
 
 		// whar
 		uint16_t unk_5C;
@@ -779,6 +799,7 @@ namespace r5
 
 		uint16_t activitymodifierindex;
 		uint16_t numactivitymodifiers;
+		inline const mstudioactivitymodifier_v16_t* const pActivityModifier(const int i) const { return reinterpret_cast<mstudioactivitymodifier_v16_t*>((char*)this + FIX_OFFSET(activitymodifierindex)) + i; }
 
 		int ikResetMask; // mask this ik rule type for reset, can't find the code for this, but it would either prevent reset of this type, or only allow reset of this time. only ever observed as IK_GROUND
 		int unk_68;	// unk_C4
@@ -986,7 +1007,7 @@ namespace r5
 		int numframes;
 
 		uint16_t sznameindex;
-		inline const char* pszName() const { return ((char*)this + FIX_OFFSET(sznameindex)); }
+		inline const char* const pszName() const { return reinterpret_cast<const char* const>(this) + FIX_OFFSET(sznameindex); }
 
 		uint16_t framemovementindex; // new in v52
 		inline const mstudioframemovement_t* const pFrameMovement() const { return reinterpret_cast<const mstudioframemovement_t* const>((char*)this + FIX_OFFSET(framemovementindex)); }
@@ -996,7 +1017,7 @@ namespace r5
 		uint8_t unused_12[4]; // pad? unused? what the hell man
 
 		uint16_t ikruleindex; // non-zero when IK data is stored in the mdl
-		inline const mstudioikrule_v16_t* const pIKRule(const int i) const { return reinterpret_cast<mstudioikrule_v16_t*>((char*)this + FIX_OFFSET(ikruleindex)) + i; };
+		inline const mstudioikrule_v16_t* const pIKRule(const int i) const;
 
 		uint64_t animDataAsset; // guid in pak, should be pointer to asset on load. not set if STUDIO_HAS_ANIM is missing
 
@@ -1006,7 +1027,7 @@ namespace r5
 		uint16_t sectionindex;
 		uint16_t sectionstallframes; // number of stall frames inside the animation, the reset excluding the final frame are stored externally. when external data is not loaded(?)/found(?) it falls back on the last frame of this as a stall
 		uint16_t sectionframes; // number of frames used in each fast lookup section, zero if not used
-		inline const mstudioanimsections_v16_t* pSection(int i) const { return reinterpret_cast<mstudioanimsections_v16_t*>((char*)this + FIX_OFFSET(sectionindex)) + i; }
+		inline const mstudioanimsections_v16_t* const pSection(int i) const { return reinterpret_cast<const mstudioanimsections_v16_t* const>((char*)this + FIX_OFFSET(sectionindex)) + i; }
 		// numsections = ((numframes - sectionstallframes - 1) / sectionframes) + 2;
 		// numsections after stall section, if stall frames > zero add one section
 	};
@@ -1140,5 +1161,63 @@ namespace r5
 		}
 	};
 
+	inline const mstudioikrule_v16_t* const mstudioanimdesc_v16_t::pIKRule(const int i) const
+	{ 
+		switch (ikruleindex)
+		{
+		case 3:
+		{
+			return s_StudioIKRule_3;
+		}
+		case 5:
+		{
+			return s_StudioIKRule_5;
+		}
+		default:
+		{
+			return reinterpret_cast<mstudioikrule_v16_t*>((char*)this + FIX_OFFSET(ikruleindex)) + i;
+		}
+		}
+	}
+
+	inline const mstudioikrule_v16_t* const mstudioanimdesc_v19_1_t::pIKRule(const int i) const
+	{ 
+		switch (ikruleindex)
+		{
+		case 3:
+		{
+			assertm(i < 1, "out of range");
+			return s_StudioIKRule_3 + i;
+		}
+		case 5:
+		{
+			assertm(i < 2, "out of range");
+			return s_StudioIKRule_5 + i;
+		}
+		default:
+		{
+			return reinterpret_cast<mstudioikrule_v16_t*>((char*)this + FIX_OFFSET(ikruleindex)) + i;
+		}
+		}
+	}
+
+	inline const float* const mstudioseqdesc_v18_t::pWeightList() const
+	{
+		switch (weightlistindex)
+		{
+		case 1:
+		{
+			return s_StudioWeightList_1;
+		}
+		case 3:
+		{
+			return s_StudioWeightList_3;
+		}
+		default:
+		{
+			return reinterpret_cast<float*>((char*)this + FIX_OFFSET(weightlistindex));
+		}
+		}
+	}
 }
 #pragma pack(pop)

@@ -335,13 +335,11 @@ void PostLoadUIFontAtlasAsset(CAssetContainer* const pak, CAsset* const asset)
 
 	// Setup main texture.
 	UIFontAtlasAsset* const fontAsset = reinterpret_cast<UIFontAtlasAsset*>(pakAsset->extraData());
-	assertm(fontAsset, "Extra data should be valid at this point.");
 
 	CPakAsset* const textureAsset = g_assetData.FindAssetByGUID<CPakAsset>(fontAsset->atlasGUID);
 	assertm(textureAsset, "Asset should be valid.");
 
 	TextureAsset* const txtrAsset = reinterpret_cast<TextureAsset*>(textureAsset->extraData());
-	assertm(txtrAsset, "Extra data should be valid.");
 
 	if (txtrAsset->name)
 	{
@@ -467,7 +465,6 @@ void* PreviewUIFontAtlasAsset(CAsset* const asset, const bool firstFrameForAsset
     }
 
     UIFontAtlasAsset* const fontAsset = reinterpret_cast<UIFontAtlasAsset*>(pakAsset->extraData());
-    assertm(fontAsset, "Extra data should be valid at this point.");
 
     static float textureZoom = 1.0f;
     static int lastSelectedTexture = -1;
@@ -763,10 +760,9 @@ bool ExportUIFontAtlasAsset(CAsset* const asset, const int setting)
         return false;
 
     UIFontAtlasAsset* const uiAsset = reinterpret_cast<UIFontAtlasAsset*>(pakAsset->extraData());
-    assertm(uiAsset, "Extra data should be valid at this point.");
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME); // 
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path atlasPath(pakAsset->GetAssetName());
 
     // truncate paths?
@@ -915,6 +911,7 @@ void InitUIFontAtlasAssetType()
     static const char* settings[] = { "PNG (Atlas)", "PNG (Textures)", "DDS (Atlas)", "DDS (Textures)" };
     AssetTypeBinding_t type =
     {
+        .name = "UI Font",
         .type = 'tnof',
         .headerAlignment = 8,
         .loadFunc = LoadUIFontAtlasAsset,

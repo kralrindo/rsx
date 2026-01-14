@@ -35,7 +35,7 @@ std::string R_GetWeaponDefinitionAsString(const WepnData_v1_t* const key, const 
         else
         {
             retVal += "\"unk\" // " + std::string(val->key) + ": unknown. rawval: " + std::format("{:X}", val->value.rawVal);
-            Log("unknown var type: %s %i %llX\n", val->key, val->valueType, val->value.rawVal);
+            Log("WEPN: unknown var type: %s (type %i): %llX\n", val->key, val->valueType, val->value.rawVal);
         }
         retVal += "\"\n";
     }
@@ -72,7 +72,7 @@ bool ExportWeaponDefinitionAsset(CAsset* const asset, const int setting)
     const std::string wepnTxt = R_GetWeaponDefinitionAsString(header->rootKey, "");
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path wepnPath(asset->GetAssetName());
 
     if (g_ExportSettings.exportPathsFull)
@@ -82,7 +82,7 @@ bool ExportWeaponDefinitionAsset(CAsset* const asset, const int setting)
 
     if (!CreateDirectories(exportPath))
     {
-        assertm(false, "Failed to create asset's directory.");
+        assertm(false, "Failed to create asset directory.");
         return false;
     }
 
@@ -107,6 +107,7 @@ void InitWeaponDefinitionAssetType()
     static const char* settings[] = { "TXT" };
     AssetTypeBinding_t type =
     {
+        .name = "Weapon Definition",
         .type = 'npew',
         .headerAlignment = 8,
         .loadFunc = LoadWeaponDefinitionAsset,

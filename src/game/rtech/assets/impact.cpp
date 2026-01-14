@@ -19,11 +19,10 @@ void LoadImpactAsset(CAssetContainer* const pak, CAsset* const asset)
 std::string R_GetImpactDefinitionAsString(const WepnData_v1_t* const key, const std::string& indentStr)
 {
     std::string retVal = indentStr + "\"" + key->name + "\"\n" + indentStr + "{\n";
-
-    // first loop over child values
+    
+    // First loop over the regular definition values
     for (int j = 0; j < key->numValues; ++j)
     {
-        //retVal += indentStr + "\t// val unk: " + std::to_string(key->unk_20[j]) + "\n";
         WepnKeyValue_v1_t* val = &key->childKVPairs[j];
         retVal += indentStr + "\t\"" + std::string(val->key) + "\" \"";
 
@@ -36,25 +35,24 @@ std::string R_GetImpactDefinitionAsString(const WepnData_v1_t* const key, const 
         else
         {
             retVal += "\"unk\" // " + std::string(val->key) + ": unknown. rawval: " + std::format("{:X}", val->value.rawVal);
-            Log("unknown var type: %s %i %llX\n", val->key, val->valueType, val->value.rawVal);
+            Log("IMPA: unknown var type: %s (type %i): %llX\n", val->key, val->valueType, val->value.rawVal);
         }
         retVal += "\"\n";
     }
 
-    // add a newline to separate the values and the objects
+    // Add a newline to separate the initial values from the rest of the data
     retVal += "\n";
 
-    // then loop over child objects
+    // Next, loop over child objects
     for (int i = 0; i < key->numChildren; ++i)
     {
         WepnData_v1_t* childKey = &key->childObjects[i];
 
-        //retVal += indentStr + "\t// child unk: " + std::to_string(key->unk_28[i]) + "\n";
-
         retVal += R_GetImpactDefinitionAsString(childKey, indentStr + "\t");
 
+        // Add a newline to separate this object from the next, as long as this isn't the last object in the asset
         if (i != key->numChildren - 1)
-            retVal += "\n"; // as long as we aren't the last child object, add a new line as a separator
+            retVal += "\n";
     }
 
     retVal += indentStr + "}\n";
@@ -73,7 +71,7 @@ bool ExportImpactAsset(CAsset* const asset, const int setting)
     const std::string impactTxt = R_GetImpactDefinitionAsString(header->rootKey, "");
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path impactPath(asset->GetAssetName());
 
     if (g_ExportSettings.exportPathsFull)
@@ -108,6 +106,7 @@ void InitImpactAssetType()
     static const char* settings[] = { "TXT" };
     AssetTypeBinding_t type =
     {
+        .name = "Impact Definition",
         .type = 'apmi',
         .headerAlignment = 8,
         .loadFunc = LoadImpactAsset,

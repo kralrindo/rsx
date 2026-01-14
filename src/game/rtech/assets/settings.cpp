@@ -45,13 +45,31 @@ void PostLoadSettingsAsset(CAssetContainer* pak, CAsset* asset)
 	UNUSED(pak);
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	SettingsAsset* settingsAsset = reinterpret_cast<SettingsAsset*>(pakAsset->extraData());
+	SettingsAsset* const settingsAsset = pakAsset->extraData<SettingsAsset* const>();
 
-	settingsAsset->layoutAsset = g_assetData.FindAssetByGUID<CPakAsset>(settingsAsset->layoutGuid);
+	settingsAsset->ParseSettingsData();
+}
 
-	if (!settingsAsset->layoutAsset)
+SettingsKVValue_t::~SettingsKVValue_t()
+{
+	if (numChildren > 0)
 	{
-		// uh oh!
+		switch (type)
+		{
+		case eSettingsFieldType::ST_ARRAY:
+		case eSettingsFieldType::ST_DYN_ARRAY:
+		{
+			printf("Deleting settings array\n");
+			delete[] getValue<SettingsKVValue_t*>();
+			break;
+		}
+		case eSettingsFieldType::_ST_OBJECT:
+		{
+			printf("Deleting settings object\n");
+			delete[] getValue<SettingsKVField_t*>();
+			break;
+		}
+		}
 	}
 }
 
@@ -60,6 +78,150 @@ struct DynamicArrayData_t
 	int arraySize;
 	int arrayOffset;
 };
+
+bool SettingsAsset::ParseSettingsData()
+{
+	// If the layout asset wasn't available when the load function was called, try again here.
+	// If there still isn't a valid layout asset, return early
+	if (!this->layoutAsset && !(this->layoutAsset = g_assetData.FindAssetByGUID<CPakAsset>(this->layoutGuid)))
+			return false;
+
+	if (_fields)
+	{
+		this->_numFields = 0;
+
+		delete[] this->_fields;
+		this->_fields = NULL;
+	}
+
+	const SettingsLayoutAsset* const layout = this->layoutAsset->extraData<const SettingsLayoutAsset* const>();
+
+	this->_numFields = layout->layoutFields.size();
+	this->_fields = new SettingsKVField_t[_numFields];
+
+	for (size_t i = 0; i < _numFields; ++i)
+	{
+		SettingsKVField_t* field = &_fields[i];
+		const SettingsField* const layoutField = &layout->layoutFields.at(i);
+
+		field->key = layoutField->fieldName;
+
+		R_ParseSettingsField(field, this->valueData, layout, layoutField);
+	}
+
+	return true;
+}
+
+void SettingsAsset::R_ParseSettingsField(SettingsKVField_t* field, const char* valData, const SettingsLayoutAsset* layout, const SettingsField* const layoutField)
+{
+	// Initially just copy across the type. Dynamic arrays will be collapsed down into regular arrays, since any functional difference
+	// is removed when parsed
+	field->value.type = layoutField->dataType;
+	field->value.numChildren = 0;
+
+	switch (layoutField->dataType)
+	{
+	case eSettingsFieldType::ST_BOOL:
+	{
+		field->value.value = static_cast<bool>(valData[layoutField->valueOffset]);
+		break;
+	}
+	case eSettingsFieldType::ST_INTEGER:
+	{
+		field->value.value = *reinterpret_cast<const int*>(&valData[layoutField->valueOffset]);
+		break;
+	}
+	case eSettingsFieldType::ST_FLOAT:
+	{
+		field->value.value = *reinterpret_cast<const float*>(&valData[layoutField->valueOffset]);
+		break;
+	}
+	case eSettingsFieldType::ST_FLOAT2:
+	{
+		const float* floatValues = reinterpret_cast<const float*>(&valData[layoutField->valueOffset]);
+
+		field->value.value = float2(floatValues[0], floatValues[1]);
+		break;
+	}
+	case eSettingsFieldType::ST_FLOAT3:
+	{
+		const float* floatValues = reinterpret_cast<const float*>(&valData[layoutField->valueOffset]);
+
+		field->value.value = float3(floatValues[0], floatValues[1], floatValues[2]);
+		break;
+	}
+	case eSettingsFieldType::ST_STRING:
+	case eSettingsFieldType::ST_ASSET:
+	case eSettingsFieldType::ST_ASSET_NOPRECACHE:
+	{
+		const char* const charBuf = *(const char**)&valData[layoutField->valueOffset];
+		field->value.value = charBuf;
+		break;
+	}
+	case eSettingsFieldType::ST_ARRAY:
+	{
+		const SettingsLayoutAsset& subLayout = layout->subHeaders[layoutField->valueSubLayoutIdx];
+
+		field->value.numChildren = subLayout.arrayValueCount;
+		field->value.value = new SettingsKVValue_t[field->value.numChildren];
+
+		R_ParseSettingsArray(field, &valData[layoutField->valueOffset], subLayout.arrayValueCount, subLayout);
+
+		break;
+	}
+	case eSettingsFieldType::ST_DYN_ARRAY:
+	{
+		// When parsed, dynamic arrays and static arrays are functionally identical, so we might as well ditch the separate field types
+		field->value.type = eSettingsFieldType::ST_ARRAY;
+
+		const SettingsLayoutAsset& subLayout = layout->subHeaders[layoutField->valueSubLayoutIdx];
+		const DynamicArrayData_t* dynamicArrayData = reinterpret_cast<const DynamicArrayData_t*>(&valData[layoutField->valueOffset]);
+
+		const char* dynamicArrayElems = &valData[dynamicArrayData->arrayOffset];
+
+		field->value.numChildren = dynamicArrayData->arraySize;
+
+		field->value.value = new SettingsKVValue_t[field->value.numChildren];
+
+		assert(std::get<SettingsKVValue_t*>(field->value.value));
+
+		R_ParseSettingsArray(field, dynamicArrayElems, dynamicArrayData->arraySize, subLayout);
+
+		break;
+	}
+	}
+}
+
+void SettingsAsset::R_ParseSettingsArray(SettingsKVField_t* field, const char* valData, const size_t arrayElemCount, const SettingsLayoutAsset& layout)
+{
+	// Total size of the values for one element of this array
+	const size_t layoutSize = layout.totalLayoutSize;
+	// Number of fields in each element of the array
+	const size_t fieldCount = layout.layoutFields.size();
+
+	for (size_t i = 0; i < arrayElemCount; ++i)
+	{
+		SettingsKVValue_t* arrayElem = &std::get<SettingsKVValue_t*>(field->value.value)[i];
+
+		arrayElem->type = eSettingsFieldType::_ST_OBJECT;
+		arrayElem->numChildren = static_cast<uint32_t>(fieldCount);
+		arrayElem->value = new SettingsKVField_t[fieldCount];
+
+		assert(std::get<SettingsKVField_t*>(arrayElem->value));
+
+		const char* const elemValues = reinterpret_cast<const char*>(valData) + (i * layoutSize);
+
+		for (size_t j = 0; j < fieldCount; ++j)
+		{
+			SettingsKVField_t* const subField = &std::get<SettingsKVField_t*>(arrayElem->value)[j];
+			const SettingsField& layoutField = layout.layoutFields[j];
+
+			subField->key = layoutField.fieldName;
+			
+			R_ParseSettingsField(subField, elemValues, &layout, &layoutField);
+		}
+	}
+}
 
 void SettingsAsset::R_WriteSetFileArray(std::string& out, const size_t indentLevel, const char* valuePtr,
 	const size_t arrayElemCount, const SettingsLayoutAsset& subLayout)
@@ -71,9 +233,9 @@ void SettingsAsset::R_WriteSetFileArray(std::string& out, const size_t indentLev
 
 	const std::string indentation = GetIndentation(indentLevel);
 
-	for (uint32_t i = 0; i < arrayElemCount; ++i)
+	for (size_t i = 0; i < arrayElemCount; ++i)
 	{
-		const char* elemValues = reinterpret_cast<const char*>(valuePtr) + (i * layoutSize);
+		const char* const elemValues = reinterpret_cast<const char*>(valuePtr) + (i * layoutSize);
 		out += indentation + "\t{\n";
 
 		for (size_t j = 0; j < fieldCount; ++j)
@@ -135,7 +297,7 @@ void SettingsAsset::R_WriteSetFile(std::string& out, const size_t indentLevel, c
 	}
 	case eSettingsFieldType::ST_STRING:
 	case eSettingsFieldType::ST_ASSET:
-	case eSettingsFieldType::ST_ASSET_2:
+	case eSettingsFieldType::ST_ASSET_NOPRECACHE:
 	{
 		const char* const charBuf = *(const char**)&valData[field->valueOffset];
 		out.append(std::format("\"{:s}\"", charBuf));
@@ -144,17 +306,18 @@ void SettingsAsset::R_WriteSetFile(std::string& out, const size_t indentLevel, c
 	case eSettingsFieldType::ST_ARRAY:
 	{
 		const SettingsLayoutAsset& subLayout = layout->subHeaders[field->valueSubLayoutIdx];
-		R_WriteSetFileArray(out, indentLevel, &valData[field->valueOffset], subLayout.arrayValueCount, subLayout);
+		R_WriteSetFileArray(out, indentLevel+1, &valData[field->valueOffset], subLayout.arrayValueCount, subLayout);
 
 		break;
 	}
-	case eSettingsFieldType::ST_ARRAY_2:
+	case eSettingsFieldType::ST_DYN_ARRAY:
 	{
 		const SettingsLayoutAsset& subLayout = layout->subHeaders[field->valueSubLayoutIdx];
 		const DynamicArrayData_t* dynamicArrayData = reinterpret_cast<const DynamicArrayData_t*>(&valData[field->valueOffset]);
 
 		const char* dynamicArrayElems = &valData[dynamicArrayData->arrayOffset];
-		R_WriteSetFileArray(out, indentLevel, dynamicArrayElems, dynamicArrayData->arraySize, subLayout);
+
+		R_WriteSetFileArray(out, indentLevel+1, dynamicArrayElems, dynamicArrayData->arraySize, subLayout);
 
 		break;
 	}
@@ -248,11 +411,11 @@ void SettingsAsset::R_WriteModValues(std::string& out, const SettingsLayoutAsset
 
 static bool RenderSettingsAsset(CPakAsset* const asset, std::string& stringStream)
 {
-	SettingsAsset* settingsAsset = reinterpret_cast<SettingsAsset*>(asset->extraData());
+	SettingsAsset* settingsAsset = asset->extraData<SettingsAsset*>();
 	if (!settingsAsset->layoutAsset)
 		return false;
 
-	const SettingsLayoutAsset* const layout = reinterpret_cast<SettingsLayoutAsset*>(settingsAsset->layoutAsset->extraData());
+	const SettingsLayoutAsset* const layout = settingsAsset->layoutAsset->extraData<SettingsLayoutAsset*>();
 
 	stringStream += std::string("{\n") + "\t\"layoutAsset\": \"" + layout->name + "\",\n";
 
@@ -289,19 +452,16 @@ static bool RenderSettingsAsset(CPakAsset* const asset, std::string& stringStrea
 
 bool ExportSettingsAsset(CAsset* const asset, const int setting)
 {
-	UNUSED(asset);
 	UNUSED(setting);
 
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
-
-	printf("Exporting settings asset \"%s\"\n", asset->GetAssetName().c_str());
 
 	std::string stringStream;
 
 	if (!RenderSettingsAsset(pakAsset, stringStream))
 		return false;
 
-	std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+	std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
 	std::filesystem::path stgsPath = asset->GetAssetName();
 
 	exportPath.append(stgsPath.parent_path().string());
@@ -339,7 +499,7 @@ static void* PreviewSettingsAsset(CAsset* const asset, const bool firstFrameForA
 	}
 
 	UNUSED(firstFrameForAsset);
-	ImGui::InputTextMultiline("##settings_preview", const_cast<char*>(stringStream.c_str()), stringStream.length(), ImVec2(-1, -1), ImGuiInputTextFlags_ReadOnly);
+	ImGui::InputTextMultiline("##settings_preview", const_cast<char*>(stringStream.c_str()), stringStream.length()+1, ImVec2(-1, -1), ImGuiInputTextFlags_ReadOnly);
 
 	return nullptr;
 }
@@ -348,6 +508,7 @@ void InitSettingsAssetType()
 {
 	AssetTypeBinding_t type =
 	{
+		.name = "Settings",
 		.type = 'sgts',
 		.headerAlignment = 8,
 		.loadFunc = LoadSettingsAsset,

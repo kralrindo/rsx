@@ -60,6 +60,10 @@ bool PatchCmd_0(CPakFile* const pak, size_t* const numRemainingFileBufferBytes)
             return pak->p.numBytesToPatch == 0;
     }
 
+#if (PAKLOAD_DEBUG == PAKLOAD_DEBUG_VERBOSE)
+    Log("PTCH CMD 0: Sending some data to %p\n", pak->p.patchDestination);
+#endif
+
     const size_t patchSrcSize = std::min(numBytes, pak->p.patchDestinationSize);
     memcpy(
         pak->p.patchDestination,

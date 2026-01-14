@@ -9,8 +9,6 @@ void LoadShaderSetAsset(CAssetContainer* const pak, CAsset* const asset)
 	UNUSED(pak);
 
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
-	PakAsset_t* const internalAsset = pakAsset->data();
-	UNUSED(internalAsset);
 
 	ShaderSetAsset* shdsAsset = nullptr;
 
@@ -59,7 +57,7 @@ void LoadShaderSetAsset(CAssetContainer* const pak, CAsset* const asset)
 	}
 	default:
 	{
-		assertm(false, "unaccounted asset version, will cause major issues!");
+		assertm(false, "Unknown ShaderSet asset version");
 		return;
 	}
 	}
@@ -97,8 +95,7 @@ void PostLoadShaderSetAsset(CAssetContainer* const pak, CAsset* const asset)
 		return;
 	}
 
-	ShaderSetAsset* const shdsAsset = reinterpret_cast<ShaderSetAsset*>(pakAsset->extraData());
-	assertm(shdsAsset, "Extra data should be valid at this point.");
+	ShaderSetAsset* const shdsAsset = pakAsset->extraData<ShaderSetAsset* const>();
 
 	shdsAsset->vertexShaderAsset = g_assetData.FindAssetByGUID<CPakAsset>(shdsAsset->vertexShader);
 	shdsAsset->pixelShaderAsset = g_assetData.FindAssetByGUID<CPakAsset>(shdsAsset->pixelShader);
@@ -107,12 +104,6 @@ void PostLoadShaderSetAsset(CAssetContainer* const pak, CAsset* const asset)
 	{
 		pakAsset->SetAssetNameFromCache();
 	}
-
-	//if (shdsAsset->vertexShader && !shdsAsset->vertexShaderAsset)
-	//	Log("Shaderset has vertex shader but it is not loaded.\n");
-
-	//if (shdsAsset->pixelShader && !shdsAsset->pixelShader)
-	//	Log("Shaderset has pixel shader but it is not loaded.\n");
 }
 
 void* PreviewShaderSetAsset(CAsset* const asset, const bool firstFrameForAsset)
@@ -121,8 +112,7 @@ void* PreviewShaderSetAsset(CAsset* const asset, const bool firstFrameForAsset)
 
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	const ShaderSetAsset* const shdsAsset = reinterpret_cast<ShaderSetAsset*>(pakAsset->extraData());
-	assertm(shdsAsset, "Extra data should be valid at this point.");
+	const ShaderSetAsset* const shdsAsset = pakAsset->extraData<const ShaderSetAsset* const>();
 
 	ImGui::Text("Number of vertex shader textures: %i", shdsAsset->numVertexShaderTextures);
 	ImGui::Text("Number of pixel shader textures:  %i", shdsAsset->numPixelShaderTextures);
@@ -131,41 +121,29 @@ void* PreviewShaderSetAsset(CAsset* const asset, const bool firstFrameForAsset)
 	ImGui::Text("First resource bind point: %i", shdsAsset->firstResourceBindPoint);
 	ImGui::Text("Number of Resources: %i", shdsAsset->numResources);
 
+	const char* vertexShaderDebugName = "(no debug name)";
+	const char* pixelShaderDebugName = "(no debug name)";
+
 	// Vertex Shader
-	bool foundVertexShaderName = false;
 	if (shdsAsset->vertexShaderAsset)
 	{
-		const ShaderAsset* const shaderAsset = reinterpret_cast<ShaderAsset*>(shdsAsset->vertexShaderAsset->extraData());
-		assertm(shaderAsset, "Extra data should be valid at this point.");
+		const ShaderAsset* const shaderAsset = shdsAsset->vertexShaderAsset->extraData<const ShaderAsset* const>();
 
 		if (shaderAsset->name)
-		{
-			foundVertexShaderName = true;
-			ImGui::Text("Vertex Shader: %s", shaderAsset->name);
-		}
+			vertexShaderDebugName = shaderAsset->name;
 	}
-
-	// If there is no vertex shader or the pixel shader does not have a name pointer
-	if(!foundVertexShaderName)
-		ImGui::Text("Vertex Shader: %llx (not loaded or no debug name)", shdsAsset->vertexShader);
 
 	// Pixel Shader
-	bool foundPixelShaderName = false;
 	if (shdsAsset->pixelShaderAsset)
 	{
-		const ShaderAsset* const shaderAsset = reinterpret_cast<ShaderAsset*>(shdsAsset->pixelShaderAsset->extraData());
-		assertm(shaderAsset, "Extra data should be valid at this point.");
+		const ShaderAsset* const shaderAsset = shdsAsset->pixelShaderAsset->extraData<const ShaderAsset* const>();
 
 		if (shaderAsset->name)
-		{
-			foundPixelShaderName = true;
-			ImGui::Text("Pixel Shader: %s", shaderAsset->name);
-		}
+			pixelShaderDebugName = shaderAsset->name;
 	}
 
-	// If there is no pixel shader or the pixel shader does not have a name pointer
-	if(!foundPixelShaderName)
-		ImGui::Text("Pixel Shader: %llx (not loaded or no debug name)", shdsAsset->pixelShader);
+	ImGui::Text("Vertex Shader: %llX (%s)", shdsAsset->vertexShader, vertexShaderDebugName);
+	ImGui::Text("Pixel Shader: %llX (%s)", shdsAsset->pixelShader, pixelShaderDebugName);
 
 	return nullptr;
 }
@@ -190,7 +168,7 @@ static bool ExportMSWShaderSetAsset(const ShaderSetAsset* const shaderSetAsset, 
 
 	if (packShaders && shaderSetAsset->pixelShaderAsset)
 	{
-		const ShaderAsset* const pixelShaderAsset = reinterpret_cast<ShaderAsset*>(shaderSetAsset->pixelShaderAsset->extraData());
+		const ShaderAsset* const pixelShaderAsset = shaderSetAsset->pixelShaderAsset->extraData<const ShaderAsset* const>();
 		ConstructMSWShader(pixelShader, pixelShaderAsset);
 
 		writer.SetShader(&pixelShader);
@@ -200,7 +178,7 @@ static bool ExportMSWShaderSetAsset(const ShaderSetAsset* const shaderSetAsset, 
 
 	if (packShaders && shaderSetAsset->vertexShaderAsset)
 	{
-		const ShaderAsset* const vertexShaderAsset = reinterpret_cast<ShaderAsset*>(shaderSetAsset->vertexShaderAsset->extraData());
+		const ShaderAsset* const vertexShaderAsset = shaderSetAsset->vertexShaderAsset->extraData<const ShaderAsset* const>();
 		ConstructMSWShader(vertexShader, vertexShaderAsset);
 
 		writer.SetShader(&vertexShader);
@@ -218,12 +196,11 @@ bool ExportShaderSetAsset(CAsset* const asset, const int setting)
 {
 	CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-	const ShaderSetAsset* const shdsAsset = reinterpret_cast<ShaderSetAsset*>(pakAsset->extraData());
-	assertm(shdsAsset, "Extra data should be valid at this point.");
+	const ShaderSetAsset* const shdsAsset = pakAsset->extraData<const ShaderSetAsset* const>();
 
 	// not currently used
 	// Create exported path + asset path.
-	std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME);
+	std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
 	std::filesystem::path dirPath = exportPath;
 
 	dirPath.append(s_PathPrefixSHDR);
@@ -261,6 +238,7 @@ void InitShaderSetAssetType()
 	static const char* settings[] = { "MSW", "MSW (Packed)" };
 	AssetTypeBinding_t type =
 	{
+		.name = "Shader Set",
 		.type = 'sdhs',
 		.headerAlignment = 8,
 		.loadFunc = LoadShaderSetAsset,

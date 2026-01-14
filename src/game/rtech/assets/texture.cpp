@@ -348,7 +348,7 @@ void PostLoadTextureAsset(CAssetContainer* container, CAsset* asset)
     UNUSED(container);
 
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
-    const TextureAsset* const txtrAsset = reinterpret_cast<TextureAsset*>(pakAsset->extraData());
+    const TextureAsset* const txtrAsset = pakAsset->extraData<const TextureAsset* const>();
 
     if (!txtrAsset->name)
     {
@@ -444,8 +444,7 @@ struct TexCompare_t
 void* PreviewTextureAsset(CAsset* const asset, const bool firstFrameForAsset)
 {
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
-    TextureAsset* const txtrAsset = reinterpret_cast<TextureAsset*>(pakAsset->extraData());
-    assertm(txtrAsset, "Extra data should be valid at this point.");
+    TextureAsset* const txtrAsset = pakAsset->extraData<TextureAsset* const>();
 
     static float textureZoom = 1.0f;
     static uint8_t lastSelectedMip = 0xff;
@@ -1009,11 +1008,10 @@ static const char* const s_PathPrefixTXTR = s_AssetTypePaths.find(AssetType_t::T
 bool ExportTextureAsset(CAsset* const asset, const int setting)
 {
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
-    const TextureAsset* const txtrAsset = reinterpret_cast<TextureAsset*>(pakAsset->extraData());
-    assertm(txtrAsset, "Extra data should be valid at this point.");
+    const TextureAsset* const txtrAsset = pakAsset->extraData<const TextureAsset* const>();
 
     // Create exported path + asset path.
-    std::filesystem::path exportPath = std::filesystem::current_path().append(EXPORT_DIRECTORY_NAME); // 
+    std::filesystem::path exportPath = g_ExportSettings.GetExportDirectory();
     const std::filesystem::path texturePath(asset->GetAssetName());
 
     const bool hasFullPath = txtrAsset->name != nullptr || g_cacheDBManager.LookupGuid(pakAsset->GetAssetGUID(), nullptr);
@@ -1055,22 +1053,6 @@ bool ExportTextureAsset(CAsset* const asset, const int setting)
     }
 
     unreachable();
-}
-
-void InitTextureAssetType()
-{
-    static const char* settings[] = { "PNG (Highest Mip)", "PNG (All Mips)", "DDS (Highest Mip)", "DDS (All Mips)", "DDS (Mip Mapped)", "JSON (Meta Data)" };
-    AssetTypeBinding_t type =
-    {
-        .type = 'rtxt',
-        .headerAlignment = 8,
-        .loadFunc = LoadTextureAsset,
-        .postLoadFunc = PostLoadTextureAsset,
-        .previewFunc = PreviewTextureAsset,
-        .e = { ExportTextureAsset, 0, settings, ARRSIZE(settings) }
-    };
-
-    REGISTER_TYPE(type);
 }
 
 std::unique_ptr<char[]> UnswizlePS4(const TextureMip_t* const mip, const DXGI_FORMAT format, std::unique_ptr<char[]> txtrData)
@@ -1249,4 +1231,21 @@ std::unique_ptr<char[]> GetTextureDataForMip(CPakAsset* const asset, const Textu
     }
 
     return std::move(txtrData);
+}
+
+void InitTextureAssetType()
+{
+    static const char* settings[] = { "PNG (Highest Mip)", "PNG (All Mips)", "DDS (Highest Mip)", "DDS (All Mips)", "DDS (Mipmapped)", "JSON (Metadata)" };
+    AssetTypeBinding_t type =
+    {
+        .name = "Texture",
+        .type = 'rtxt',
+        .headerAlignment = 8,
+        .loadFunc = LoadTextureAsset,
+        .postLoadFunc = PostLoadTextureAsset,
+        .previewFunc = PreviewTextureAsset,
+        .e = { ExportTextureAsset, 0, settings, ARRSIZE(settings) }
+    };
+
+    REGISTER_TYPE(type);
 }

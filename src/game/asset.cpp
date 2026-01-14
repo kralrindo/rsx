@@ -25,6 +25,8 @@ static std::vector<uint32_t> postLoadOrder =
 
 void CGlobalAssetData::ProcessAssetsPostLoad()
 {
+    this->m_donePostLoad = false;
+
     struct TypeRange_t
     {
         uint32_t type;
@@ -88,6 +90,7 @@ void CGlobalAssetData::ProcessAssetsPostLoad()
                         AssetLookup_t* const pAssetLookup = &this->v_assets[assetToProcess];
                         // temp
                         it->second.postLoadFunc(pAssetLookup->m_asset->GetContainerFile<CAssetContainer>(), pAssetLookup->m_asset);
+                        pAssetLookup->m_asset->SetPostLoadStatus(true);
                     }
 
                 }, threadCount);
@@ -122,6 +125,7 @@ void CGlobalAssetData::ProcessAssetsPostLoad()
                         // temp
                         it->second.postLoadFunc(pAssetLookup->m_asset->GetContainerFile<CAssetContainer>(), pAssetLookup->m_asset);
                     }
+                    pAssetLookup->m_asset->SetPostLoadStatus(true);
                 }
             }, threadCount);
 
@@ -129,9 +133,9 @@ void CGlobalAssetData::ProcessAssetsPostLoad()
         parallelTask.execute();
         parallelTask.wait();
         g_pImGuiHandler->FinishProgressBarEvent(processingAssetsEvent);
-    }
 
-    //std::sort(m_pakAssets.begin(), m_pakAssets.end(), [](const CGlobalAssetData::AssetLookup_t& a, const CGlobalAssetData::AssetLookup_t& b) { return _stricmp(a.m_asset->name().c_str(), b.m_asset->name().c_str()); });
+        this->m_donePostLoad = true; // Record that we've finished post-load so that ODL paks can handle their own post-loading later on
+    }
 }
 
 CGlobalAssetData g_assetData;

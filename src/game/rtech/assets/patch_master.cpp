@@ -35,6 +35,7 @@ void InitPatchMasterAssetType()
 {
     AssetTypeBinding_t type =
     {
+        .name = "Patch Master",
         .type = 'hctP',
         .headerAlignment = 8,
         .loadFunc = LoadPatchMasterAsset,
