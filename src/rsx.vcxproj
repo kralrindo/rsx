@@ -58,7 +58,6 @@
     <ClInclude Include="core\utils\textbuffer.h" />
     <ClInclude Include="core\utils\thread.h" />
     <ClInclude Include="core\utils\utils_general.h" />
-    <ClInclude Include="core\utils\autoupdater.h" />
     <ClInclude Include="core\window.h" />
     <ClInclude Include="game\asset.h" />
     <ClInclude Include="game\audio\miles.h" />
@@ -173,7 +172,6 @@
     <ClCompile Include="core\splash.cpp" />
     <ClCompile Include="core\utils\cli_parser.cpp" />
     <ClCompile Include="core\utils\exportsettings.cpp" />
-    <ClCompile Include="core\utils\autoupdater.cpp" />
     <ClCompile Include="core\utils\fileio.cpp" />
     <ClCompile Include="core\utils\keyvalue_parser.cpp" />
     <ClCompile Include="core\utils\ramen.cpp" />

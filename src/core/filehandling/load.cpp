@@ -101,10 +101,10 @@ void OnCLILoadComplete(const CCommandLine* const cli)
                     filteredAssets.push_back(it);
             }
 
-            CThread(HandleExportAllPakAssets, &filteredAssets, g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents).join();
+            CThread(HandleExportAllPakAssets, &filteredAssets, g_ExportSettings.exportAssetDeps).join();
         }
         else
-            CThread(HandleExportAllPakAssets, &g_assetData.v_assets, g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents).join();
+            CThread(HandleExportAllPakAssets, &g_assetData.v_assets, g_ExportSettings.exportAssetDeps).join();
     }
 
     if (const char* const listPathStr = cli->GetParamValue("--list"))

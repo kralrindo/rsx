@@ -13,7 +13,6 @@
 #include <core/input/input.h>
 
 #include <core/filehandling/export.h>
-#include <core/utils/autoupdater.h>
 
 #include <game/rtech/cpakfile.h>
 #include <game/rtech/assets/model.h>
@@ -214,129 +213,7 @@ void CreatePakAssetDependenciesTable(CAsset* asset)
                         ImGui::BeginDisabled();
 
                     if (ImGui::Button("Export"))
-                        CThread([depAsset]() { HandleExportBindingForAsset(depAsset, g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
-
-                    if (!depAsset)
-                        ImGui::EndDisabled();
-                }
-
-                ImGui::PopID();
-            }
-
-            ImGui::EndTable();
-        }
-
-        ImGui::TreePop();
-    }
-}
-
-void CreatePakAssetDependentsTable(CAsset* asset)
-{
-    CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
-
-    std::vector<AssetGuid_t> dependents;
-    pakAsset->getDependents(dependents);
-
-    if (dependents.empty())
-        return;
-
-    constexpr ImGuiTableFlags tableFlags =
-        ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable
-        | ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_NoBordersInBody
-        | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingFixedFit;
-
-    const ImVec2 outerSize = ImVec2(0.f, ImGui::GetTextLineHeightWithSpacing() * 12.f);
-
-    constexpr int numColumns = 5;
-
-    if (ImGui::TreeNodeEx("Asset Dependents", ImGuiTreeNodeFlags_SpanAvailWidth))
-    {
-        if (ImGui::BeginTable("Dependents", numColumns, tableFlags, outerSize))
-        {
-            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 0);
-            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 1);
-            ImGui::TableSetupColumn("Pak", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 2);
-            ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 3);
-            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 4);
-            ImGui::TableSetupScrollFreeze(1, 1);
-
-            ImGui::TableHeadersRow();
-
-            for (int d = 0; d < dependents.size(); ++d)
-            {
-                AssetGuid_t guid = dependents[d];
-                CAsset* depAsset = g_assetData.FindAssetByGUID<CPakAsset>(guid.guid);
-
-#if _DEBUG
-                if (depAsset)
-                    assert(depAsset->GetAssetContainerType() == CAsset::ContainerType::PAK);
-#endif // _DEBUG
-
-                ImGui::PushID(d + 1000); // Offset ID to avoid collision with dependencies
-
-                ImGui::TableNextRow(ImGuiTableRowFlags_None, 0.f);
-
-                if (ImGui::TableSetColumnIndex(0))
-                {
-                    ImGui::AlignTextToFramePadding();
-                    if (depAsset)
-                        ColouredTextForAssetType(depAsset);
-                    else
-                        ImGui::TextUnformatted("n/a");
-                }
-
-                if (ImGui::TableSetColumnIndex(1))
-                {
-                    ImGui::AlignTextToFramePadding();
-                    if (depAsset)
-                        ImGui::TextUnformatted(depAsset->GetAssetName().c_str());
-                    else
-                        ImGui::Text("%016llX", guid.guid);
-                }
-
-                if (ImGui::TableSetColumnIndex(2))
-                {
-                    ImGui::AlignTextToFramePadding();
-                    if (!depAsset)
-                        ImGui::TextUnformatted("n/a");
-                    else
-                        ImGui::TextUnformatted(depAsset->GetContainerFileName().c_str());
-                }
-
-                if (ImGui::TableSetColumnIndex(3))
-                {
-                    ImGui::AlignTextToFramePadding();
-                    if (depAsset)
-                    {
-                        if (depAsset->GetExportedStatus())
-                        {
-                            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 1.f, 1.f, 1.f));
-                            ImGui::TextUnformatted("Exported");
-                            ImGui::PopStyleColor();
-                        }
-                        else
-                        {
-                            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 1.f, 0.f, 1.f));
-                            ImGui::TextUnformatted("Loaded");
-                            ImGui::PopStyleColor();
-                        }
-                    }
-                    else
-                    {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.f, 0.f, 1.f));
-                        ImGui::TextUnformatted("Not Loaded");
-                        ImGui::PopStyleColor();
-                    }
-                }
-
-                if (ImGui::TableSetColumnIndex(4))
-                {
-                    ImGui::AlignTextToFramePadding();
-                    if (!depAsset)
-                        ImGui::BeginDisabled();
-
-                    if (ImGui::Button("Export"))
-                        CThread([depAsset]() { HandleExportBindingForAsset(depAsset, g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
+                        CThread(HandleExportBindingForAsset, depAsset, g_ExportSettings.exportAssetDeps).detach();
 
                     if (!depAsset)
                         ImGui::EndDisabled();
@@ -395,18 +272,6 @@ void DrawSettingsWindow(CUIState* uiState)
             g_pImGuiHandler->theme.showThemeEditor = true;
         }
 
-        ImGui::Checkbox("Check for updates on startup", &g_pImGuiHandler->cfg.checkForUpdatesOnStartup);
-
-        if (ImGui::Button("Check for Updates"))
-        {
-            if (!g_pAutoUpdater->IsChecking())
-            {
-                g_pAutoUpdater->CheckForUpdatesAsync([](const UpdateInfo_t& info) {
-                    (void)info; // Result will be shown in render loop via GetLastResult()
-                });
-            }
-        }
-
         // ===============================================================================================================
         ImGui::SeparatorText("Export");
 
@@ -417,10 +282,6 @@ void DrawSettingsWindow(CUIState* uiState)
         ImGui::Checkbox("Export asset dependencies", &g_ExportSettings.exportAssetDeps);
         ImGui::SameLine();
         g_pImGuiHandler->HelpMarker("Enables exporting of all dependencies that are associated with any asset that is being exported.");
-
-        ImGui::Checkbox("Export asset dependents", &g_ExportSettings.exportAssetDependents);
-        ImGui::SameLine();
-        g_pImGuiHandler->HelpMarker("Enables exporting of all dependents (assets that depend on this asset) when exporting an asset.");
 
         ImGui::Checkbox("Disable CacheDB names", &g_ExportSettings.disableCachedNames);
         ImGui::SameLine();
@@ -684,7 +545,7 @@ void HandleRenderFrame()
                         {
                             std::deque<CAsset*> cpyAssets;
                             cpyAssets.insert(cpyAssets.end(), selectedAssets.begin(), selectedAssets.end());
-                            CThread([cpyAssets = std::move(cpyAssets)]() mutable { HandlePakAssetExportList(std::move(cpyAssets), g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
+                            CThread(HandlePakAssetExportList, std::move(cpyAssets), g_ExportSettings.exportAssetDeps).detach();
                             selectedAssets.clear();
                         }
                     }
@@ -701,7 +562,7 @@ void HandleRenderFrame()
                                 });
 
                             std::vector<CGlobalAssetData::AssetLookup_t> allAssets(allAssetsOfDesiredType.begin(), allAssetsOfDesiredType.end());
-                            CThread([allAssets = std::move(allAssets)]() mutable { HandleExportSelectedAssetType(std::move(allAssets), g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
+                            CThread(HandleExportSelectedAssetType, std::move(allAssets), g_ExportSettings.exportAssetDeps).detach();
                             selectedAssets.clear();
                         }
                     }
@@ -719,7 +580,7 @@ void HandleRenderFrame()
                                 });
 
                             std::vector<CGlobalAssetData::AssetLookup_t> allAssets(allAssetsOfDesiredType.begin(), allAssetsOfDesiredType.end());
-                            CThread([allAssets = std::move(allAssets)]() mutable { HandleExportSelectedAssetType(std::move(allAssets), g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
+                            CThread(HandleExportSelectedAssetType, std::move(allAssets), g_ExportSettings.exportAssetDeps).detach();
                             selectedAssets.clear();
                         }
                     }
@@ -740,14 +601,14 @@ void HandleRenderFrame()
                                 });
 
                             std::vector<CGlobalAssetData::AssetLookup_t> allAssets(allAssetsOfDesiredType.begin(), allAssetsOfDesiredType.end());
-                            CThread([allAssets = std::move(allAssets)]() mutable { HandleExportSelectedAssetType(std::move(allAssets), g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
+                            CThread(HandleExportSelectedAssetType, std::move(allAssets), g_ExportSettings.exportAssetDeps).detach();
                             selectedAssets.clear();
                         }
                     }
 
                     if (ImGui::Selectable("Export all"))
                     {
-                        CThread([&pakAssets]() { HandleExportAllPakAssets(&pakAssets, g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
+                        CThread(HandleExportAllPakAssets, &pakAssets, g_ExportSettings.exportAssetDeps).detach();
                     }
 
                     // Exports the names of all assets in the currently shown filtered asset list (i.e., search results)
@@ -853,7 +714,7 @@ void HandleRenderFrame()
                                     if (!isSelected)
                                         selectedAssets.insert(selectedAssets.end(), asset);
 
-                                    CThread([selectedAssets = std::move(selectedAssets)]() mutable { HandlePakAssetExportList(std::move(selectedAssets), g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
+                                    CThread(HandlePakAssetExportList, std::move(selectedAssets), g_ExportSettings.exportAssetDeps).detach();
                                 
                                     selectedAssets.clear();
                                 }
@@ -896,7 +757,7 @@ void HandleRenderFrame()
                             // Option to "quickly" export the asset to the exported_files directory
                             // in the format defined by the "Export Options" menu.
 
-                            CThread([firstAsset = std::move(firstAsset)]() mutable { HandleExportBindingForAsset(std::move(firstAsset), g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
+                            CThread(HandleExportBindingForAsset, std::move(firstAsset), g_ExportSettings.exportAssetDeps).detach();
                         }
 
                         if (ImGui::MenuItem("Export as..."))
@@ -939,7 +800,6 @@ void HandleRenderFrame()
                 ImGui::Text("dependentsIndex: %u", pakAsset->dependentsIndex);
 
                 CreatePakAssetDependenciesTable(firstAsset);
-                CreatePakAssetDependentsTable(firstAsset);
             }
 
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
@@ -996,82 +856,6 @@ void HandleRenderFrame()
 #endif
 
     g_pImGuiHandler->ShowThemeEditor();
-
-    // Update notification
-    if (g_pAutoUpdater && g_pAutoUpdater->GetLastResult().hasUpdate)
-    {
-        const UpdateInfo_t& updateInfo = g_pAutoUpdater->GetLastResult();
-        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(400, 0), ImGuiCond_FirstUseEver);
-
-        if (ImGui::Begin("Update Available", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse))
-        {
-            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.5f, 1.0f), "New version available!");
-            ImGui::Separator();
-            ImGui::Text("Current: %s", updateInfo.currentVersion.c_str());
-            ImGui::Text("Latest: %s", updateInfo.latestVersion.c_str());
-            ImGui::Separator();
-
-            if (!updateInfo.releaseNotes.empty() && updateInfo.releaseNotes.length() > 10)
-            {
-                if (ImGui::CollapsingHeader("Release Notes"))
-                {
-                    ImGui::TextWrapped("%s", updateInfo.releaseNotes.c_str());
-                }
-            }
-
-            ImGui::Separator();
-
-            // Show download progress if downloading
-            if (g_pAutoUpdater->IsDownloading())
-            {
-                float progress = g_pAutoUpdater->GetDownloadProgress();
-                char progressText[64];
-                snprintf(progressText, sizeof(progressText), "Downloading... %.0f%%", progress * 100.0f);
-                ImGui::ProgressBar(progress, ImVec2(-1, 0), progressText);
-                ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "RSX will download the update and restart automatically.");
-            }
-            else
-            {
-                // Update and Restart button (if we have asset download URL)
-                if (!updateInfo.assetDownloadUrl.empty())
-                {
-                    if (ImGui::Button("Update and Restart"))
-                    {
-                        g_pAutoUpdater->DownloadAndUpdateAsync([](bool success, const std::string& errorMsg) {
-                            (void)success;
-                            (void)errorMsg;
-                            // Callback won't be reached as app exits, but kept for completeness
-                        });
-                    }
-                    ImGui::SameLine();
-                    if (ImGui::Button("Dismiss"))
-                    {
-                        // Mark as handled by resetting the hasUpdate flag
-                        const_cast<UpdateInfo_t&>(updateInfo).hasUpdate = false;
-                    }
-                    ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "RSX will download the update and restart automatically.");
-                }
-                else
-                {
-                    // Fallback: open in browser if no direct download URL
-                    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.4f, 1.0f), "Direct download not available. Please download manually.");
-                    if (ImGui::Button("Open in Browser"))
-                    {
-                        ShellExecuteA(NULL, "open", updateInfo.downloadUrl.c_str(), NULL, NULL, SW_SHOWNORMAL);
-                    }
-                    ImGui::SameLine();
-                    if (ImGui::Button("Dismiss"))
-                    {
-                        // Mark as handled by resetting the hasUpdate flag
-                        const_cast<UpdateInfo_t&>(updateInfo).hasUpdate = false;
-                    }
-                }
-            }
-
-            ImGui::End();
-        }
-    }
 
     g_pImGuiHandler->HandleProgressBar();
 

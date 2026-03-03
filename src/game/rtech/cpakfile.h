@@ -1190,26 +1190,6 @@ public:
         }
     }
 
-    void getDependents(std::vector<AssetGuid_t>& guidsArray)
-    {
-        const int numDeps = data()->dependentsCount;
-        if (numDeps <= 0)
-        {
-            guidsArray.clear();
-            return;
-        }
-
-        guidsArray.resize(numDeps);
-        const int* const dependentAssetIndexes = &pak()->dependents()[data()->dependentsIndex];
-
-        for (int i = 0; i < numDeps; ++i)
-        {
-            const int assetIdx = dependentAssetIndexes[i];
-            const PakAsset_t* const depAsset = &pak()->internalAssets()[assetIdx];
-            guidsArray[i] = { depAsset->guid };
-        }
-    }
-
     inline const StarPak_t* getStarPak(const bool opt) const
     {
         const int pakIdx = opt ? optStarpakIdx() : starpakIdx();

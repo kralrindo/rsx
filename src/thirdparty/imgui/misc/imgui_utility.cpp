@@ -79,10 +79,6 @@ static void UtilSettings_ReadLine(ImGuiContext* const ctx, ImGuiSettingsHandler*
         ImGuiReadSetting("ExportThreads=%u", cfg->exportThreadCount, i, uint32_t);
         ImGuiReadSetting("ParseThreads=%u", cfg->parseThreadCount, i, uint32_t);
         ImGuiReadSetting("CompressionLevel=%u", cfg->compressionLevel, i, uint32_t);
-
-        int checkUpdates = 0;
-        if (sscanf_s(line, "CheckForUpdatesOnStartup=%d", &checkUpdates) == 1)
-            cfg->checkForUpdatesOnStartup = checkUpdates != 0;
     }
 }
 
@@ -95,7 +91,6 @@ static void UtilSettings_WriteAll(ImGuiContext* const ctx, ImGuiSettingsHandler*
     buf->appendf("ExportThreads=%u\n", UtilsConfig->exportThreadCount);
     buf->appendf("ParseThreads=%u\n", UtilsConfig->parseThreadCount);
     buf->appendf("CompressionLevel=%u\n", UtilsConfig->compressionLevel);
-    buf->appendf("CheckForUpdatesOnStartup=%d\n", UtilsConfig->checkForUpdatesOnStartup ? 1 : 0);
     buf->append("\n");
 }
 
@@ -177,7 +172,6 @@ static void ExportSettings_ReadLine(ImGuiContext* const ctx, ImGuiSettingsHandle
         int i;
         ImGuiReadSetting("ExportPathsFull=%i",              settings->exportPathsFull, i, int);
         ImGuiReadSetting("ExportAssetDeps=%i",              settings->exportAssetDeps, i, int);
-        ImGuiReadSetting("ExportAssetDependents=%i",        settings->exportAssetDependents, i, int);
         ImGuiReadSetting("DisableCacheNames=%i",            settings->disableCachedNames, i, int);
 
 
@@ -204,7 +198,6 @@ static void ExportSettings_WriteAll(ImGuiContext* const ctx, ImGuiSettingsHandle
     
     buf->appendf("ExportPathsFull=%i\n",            g_ExportSettings.exportPathsFull);
     buf->appendf("ExportAssetDeps=%i\n",            g_ExportSettings.exportAssetDeps);
-    buf->appendf("ExportAssetDependents=%i\n",      g_ExportSettings.exportAssetDependents);
     buf->appendf("DisableCacheNames=%i\n",          g_ExportSettings.disableCachedNames);
 
     buf->appendf("ExportTextureNameSetting=%u\n",   g_ExportSettings.exportTextureNameSetting);

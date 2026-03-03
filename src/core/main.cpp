@@ -12,7 +12,6 @@
 #include <core/cache/cachedb.h>
 #include <core/utils/cli_parser.h>
 #include <core/utils/exportsettings.h>
-#include <core/utils/autoupdater.h>
 #include <core/filehandling/load.h>
 
 #include <core/splash.h>
@@ -27,7 +26,7 @@ std::atomic<uint32_t> maxConcurrentThreads = 1u;
 CBufferManager g_BufferManager; // called constructor on init.
 
 ExportSettings_t g_ExportSettings{ .exportNormalRecalcSetting = eNormalExportRecalc::NML_RECALC_NONE, .exportTextureNameSetting = eTextureExportName::TXTR_NAME_TEXT,
-    .exportMaterialTextures = true, .exportPathsFull = false, .exportAssetDeps = false, .exportAssetDependents = false, .disableCachedNames = false, .previewedSkinIndex = 0,
+    .exportMaterialTextures = true, .exportPathsFull = false, .exportAssetDeps = false, .disableCachedNames = false, .previewedSkinIndex = 0,
     .qcMajorVersion = 49, .qcMinorVersion = 0, .exportRigSequences = true, .exportModelSkin = false, .exportModelMatsTruncated = false,
     .exportQCIFiles = false, .exportPhysicsContentsFilter = static_cast<uint32_t>(TRACE_MASK_ALL), .exportDirectory = ""
 };
@@ -286,14 +285,6 @@ int main(int argc, char* argv[])
         ImGui::CreateContext();
         g_pImGuiHandler->SetupHandler();
         g_pImGuiHandler->SetStyle();
-
-        // Check for updates on startup if enabled
-        if (g_pImGuiHandler->cfg.checkForUpdatesOnStartup && g_pAutoUpdater)
-        {
-            g_pAutoUpdater->CheckForUpdatesAsync([](const UpdateInfo_t& info) {
-                (void)info; // Result will be shown in render loop via GetLastResult()
-            });
-        }
 
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard
