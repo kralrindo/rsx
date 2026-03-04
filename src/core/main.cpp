@@ -15,7 +15,6 @@
 #include <core/utils/autoupdater.h>
 #include <core/filehandling/load.h>
 
-#include <core/splash.h>
 #include <core/window.h>
 #include <core/render.h>
 #include <iostream>
@@ -260,11 +259,6 @@ int main(int argc, char* argv[])
 
     // get max con-current threads.
     maxConcurrentThreads = std::max(1u, CThread::GetConCurrentThreads());
-
-#if defined(SPLASHSCREEN)
-    if(!noGui)
-        DrawSplashScreen(); // draw splashscreen now for 2~ seconds
-#endif // #if defined(SPLASHSCREEN)
 
 #if !defined(BUILD_NOGUI)
     if (!noGui)

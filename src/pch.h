@@ -89,7 +89,6 @@
     #define ASSERTS
     #define PAKLOAD_DEBUG_LOG 1
 #else
-    #define SPLASHSCREEN
     #define EXCEPTION_HANDLER
     #define PAKLOAD_DEBUG_LOG 0
 #endif // #ifdef _DEBUG
