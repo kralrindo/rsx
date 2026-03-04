@@ -48,7 +48,6 @@
     <ClInclude Include="core\mdl\stringtable.h" />
     <ClInclude Include="core\render.h" />
     <ClInclude Include="core\shaderexp\multishader.h" />
-    <ClInclude Include="core\splash.h" />
     <ClInclude Include="core\utils\buffermanager.h" />
     <ClInclude Include="core\utils\cli_parser.h" />
     <ClInclude Include="core\utils\crc32.h" />
@@ -173,7 +172,6 @@
     <ClCompile Include="core\render\preview\preview.cpp" />
     <ClCompile Include="core\render\ui\itemflav_window.cpp" />
     <ClCompile Include="core\render\ui\log_window.cpp" />
-    <ClCompile Include="core\splash.cpp" />
     <ClCompile Include="core\utils\cli_parser.cpp" />
     <ClCompile Include="core\utils\exportsettings.cpp" />
     <ClCompile Include="core\utils\autoupdater.cpp" />
@@ -302,7 +300,6 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="resources\icon.ico" />
-    <Image Include="resources\splashimage.bmp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

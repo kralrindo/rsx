@@ -243,9 +243,6 @@
     <ClInclude Include="core\window.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="core\splash.h">
-      <Filter>core</Filter>
-    </ClInclude>
     <ClInclude Include="core\render.h">
       <Filter>core</Filter>
     </ClInclude>
@@ -563,9 +560,6 @@
     <ClCompile Include="core\window.cpp">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="core\splash.cpp">
-      <Filter>core</Filter>
-    </ClCompile>
     <ClCompile Include="core\render.cpp">
       <Filter>core</Filter>
     </ClCompile>
@@ -748,9 +742,6 @@
     <None Include="cpp.hint" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="resources\splashimage.bmp">
-      <Filter>resources</Filter>
-    </Image>
     <Image Include="resources\icon.ico" />
   </ItemGroup>
   <ItemGroup>
