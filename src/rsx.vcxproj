@@ -19,6 +19,7 @@
     <ClInclude Include="core\crashhandler.h" />
     <ClInclude Include="core\features.h" />
     <ClInclude Include="core\mdl\animdata.h" />
+    <ClInclude Include="core\mdl\anim_qc.h" />
     <ClInclude Include="core\mdl\modeldata.h" />
     <ClInclude Include="core\mdl\qc.h" />
     <ClInclude Include="core\mdl\smd.h" />
@@ -144,6 +145,7 @@
     <ClCompile Include="core\filehandling\list.cpp" />
     <ClCompile Include="core\filehandling\mbnk.cpp" />
     <ClCompile Include="core\mdl\animdata.cpp" />
+    <ClCompile Include="core\mdl\anim_qc.cpp" />
     <ClCompile Include="core\mdl\modeldata.cpp" />
     <ClCompile Include="core\mdl\modeldata_qc.cpp" />
     <ClCompile Include="core\mdl\qc.cpp" />
@@ -167,6 +169,7 @@
     <ClCompile Include="core\mdl\stringtable.cpp" />
     <ClCompile Include="core\render.cpp" />
     <ClCompile Include="core\render\dxutils.cpp" />
+    <ClCompile Include="core\render\preview\audio_preview.cpp" />
     <ClCompile Include="core\render\preview\preview.cpp" />
     <ClCompile Include="core\render\ui\itemflav_window.cpp" />
     <ClCompile Include="core\render\ui\log_window.cpp" />
@@ -377,7 +380,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions> /ignore:4099 %(AdditionalOptions)</AdditionalOptions>
       <IgnoreAllDefaultLibraries>
       </IgnoreAllDefaultLibraries>
@@ -411,7 +414,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions> /ignore:4099 %(AdditionalOptions)</AdditionalOptions>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>

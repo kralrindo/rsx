@@ -253,7 +253,7 @@ static void PreviewSettings_WriteAll(ImGuiContext* const ctx, ImGuiSettingsHandl
 
     buf->reserve(buf->size() + 128);
     buf->appendf("[%s][general]\n", handler->TypeName);
-    
+
     buf->appendf("PreviewCullDistance=%f\n",    g_PreviewSettings.previewCullDistance);
     buf->appendf("PreviewMovementSpeed=%f\n",   g_PreviewSettings.previewMovementSpeed);
 

@@ -459,3 +459,18 @@ private:
 
 // Decoders
 MilesASIDecoder_t* GetRadAudioDecoder();
+
+// Audio Preview
+bool PlayAudioPreview(CAsset* const asset);
+void StopAudioPreview();
+bool IsAudioPreviewPlaying();
+float GetAudioPreviewProgress();
+float GetAudioPreviewDuration();
+void SetAudioPreviewVolume(float volume);
+float GetAudioPreviewVolume();
+void UpdateAudioPreviewVolume();
+void SetAudioPreviewLoop(bool loop);
+bool IsAudioPreviewLooping();
+void SetAudioPreviewAutoPlay(bool autoPlay);
+bool IsAudioPreviewAutoPlayEnabled();
+void CleanupAudioPreview();

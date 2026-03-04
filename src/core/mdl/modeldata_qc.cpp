@@ -1060,7 +1060,32 @@ void QC_ParseStudioWeightList(qc::QCFile* const file, const ModelParsedData_t* c
 void FormNameAnim(char* const buf, const size_t size, const char* const stem, const char* const name, const int format)
 {
 	assertm(strnlen_s(name, MAX_PATH) < (size - 16ull), "big animation name");
-	snprintf(buf, size, "anims_%s/%s%s", stem, name, s_ModelExportExtensions[format]);
+
+	// Map animseq export setting to appropriate extension
+	const char* extension = ".smd";  // Default to SMD for QC
+
+	switch (format)
+	{
+	case 0: // ANIMSEQ_CAST
+		extension = ".cast";
+		break;
+	case 1: // ANIMSEQ_RMAX
+		extension = ".rmax";
+		break;
+	case 2: // ANIMSEQ_RSEQ
+		extension = ".rseq";
+		break;
+	case 3: // ANIMSEQ_SMD
+		extension = ".smd";
+		break;
+	default:
+		// For model export settings, use the extension array
+		if (format >= 0 && format < 6)
+			extension = s_ModelExportExtensions[format];
+		break;
+	}
+
+	snprintf(buf, size, "anims_%s/%s%s", stem, name, extension);
 }
 
 void QC_ParseStudioAnimation(qc::QCFile* const file, const ModelParsedData_t* const parsedData, const ModelAnimInfo_t* const info, const char* const stem, const int setting)
@@ -1598,6 +1623,12 @@ bool ExportSeqQC(const ModelParsedData_t* const parsedData, const ModelSeq_t* co
 	ModelSeqInfo_t seqInfo;
 	seqInfo.seq = sequence;
 	seqInfo.blends = reinterpret_cast<int* const>(qcFile.ReserveData(sizeof(int) * sequence->AnimCount()));
+
+	// Initialize blend indices
+	for (int i = 0; i < sequence->AnimCount(); i++)
+	{
+		seqInfo.blends[i] = i;
+	}
 
 	ModelAnimInfo_t* const animInfo = reinterpret_cast<ModelAnimInfo_t* const>(qcFile.ReserveData(sizeof(ModelAnimInfo_t) * sequence->AnimCount()));
 

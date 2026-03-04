@@ -543,6 +543,295 @@ bool ExportAudioSourceAsset(CAsset* const asset, const int setting)
 	return true;
 }
 
+// Audio preview system
+#include <core/render/preview/audio_preview.h>
+
+struct DecodedAudioData_t
+{
+	std::vector<float> samples;
+	uint32_t sampleRate;
+	uint16_t channels;
+	bool valid;
+};
+
+static DecodedAudioData_t* g_pCurrentPreviewData = nullptr;
+
+bool DecodeAudioForPreview(CAsset* const asset, DecodedAudioData_t& outData)
+{
+	outData.valid = false;
+
+	CMilesAudioAsset* audioAsset = static_cast<CMilesAudioAsset*>(asset);
+	CMilesAudioBank* audioBank = asset->GetContainerFile<CMilesAudioBank>();
+
+	MilesSource_t* source = reinterpret_cast<MilesSource_t*>(audioAsset->GetAssetData());
+
+	// get the bank's path and replace the filename
+	// with the stream file name that we've just put together
+	std::filesystem::path streamPath(audioBank->GetFilePath());
+	streamPath.replace_filename(audioAsset->GetContainerFileName());
+
+	// Data Reading
+	StreamIO streamFile(streamPath, eStreamIOMode::Read);
+
+	MilesStreamHeader_t streamFileHeader = streamFile.read<MilesStreamHeader_t>();
+
+	streamFile.seek(source->streamHeaderOffset);
+
+	char* sourceStreamHeaderData = new char[source->streamHeaderSize];
+
+	streamFile.read(sourceStreamHeaderData, source->streamHeaderSize);
+
+	MilesASIDecoder_t* decoder = nullptr;
+
+	switch (*(uint32_t*)sourceStreamHeaderData)
+	{
+	case 'RADA': // Rad Audio
+		decoder = GetRadAudioDecoder();
+		break;
+	case 'BCF1': // Bink Audio
+		decoder = nullptr;
+		break;
+	default:
+	{
+		decoder = nullptr;
+		break;
+	}
+	}
+
+	if (!decoder)
+	{
+		delete[] sourceStreamHeaderData;
+		return false;
+	}
+
+	struct {
+		uint32_t minSizeToOpenStream;
+		uint32_t maxBlockSize;
+		uint32_t maxSamplesPerDecode;
+		uint32_t decodeFormat;
+	} parsedMetadata;
+
+	const auto ASI_stream_parse_metadata = static_cast<ASI_parse_metadata_f>(decoder->ASI_stream_parse_metadata);
+	const auto ASI_open_stream = static_cast<ASI_open_stream_f>(decoder->ASI_open_stream);
+	const auto ASI_notify_seek = static_cast<ASI_notify_seek_f>(decoder->ASI_notify_seek);
+	const auto ASI_decode_block = static_cast<ASI_decode_block_f>(decoder->ASI_decode_block);
+	const auto ASI_get_block_size = static_cast<ASI_get_block_size_f>(decoder->ASI_get_block_size);
+
+	uint16_t channels;
+	uint32_t sampleRate;
+	uint32_t samplesCount;
+	ASI_stream_parse_metadata(sourceStreamHeaderData, source->streamHeaderSize, &channels, &sampleRate, &samplesCount, (int*)&parsedMetadata, nullptr);
+
+	streamFile.seek(source->streamHeaderOffset);
+
+	std::vector<char> container(parsedMetadata.minSizeToOpenStream, 0);
+
+	MilesASIUserData_t userData = {
+		&streamFile,
+		0,
+		source->streamHeaderSize,
+		streamFileHeader.streamDataOffset + source->streamDataOffset
+	};
+
+	size_t containerSize = container.size();
+	ASI_open_stream(container.data(), &containerSize, ReadAudioStream, &userData);
+
+	ASI_notify_seek(container.data());
+
+	userData.audioStreamSize = *(uint64_t*)(container.data() + 0x18) - source->streamHeaderSize;
+
+	// Allocate output buffer
+	outData.samples = std::vector<float>(channels * samplesCount);
+	float* outputBuffer = outData.samples.data();
+
+	std::vector<char> stream_data;
+	std::vector<float> radDecodedData(channels * parsedMetadata.maxSamplesPerDecode);
+
+	size_t totalFramesDecoded = 0;
+	uint32_t minInputBufferSize = 0;
+
+	while (totalFramesDecoded < samplesCount)
+	{
+		memset(radDecodedData.data(), 0, radDecodedData.size() * 4);
+
+		uint32_t bytesConsumed = 0;
+		uint32_t blockSize = 0;
+
+		if (minInputBufferSize == 0)
+		{
+			ASI_get_block_size(container.data(), stream_data.data(), 0, &bytesConsumed, &blockSize, &minInputBufferSize);
+			stream_data.resize(minInputBufferSize);
+			ReadAudioStream(stream_data.data(), stream_data.size(), &userData);
+		}
+
+		ASI_get_block_size(container.data(), stream_data.data(), stream_data.size(), &bytesConsumed, &blockSize, &minInputBufferSize);
+
+		if (blockSize == 0xFFFF)
+			break;
+
+		const size_t oldSize = stream_data.size();
+		stream_data.resize(blockSize + minInputBufferSize);
+		ReadAudioStream(stream_data.data() + oldSize, stream_data.size() - oldSize, &userData);
+
+		ASI_get_block_size(container.data(), stream_data.data(), stream_data.size(), &bytesConsumed, &blockSize, &minInputBufferSize);
+
+		if (blockSize != 0xFFFF)
+		{
+			uint32_t decodeBytesConsumed = 0;
+			uint32_t samplesDecoded = 0;
+
+			ASI_decode_block(container.data(), stream_data.data(), stream_data.size(), radDecodedData.data(), radDecodedData.size() * sizeof(float), &decodeBytesConsumed, &samplesDecoded);
+
+			if (decodeBytesConsumed == 0)
+			{
+				// Finished decoding
+			}
+
+			// Interleave channels
+			for (int channelIdx = 0; channelIdx < channels; ++channelIdx)
+			{
+				const float* const channelSampleBuffer = radDecodedData.data() + (parsedMetadata.maxSamplesPerDecode * channelIdx);
+
+				for (uint32_t sampleIdx = 0; sampleIdx < samplesDecoded; ++sampleIdx)
+				{
+					const size_t outputIdx = static_cast<size_t>(channels) * (sampleIdx + totalFramesDecoded);
+					outputBuffer[outputIdx + channelIdx] = channelSampleBuffer[sampleIdx];
+				}
+			}
+
+			totalFramesDecoded += samplesDecoded;
+
+			const size_t unconsumedInputBytes = stream_data.size() - decodeBytesConsumed;
+			char* tempBuffer = new char[unconsumedInputBytes];
+			memcpy(tempBuffer, stream_data.data() + decodeBytesConsumed, unconsumedInputBytes);
+			stream_data.resize(unconsumedInputBytes);
+			memcpy(stream_data.data(), tempBuffer, stream_data.size());
+			delete[] tempBuffer;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	delete[] sourceStreamHeaderData;
+
+	outData.sampleRate = sampleRate;
+	outData.channels = channels;
+	outData.valid = true;
+
+	return true;
+}
+
+bool PlayAudioPreview(CAsset* const asset)
+{
+	if (!g_pAudioPreview)
+	{
+		Log("AUDIO: g_pAudioPreview is null\n");
+		return false;
+	}
+
+	Log("AUDIO: Starting preview for asset '%s'\n", asset->GetAssetName().c_str());
+
+	DecodedAudioData_t* data = new DecodedAudioData_t();
+	if (!DecodeAudioForPreview(asset, *data))
+	{
+		Log("AUDIO: Failed to decode audio for preview\n");
+		delete data;
+		return false;
+	}
+
+	Log("AUDIO: Decoded %zu samples, %d Hz, %d channels\n", data->samples.size(), data->sampleRate, data->channels);
+
+	// Clean up previous preview data
+	if (g_pCurrentPreviewData)
+	{
+		delete g_pCurrentPreviewData;
+	}
+
+	g_pCurrentPreviewData = data;
+	return g_pAudioPreview->Play(data->samples, data->sampleRate, data->channels);
+}
+
+void StopAudioPreview()
+{
+	if (g_pAudioPreview)
+		g_pAudioPreview->Stop();
+}
+
+bool IsAudioPreviewPlaying()
+{
+	return g_pAudioPreview && g_pAudioPreview->IsPlaying();
+}
+
+float GetAudioPreviewProgress()
+{
+	if (!g_pAudioPreview)
+		return 0.0f;
+	return g_pAudioPreview->GetProgress();
+}
+
+float GetAudioPreviewDuration()
+{
+	if (!g_pAudioPreview)
+		return 0.0f;
+	return g_pAudioPreview->GetDuration();
+}
+
+void SetAudioPreviewVolume(float volume)
+{
+	if (g_pAudioPreview)
+		g_pAudioPreview->SetVolume(volume);
+}
+
+float GetAudioPreviewVolume()
+{
+	if (!g_pAudioPreview)
+		return 1.0f;
+	return g_pAudioPreview->GetVolume();
+}
+
+void UpdateAudioPreviewVolume()
+{
+	if (g_pAudioPreview)
+		g_pAudioPreview->UpdateVolume();
+}
+
+void SetAudioPreviewLoop(bool loop)
+{
+	if (g_pAudioPreview)
+		g_pAudioPreview->SetLoop(loop);
+}
+
+bool IsAudioPreviewLooping()
+{
+	if (!g_pAudioPreview)
+		return false;
+	return g_pAudioPreview->IsLooping();
+}
+
+void SetAudioPreviewAutoPlay(bool autoPlay)
+{
+	if (g_pAudioPreview)
+		g_pAudioPreview->SetAutoPlay(autoPlay);
+}
+
+bool IsAudioPreviewAutoPlayEnabled()
+{
+	if (!g_pAudioPreview)
+		return false;
+	return g_pAudioPreview->IsAutoPlayEnabled();
+}
+
+void CleanupAudioPreview()
+{
+	if (g_pCurrentPreviewData)
+	{
+		delete g_pCurrentPreviewData;
+		g_pCurrentPreviewData = nullptr;
+	}
+}
+
 void InitAudioSourceAssetType()
 {
 	AssetTypeBinding_t type =

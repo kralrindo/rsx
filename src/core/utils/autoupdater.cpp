@@ -2,7 +2,7 @@
 #include <core/utils/autoupdater.h>
 
 // Current version (matches FILEVERSION in rsx.rc)
-const char* AutoUpdater::CURRENT_VERSION = "1.1.17";
+const char* AutoUpdater::CURRENT_VERSION = "1.1.8";
 
 // Default repository
 const char* AutoUpdater::GITHUB_REPO = "kralrindo/rsx";
@@ -159,6 +159,32 @@ bool AutoUpdater::CreateUpdateScript(const std::string& tempUpdatePath, const st
     return success;
 }
 
+// Helper function to compare semantic versions
+// Returns true if latestVersion is newer than currentVersion
+static bool IsNewerVersion(const std::string& latestVersion, const std::string& currentVersion)
+{
+    auto parseVersion = [](const std::string& version) -> std::tuple<int, int, int> {
+        int major = 0, minor = 0, patch = 0;
+        if (sscanf_s(version.c_str(), "%d.%d.%d", &major, &minor, &patch) != 3)
+        {
+            if (sscanf_s(version.c_str(), "%d.%d", &major, &minor) != 2)
+            {
+                sscanf_s(version.c_str(), "%d", &major);
+            }
+        }
+        return std::make_tuple(major, minor, patch);
+    };
+
+    auto [currentMajor, currentMinor, currentPatch] = parseVersion(currentVersion);
+    auto [latestMajor, latestMinor, latestPatch] = parseVersion(latestVersion);
+
+    if (latestMajor > currentMajor) return true;
+    if (latestMajor < currentMajor) return false;
+    if (latestMinor > currentMinor) return true;
+    if (latestMinor < currentMinor) return false;
+    return latestPatch > currentPatch;
+}
+
 UpdateInfo_t AutoUpdater::CheckForUpdates()
 {
     UpdateInfo_t info = { false, CURRENT_VERSION, "", "", "", "" };
@@ -286,10 +312,11 @@ UpdateInfo_t AutoUpdater::CheckForUpdates()
             info.releaseNotes = response.substr(bodyStart, bodyEnd - bodyStart);
     }
 
-    // Compare versions (simple comparison - assumes semantic versioning)
-    // Current: 1.1.17, Latest: could be 1.1.18, 1.2.0, etc.
+    // Compare versions (semantic versioning)
+    // Current: 1.1.8, Latest: could be 1.1.9, 1.2.0, etc.
+    // Only report update if latest version is actually NEWER (not just different)
 
-    info.hasUpdate = (info.latestVersion != CURRENT_VERSION);
+    info.hasUpdate = IsNewerVersion(info.latestVersion, CURRENT_VERSION);
 
     return info;
 }

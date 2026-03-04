@@ -8,6 +8,7 @@
 #include <core/mdl/cast.h>
 #include <core/mdl/modeldata.h>
 #include <core/mdl/animdata.h>
+#include <core/mdl/anim_qc.h>
 
 #include <thirdparty/imgui/misc/imgui_utility.h>
 
@@ -248,7 +249,7 @@ bool ExportAnimSeqAsset(CPakAsset* const asset, const int setting, const AnimSeq
 	}
 }
 
-bool ExportAnimSeqFromAsset(const std::filesystem::path& exportPath, const std::string& stem, const char* const name, const int numAnimSeqs, const AssetGuid_t* const animSeqs, const std::vector<ModelBone_t>* const bones)
+bool ExportAnimSeqFromAsset(const std::filesystem::path& exportPath, const std::string& stem, const char* const name, const int numAnimSeqs, const AssetGuid_t* const animSeqs, const std::vector<ModelBone_t>* const bones, const int forceExportSetting)
 {
 	auto aseqAssetBinding = g_assetData.m_assetTypeBindings.find('qesa');
 
@@ -264,6 +265,9 @@ bool ExportAnimSeqFromAsset(const std::filesystem::path& exportPath, const std::
 			assertm(false, "Failed to create directory.");
 			return false;
 		}
+
+		// Use forced setting if provided, otherwise use global setting
+		const int exportSetting = (forceExportSetting >= 0) ? forceExportSetting : aseqAssetBinding->second.e.exportSetting;
 
 		std::atomic<uint32_t> remainingSeqs = 0; // we don't actually need thread safe here
 		const ProgressBarEvent_t* const seqExportProgress = g_pImGuiHandler->AddProgressBarEvent("Exporting Sequences..", static_cast<uint32_t>(numAnimSeqs), &remainingSeqs, true);
@@ -288,7 +292,7 @@ bool ExportAnimSeqFromAsset(const std::filesystem::path& exportPath, const std::
 
 			outputPath.replace_filename(std::filesystem::path(animSeqAsset->name).filename());
 
-			ExportAnimSeqAsset(animSeq, aseqAssetBinding->second.e.exportSetting, animSeqAsset, outputPath, name, bones);
+			ExportAnimSeqAsset(animSeq, exportSetting, animSeqAsset, outputPath, name, bones);
 
 			++remainingSeqs;
 		}
@@ -358,14 +362,9 @@ bool ExportAnimSeqAsset(CAsset* const asset, const int setting)
 		assertm(parsedData && parsedData->BoneCount(), "we should have bones at this point.");
 	}
 
-	if (setting == eAnimSeqExportSetting::ANIMSEQ_SMD)
-	{
-		const bool result = ExportSeqQC(parsedData, &animSeqAsset->seqdesc, exportPath, setting, 54);
-		if (result == false)
-		{
-			return false;
-		}
-	}
+	// Note: QC export for individual RSEQ SMD is disabled.
+	// QC files should only be generated when exporting rigs as SMD, which includes all associated animations.
+	// Individual RSEQ SMD exports only produce the SMD file itself.
 
 	return ExportAnimSeqAsset(pakAsset, setting, animSeqAsset, exportPath, rigName, parsedData->GetRig());
 }

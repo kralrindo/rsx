@@ -559,16 +559,26 @@ void* PreviewTextureAsset(CAsset* const asset, const bool firstFrameForAsset)
         }
     }
 
-    if (ImGui::CollapsingHeader("Mip Levels", ImGuiTreeNodeFlags_DefaultOpen))
+    // Create a 2-column layout for mip levels and texture preview
+    if (ImGui::BeginTable("TexturePreviewLayout", 2, ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV))
     {
-        if (ImGui::BeginTable("Texture Table", TexturePreviewData_t::eColumnID::_TPC_COUNT, tableFlags, outerSize))
+        ImGui::TableSetupColumn("MipLevels", ImGuiTableColumnFlags_WidthStretch, 0.5f);
+        ImGui::TableSetupColumn("Preview", ImGuiTableColumnFlags_WidthStretch, 0.5f);
+
+        // LEFT COLUMN: Mip Levels
+        ImGui::TableNextColumn();
+
+        ImGui::Text("Mip Levels");
+        ImGui::Separator();
+
+        if (ImGui::BeginTable("Texture Table", TexturePreviewData_t::eColumnID::_TPC_COUNT, tableFlags | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingFixedFit, outerSize))
         {
-            ImGui::TableSetupColumn("Level", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.0f, TexturePreviewData_t::eColumnID::TPC_Level);
-            ImGui::TableSetupColumn("Dimensions", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.0f, TexturePreviewData_t::eColumnID::TPC_Dimensions);
-            ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.0f, TexturePreviewData_t::eColumnID::TPC_Status);
-            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.0f, TexturePreviewData_t::eColumnID::TPC_Type);
-            ImGui::TableSetupColumn("Compression", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.0f, TexturePreviewData_t::eColumnID::TPC_Comp);
-            ImGui::TableSetupColumn("Origin", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.0f, TexturePreviewData_t::eColumnID::TPC_Origin);
+            ImGui::TableSetupColumn("Level", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.0f, TexturePreviewData_t::eColumnID::TPC_Level);
+            ImGui::TableSetupColumn("Dimensions", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 80.0f, TexturePreviewData_t::eColumnID::TPC_Dimensions);
+            ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 60.0f, TexturePreviewData_t::eColumnID::TPC_Status);
+            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 80.0f, TexturePreviewData_t::eColumnID::TPC_Type);
+            ImGui::TableSetupColumn("Compression", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 80.0f, TexturePreviewData_t::eColumnID::TPC_Comp);
+            ImGui::TableSetupColumn("Origin", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.0f, TexturePreviewData_t::eColumnID::TPC_Origin);
             ImGui::TableSetupScrollFreeze(1, 1);
 
             ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // get the sorting settings from this table
@@ -644,76 +654,88 @@ void* PreviewTextureAsset(CAsset* const asset, const bool firstFrameForAsset)
 
             ImGui::EndTable();
         }
-    }
 
-    
+        // RIGHT COLUMN: Texture Preview
+        ImGui::TableNextColumn();
 
-    CTexture* const selectedMipTxtr = selectedMipTexture.get();
-    if (selectedMipTxtr)
-    {
-        const float aspectRatio = static_cast<float>(selectedMipTxtr->GetWidth()) / selectedMipTxtr->GetHeight();
-
-        float imageHeight = std::max(std::clamp(static_cast<float>(selectedMipTxtr->GetHeight()), 0.f, std::max(ImGui::GetContentRegionAvail().y, 1.f)) - 2.5f, 4.f);
-        float imageWidth = imageHeight * aspectRatio;
-
-        imageWidth *= textureZoom;
-        imageHeight *= textureZoom;
-
-        ImGuiStyle& style = ImGui::GetStyle();
-        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.FramePadding.y);
-
+        ImGui::Text("Preview");
         ImGui::Separator();
-        ImGui::Text("Scale: %.f%%", textureZoom * 100.f);
-        ImGui::SameLine();
-        ImGui::NextColumn();
 
-        constexpr const char* const zoomHelpText = "Hold CTRL and scroll to zoom";
-        IMGUI_RIGHT_ALIGN_FOR_TEXT(zoomHelpText);
-        ImGui::TextUnformatted(zoomHelpText);
-        if (ImGui::BeginChild("Texture Preview", ImVec2(0.f, 0.f), true, ImGuiWindowFlags_HorizontalScrollbar)) // [rika]: todo smaller screens will not have the most ideal viewing experience do to the image being squashed
+        CTexture* const selectedMipTxtr = selectedMipTexture.get();
+        if (selectedMipTxtr)
         {
-            const bool previewHovering = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-            ImGui::Image(selectedMipTxtr->GetSRV(), ImVec2(imageWidth, imageHeight));
-            if (previewHovering && ImGui::GetIO().KeyCtrl)
+            const float aspectRatio = static_cast<float>(selectedMipTxtr->GetWidth()) / selectedMipTxtr->GetHeight();
+
+            float imageHeight = std::max(std::clamp(static_cast<float>(selectedMipTxtr->GetHeight()), 0.f, std::max(ImGui::GetContentRegionAvail().y, 1.f)) - 2.5f, 4.f);
+            float imageWidth = imageHeight * aspectRatio;
+
+            imageWidth *= textureZoom;
+            imageHeight *= textureZoom;
+
+            ImGuiStyle& style = ImGui::GetStyle();
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.FramePadding.y);
+
+            ImGui::Text("Scale: %.f%%", textureZoom * 100.f);
+            ImGui::SameLine();
+
+            constexpr const char* const zoomHelpText = "Hold CTRL and scroll to zoom";
+            IMGUI_RIGHT_ALIGN_FOR_TEXT(zoomHelpText);
+            ImGui::TextUnformatted(zoomHelpText);
+
+            if (ImGui::BeginChild("Texture Preview Image", ImVec2(0.f, 0.f), true, ImGuiWindowFlags_HorizontalScrollbar))
             {
-                const float wheel = ImGui::GetIO().MouseWheel;
-                const float scrollZoomFactor = ImGui::GetIO().KeyAlt ? (1.f / 20.f) : (1.f / 10.f);
+                const bool previewHovering = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+                ImGui::Image(selectedMipTxtr->GetSRV(), ImVec2(imageWidth, imageHeight));
+                if (previewHovering && ImGui::GetIO().KeyCtrl)
+                {
+                    const float wheel = ImGui::GetIO().MouseWheel;
+                    const float scrollZoomFactor = ImGui::GetIO().KeyAlt ? (1.f / 20.f) : (1.f / 10.f);
 
-                if (wheel != 0.0f)
-                    textureZoom += (wheel * scrollZoomFactor);
+                    if (wheel != 0.0f)
+                        textureZoom += (wheel * scrollZoomFactor);
 
-                textureZoom = std::clamp(textureZoom, 0.1f, 5.0f);
-            }
+                    textureZoom = std::clamp(textureZoom, 0.1f, 5.0f);
+                }
 
-            static bool resetPos = true;
-            static ImVec2 posPrev;
-            if (previewHovering && ImGui::GetIO().MouseDown[2] && !ImGui::GetIO().KeyCtrl) // middle mouse
-            {
-                ImVec2 posCur = ImGui::GetIO().MousePos;
+                static bool resetPos = true;
+                static ImVec2 posPrev;
+                if (previewHovering && ImGui::GetIO().MouseDown[2] && !ImGui::GetIO().KeyCtrl) // middle mouse
+                {
+                    ImVec2 posCur = ImGui::GetIO().MousePos;
 
-                if (resetPos)
+                    if (resetPos)
+                        posPrev = posCur;
+
+                    ImVec2 delta(posCur.x - posPrev.x, posCur.y - posPrev.y);
+                    ImVec2 scroll(0.0f, 0.0f);
+
+                    scroll.x = std::clamp(ImGui::GetScrollX() + delta.x, 0.0f, ImGui::GetScrollMaxX());
+                    scroll.y = std::clamp(ImGui::GetScrollY() + delta.y, 0.0f, ImGui::GetScrollMaxY());
+
+                    ImGui::SetScrollX(scroll.x);
+                    ImGui::SetScrollY(scroll.y);
+
                     posPrev = posCur;
-
-                ImVec2 delta(posCur.x - posPrev.x, posCur.y - posPrev.y);
-                ImVec2 scroll(0.0f, 0.0f);
-
-                scroll.x = std::clamp(ImGui::GetScrollX() + delta.x, 0.0f, ImGui::GetScrollMaxX());
-                scroll.y = std::clamp(ImGui::GetScrollY() + delta.y, 0.0f, ImGui::GetScrollMaxY());
-
-                ImGui::SetScrollX(scroll.x);
-                ImGui::SetScrollY(scroll.y);
-
-                posPrev = posCur;
-                resetPos = false;
+                    resetPos = false;
+                }
+                else
+                {
+                    resetPos = true;
+                }
             }
-            else
-            {
-                resetPos = true;
-            }
+            ImGui::EndChild();
         }
-        ImGui::EndChild();
+        else
+        {
+            ImGui::TextUnformatted("No preview available.");
+        }
+
+        ImGui::EndTable();
     }
-    else
+
+    // Handle texture creation if not yet available
+    CTexture* const selectedMipTxtrCheck = selectedMipTexture.get();
+    if (!selectedMipTxtrCheck)
     {
         const TextureMip_t* const mip = &txtrAsset->mipArray.at(selectedMip.index);
         selectedMipTexture = CreateTextureFromMip(pakAsset, mip, s_PakToDxgiFormat[txtrAsset->imgFormat], selectedArrayIndex);

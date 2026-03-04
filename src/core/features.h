@@ -2,7 +2,7 @@
 
 // [ASSET FEATURES]
 //#define HAS_ODL_ASSET
-//#define HAS_QC // unsure if QC is ready for release yet, so for now it's off!
+#define HAS_QC
 
 // [GENERAL FEATURES]
 //#define HAS_ITEMFLAV_WINDOW

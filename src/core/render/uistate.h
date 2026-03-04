@@ -63,6 +63,7 @@ public:
 	inline void ShowSettingsWindow(bool state) { settingsWindowVisible = state; };
 	inline void ShowItemflavWindow(bool state) { itemflavWindowVisible = state; };
 	inline void ShowLogWindow(bool state) { logWindowVisible = state; };
+	inline void ShowTexturePreviewWindow(bool state) { texturePreviewWindowVisible = state; };
 
 	inline void ClearAssetData()
 	{
@@ -72,11 +73,12 @@ public:
 	}
 
 public:
-	bool settingsWindowVisible;
-	bool itemflavWindowVisible;
-	bool logWindowVisible;
+	bool settingsWindowVisible = false;
+	bool itemflavWindowVisible = false;
+	bool logWindowVisible = false;
+	bool texturePreviewWindowVisible = false;
 
-	void* itemFlavorListAsset;
+	void* itemFlavorListAsset = nullptr;
 
 	CUI_ItemflavWindowData itemflavData;
 };

@@ -846,6 +846,13 @@ bool ExportModelQC(const ModelParsedData_t* const parsedData, std::filesystem::p
 bool ExportSeqDesc(const int setting, const ModelSeq_t* const seqdesc, std::filesystem::path& exportPath, const char* const skelName, const std::vector<ModelBone_t>* const bones, const uint64_t guid);
 bool ExportSeqQC(const ModelParsedData_t* const parsedData, const ModelSeq_t* const sequence, std::filesystem::path& exportPath, const int setting, const int version);
 
+// Forward declarations for anim assets
+class AnimRigAsset;
+
+// Consolidated QC export for animrig and animseq
+bool ExportAnimRigQC(const AnimRigAsset* const animRigAsset, std::filesystem::path& exportPath);
+bool ExportAnimSeqsQC(const std::vector<std::filesystem::path>& rseqPaths, const std::filesystem::path& rrigPath, std::filesystem::path& exportPath);
+
 void UpdateModelBoneMatrix(CDXDrawData* const drawData, const ModelParsedData_t* const parsedData);
 void InitModelBoneMatrix(CDXDrawData* const drawData, const ModelParsedData_t* const parsedData);
 

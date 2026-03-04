@@ -12,6 +12,7 @@
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
+#include <set>
 #include <vector>
 #include <memory>
 #include <sstream>
@@ -30,6 +31,7 @@
 #define NOMINMAX
 #endif
 #include <Windows.h>
+#include <mmsystem.h>
 #include <io.h>
 
 #include <core/features.h>

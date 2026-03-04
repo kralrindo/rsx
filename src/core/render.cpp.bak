@@ -130,11 +130,11 @@ void CreatePakAssetDependenciesTable(CAsset* asset)
     {
         if (ImGui::BeginTable("Assets", numColumns, tableFlags, outerSize))
         {
-            ImGui::TableSetupColumn("Type", 0, 0.0f, 0);
-            ImGui::TableSetupColumn("Name", 0, 0.0f, 1);
-            ImGui::TableSetupColumn("Pak", 0, 0.0f, 2);
-            ImGui::TableSetupColumn("Status", 0, 0.0f, 3);
-            ImGui::TableSetupColumn("", 0, 0.0f, 4);
+            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 0);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 1);
+            ImGui::TableSetupColumn("Pak", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 2);
+            ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 3);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 4);
             ImGui::TableSetupScrollFreeze(1, 1);
 
             ImGui::TableHeadersRow();
@@ -253,11 +253,11 @@ void CreatePakAssetDependentsTable(CAsset* asset)
     {
         if (ImGui::BeginTable("Dependents", numColumns, tableFlags, outerSize))
         {
-            ImGui::TableSetupColumn("Type", 0, 0.0f, 0);
-            ImGui::TableSetupColumn("Name", 0, 0.0f, 1);
-            ImGui::TableSetupColumn("Pak", 0, 0.0f, 2);
-            ImGui::TableSetupColumn("Status", 0, 0.0f, 3);
-            ImGui::TableSetupColumn("", 0, 0.0f, 4);
+            ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 0);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 1);
+            ImGui::TableSetupColumn("Pak", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 2);
+            ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 3);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.f, 4);
             ImGui::TableSetupScrollFreeze(1, 1);
 
             ImGui::TableHeadersRow();
@@ -413,7 +413,7 @@ void DrawSettingsWindow(CUIState* uiState)
                     });
                 }
             }
-            ImGui::SameLine();
+
             ImGui::Checkbox("Check for updates on startup", &g_pImGuiHandler->cfg.checkForUpdatesOnStartup);
 
             // ===============================================================================================================
@@ -493,12 +493,15 @@ void DrawSettingsWindow(CUIState* uiState)
         ImGui::SameLine();
         g_pImGuiHandler->HelpMarker("Filter only physics meshes containing all specified contents.");
 
-        // ===============================================================================================================
-        ImGui::SeparatorText("Parsing");
+            // RIGHT COLUMN
+            ImGui::TableNextColumn();
+
+            // ===============================================================================================================
+            ImGui::SeparatorText("Parsing");
 
         ImGui::Combo("Compression Level", reinterpret_cast<int*>(&UtilsConfig->compressionLevel), s_CompressionLevelSetting, static_cast<int>(ARRAYSIZE(s_CompressionLevelSetting)));
         ImGui::SameLine();
-        g_pImGuiHandler->HelpMarker("Specifies the compression level used when storing parsed assets in memory.\nWARNING: Modify only if you know what you're doing; otherwise, you may run out of memory.\nNone: no compression.\nSuper Fast: Fastest level with the lowest compression ratio.\nVery Fast: Standard setting; fastest level with a decent compression ratio.\nFast: Fastest level with a good compression ratio.\nNormal: Standard LZ speed with the highest compression ratio.");
+        g_pImGuiHandler->HelpMarker("Specifies the compression level used when storing parsed assets in memory.\nWARNING: Modify only if you know what you�re doing; otherwise, you may run out of memory.\nNone: no compression.\nSuper Fast: Fastest level with the lowest compression ratio.\nVery Fast: Standard setting; fastest level with a decent compression ratio.\nFast: Fastest level with a good compression ratio.\nNormal: Standard LZ speed with the highest compression ratio.");
 
         ImGui::SliderScalar("Parse Threads", ImGuiDataType_U32, &UtilsConfig->parseThreadCount, &minThreads, reinterpret_cast<int*>(&maxConcurrentThreads));
         ImGui::SameLine();
@@ -508,11 +511,8 @@ void DrawSettingsWindow(CUIState* uiState)
         ImGui::SameLine();
         g_pImGuiHandler->HelpMarker("The number of CPU threads that will be used for exporting assets.\n\nA higher number of threads will usually make RSX export assets more quickly, however the increased disk usage may cause decreased performance.");
 
-            // RIGHT COLUMN
-            ImGui::TableNextColumn();
-
-            // ===============================================================================================================
-            ImGui::SeparatorText("Preview");
+        // ===============================================================================================================
+        ImGui::SeparatorText("Preview");
 
         ImGui::SliderFloat("Cull Distance", &g_PreviewSettings.previewCullDistance, PREVIEW_CULL_MIN, PREVIEW_CULL_MAX);
         ImGui::SameLine();
@@ -539,67 +539,6 @@ void DrawSettingsWindow(CUIState* uiState)
         ImGui::End();
     }
 }
-
-void TexturePreviewWindow_Draw(CUIState* uiState, CAsset* selectedAsset)
-{
-    if (!uiState->texturePreviewWindowVisible)
-        return;
-
-    ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-
-    if (ImGui::Begin("Texture Preview", &uiState->texturePreviewWindowVisible, ImGuiWindowFlags_MenuBar))
-    {
-        if (ImGui::BeginMenuBar())
-        {
-            if (ImGui::BeginMenu("File"))
-            {
-                if (ImGui::BeginMenu("Export"))
-                {
-                    if (ImGui::MenuItem("Quick Export"))
-                    {
-                        CThread([asset = selectedAsset]() mutable { HandleExportBindingForAsset(std::move(asset), g_ExportSettings.exportAssetDeps, g_ExportSettings.exportAssetDependents); }).detach();
-                    }
-                    ImGui::EndMenu();
-                }
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenuBar();
-        }
-
-        if (selectedAsset)
-        {
-            const uint32_t type = selectedAsset->GetAssetType();
-
-            // Only show texture types
-            if (type == MAKEFOURCC('t', 'x', 't', 'r') || type == MAKEFOURCC('u', 'i', 'm', 'g') ||
-                type == MAKEFOURCC('u', 'i', 'f', 't') || type == MAKEFOURCC('u', 'i', 'a', 't') ||
-                type == MAKEFOURCC('m', 'a', 't', 'l') || type == MAKEFOURCC('p', 'a', 'r', 't') ||
-                type == MAKEFOURCC('p', 'c', 's', 'h') || type == MAKEFOURCC('t', 'x', 'a', 'n'))
-            {
-                if (auto it = g_assetData.m_assetTypeBindings.find(type); it != g_assetData.m_assetTypeBindings.end())
-                {
-                    if (it->second.previewFunc)
-                    {
-                        it->second.previewFunc(static_cast<CPakAsset*>(selectedAsset), true);
-                    }
-                }
-            }
-            else
-            {
-                ImGui::Text("Selected asset is not a texture type.");
-                ImGui::Text("Asset type: %s (0x%X)", fourCCToString(type).c_str(), type);
-            }
-        }
-        else
-        {
-            ImGui::TextUnformatted("No texture selected.");
-            ImGui::TextUnformatted("Select a texture asset from the Asset List to preview it here.");
-        }
-    }
-    ImGui::End();
-}
-
 extern void ItemflavWindow_Draw(CUIState*);
 extern void LogWindow_Draw(CUIState*);
 
@@ -640,16 +579,6 @@ void HandleRenderFrame()
     static std::deque<CAsset*> selectedAssets;
     static std::vector<CGlobalAssetData::AssetLookup_t> filteredAssets;
     static CAsset* prevRenderInfoAsset = nullptr;
-    static uint64_t lastSelectedAssetGuid = 0;
-
-    // Asset type filter state
-    static std::set<uint32_t> enabledAssetTypes;
-    static bool filterActive = false;
-    static bool showTypeFilterPopup = false;
-    static size_t prevTypeFilterSize = 0;
-
-    // Get first selected asset for use in multiple windows
-    CAsset* const firstAsset = selectedAssets.empty() ? nullptr : *selectedAssets.begin();
 
     CDXDrawData* previewDrawData = nullptr;
     if (ImGui::BeginMainMenuBar())
@@ -666,10 +595,6 @@ void HandleRenderFrame()
                     prevRenderInfoAsset = nullptr;
                     g_assetData.ClearAssetData();
                     uiState.ClearAssetData();
-
-                    // Reset type filter
-                    enabledAssetTypes.clear();
-                    filterActive = false;
 
                     // We kinda leak the thread here but it's okay, we want it to keep executing.
                     CThread(HandleOpenFileDialog, g_dxHandler->GetWindowHandle()).detach();
@@ -704,9 +629,6 @@ void HandleRenderFrame()
             if (ImGui::MenuItem("Itemflavors"))
                 uiState.ShowItemflavWindow(true);
 #endif
-
-            if (ImGui::MenuItem("Texture Preview"))
-                uiState.ShowTexturePreviewWindow(true);
 
 #if defined(HAS_LOG_WINDOW)
             if (ImGui::MenuItem("Logs"))
@@ -764,7 +686,7 @@ void HandleRenderFrame()
         ImGui::SetNextWindowSize(ImVec2(800, 400), ImGuiCond_FirstUseEver);
         if (ImGui::Begin("Asset List", nullptr, ImGuiWindowFlags_MenuBar))
         {
-            std::vector<CGlobalAssetData::AssetLookup_t>& pakAssets = (FilterConfig->textFilter.IsActive() || filterActive) ? filteredAssets : g_assetData.v_assets;
+            std::vector<CGlobalAssetData::AssetLookup_t>& pakAssets = FilterConfig->textFilter.IsActive() ? filteredAssets : g_assetData.v_assets;
 
             if (ImGui::BeginMenuBar())
             {
@@ -856,24 +778,11 @@ void HandleRenderFrame()
             }
 
             // OR case if we load a pak and the filter is not cleared yet.
-            // Also filter when type filter state changes
-            const bool typeFilterChanged = (prevTypeFilterSize != enabledAssetTypes.size());
-            if (FilterConfig->textFilter.Draw("##Filter", -1.f) || (filteredAssets.empty() && FilterConfig->textFilter.IsActive()) || prevAssetCount != g_assetData.v_assets.size() || typeFilterChanged)
+            if (FilterConfig->textFilter.Draw("##Filter", -1.f) || (filteredAssets.empty() && FilterConfig->textFilter.IsActive()) || prevAssetCount != g_assetData.v_assets.size())
             {
-                // Update previous type filter state
-                prevTypeFilterSize = enabledAssetTypes.size();
-
                 filteredAssets.clear();
                 for (auto& it : g_assetData.v_assets)
                 {
-                    // Check type filter first (only if filter is active)
-                    const uint32_t assetType = it.m_asset->GetAssetType();
-                    if (filterActive)
-                    {
-                        if (enabledAssetTypes.find(assetType) == enabledAssetTypes.end())
-                            continue;
-                    }
-
                     const std::string& assetName = it.m_asset->GetAssetName();
 
                     if (FilterConfig->textFilter.PassFilter(assetName.c_str()))
@@ -901,147 +810,13 @@ void HandleRenderFrame()
             constexpr int numColumns = AssetColumn_t::_AC_COUNT;
             if (ImGui::BeginTable("Assets", numColumns, ImGuiTableFlags_Hideable | ImGuiTableFlags_Sortable | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_BordersOuterV | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable))
             {
-                ImGui::TableSetupColumn("Type", 0, 0.0f, AssetColumn_t::AC_Type);
+                ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 0, AssetColumn_t::AC_Type);
                 ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_DefaultSort, 0, AssetColumn_t::AC_Name);
-                ImGui::TableSetupColumn("GUID", ImGuiTableColumnFlags_DefaultHide, 0.0f, AssetColumn_t::AC_GUID);
+                ImGui::TableSetupColumn("GUID", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_DefaultHide, 0, AssetColumn_t::AC_GUID);
                 ImGui::TableSetupColumn("File", ImGuiTableColumnFlags_WidthStretch, 0, AssetColumn_t::AC_File);
 
                 ImGui::TableSetupScrollFreeze(0, 1);
-                ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-
-                for (int column = 0; column < numColumns; column++)
-                {
-                    ImGui::TableSetColumnIndex(column);
-                    const char* columnName = nullptr;
-
-                    switch (column)
-                    {
-                    case AssetColumn_t::AC_Type: columnName = "Type"; break;
-                    case AssetColumn_t::AC_Name: columnName = "Name"; break;
-                    case AssetColumn_t::AC_GUID: columnName = "GUID"; break;
-                    case AssetColumn_t::AC_File: columnName = "File"; break;
-                    }
-
-                    if (columnName)
-                    {
-                        // Custom Type column header with filter button
-                        if (column == AssetColumn_t::AC_Type)
-                        {
-                            ImGui::PushID("TypeHeader");
-
-                            // Just show text with filter button
-                            ImGui::TextUnformatted("Type");
-
-                            // Add filter indicator
-                            ImGui::SameLine(0, 0);
-                            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-                            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-                            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-                            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-
-                            const char* filterIcon = filterActive ? "▼*" : "▼";
-                            if (ImGui::Button(filterIcon))
-                            {
-                                showTypeFilterPopup = true;
-                            }
-
-                            if (ImGui::IsItemHovered())
-                            {
-                                ImGui::SetTooltip(filterActive ? "Filter active (click to change)" : "Filter by type...");
-                            }
-
-                            ImGui::PopStyleColor(3);
-                            ImGui::PopStyleVar();
-
-                            // Type filter popup
-                            if (showTypeFilterPopup)
-                            {
-                                ImGui::OpenPopup("TypeFilterPopup");
-                                showTypeFilterPopup = false;
-                            }
-
-                            if (ImGui::BeginPopup("TypeFilterPopup"))
-                            {
-                                // Collect all unique asset types
-                                std::set<uint32_t> allTypes;
-                                for (const auto& it : g_assetData.v_assets)
-                                {
-                                    allTypes.insert(it.m_asset->GetAssetType());
-                                }
-
-                                // Initialize enabledAssetTypes with all types if empty AND filter hasn't been used yet
-                                if (enabledAssetTypes.empty() && !filterActive)
-                                {
-                                    for (uint32_t type : allTypes)
-                                    {
-                                        enabledAssetTypes.insert(type);
-                                    }
-                                }
-
-                                // Select All / Deselect All buttons
-                                if (ImGui::Button("Select All"))
-                                {
-                                    enabledAssetTypes.clear();
-                                    for (uint32_t type : allTypes)
-                                    {
-                                        enabledAssetTypes.insert(type);
-                                    }
-                                    filterActive = true;
-                                }
-                                ImGui::SameLine();
-                                if (ImGui::Button("Deselect All"))
-                                {
-                                    enabledAssetTypes.clear();
-                                    filterActive = true;
-                                }
-
-                                ImGui::Separator();
-
-                                // Individual type checkboxes
-                                for (uint32_t type : allTypes)
-                                {
-                                    const std::string typeStr = fourCCToString(type);
-                                    const bool isChecked = (enabledAssetTypes.find(type) != enabledAssetTypes.end());
-
-                                    // Apply color coding if available
-                                    const AssetType_t assetType = static_cast<AssetType_t>(type);
-                                    const bool hasColor = s_AssetTypeColours.contains(assetType);
-                                    if (hasColor)
-                                    {
-                                        const Color4& col = s_AssetTypeColours.at(assetType);
-                                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(col.r, col.g, col.b, col.a));
-                                    }
-
-                                    bool checked = isChecked;
-                                    if (ImGui::Checkbox(typeStr.c_str(), &checked))
-                                    {
-                                        filterActive = true;
-                                        if (checked)
-                                        {
-                                            enabledAssetTypes.insert(type);
-                                        }
-                                        else
-                                        {
-                                            enabledAssetTypes.erase(type);
-                                        }
-                                    }
-
-                                    if (hasColor)
-                                        ImGui::PopStyleColor();
-                                }
-
-                                ImGui::EndPopup();
-                            }
-
-                            ImGui::PopID();
-                        }
-                        else
-                        {
-                            // Standard header for other columns
-                            ImGui::TableHeader(columnName);
-                        }
-                    }
-                }
+                ImGui::TableHeadersRow();
 
                 ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs();
 
@@ -1122,6 +897,8 @@ void HandleRenderFrame()
         ImGui::SetNextWindowSize(ImVec2(800, 400), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
 
+        CAsset* const firstAsset = selectedAssets.empty() ? nullptr : *selectedAssets.begin();
+        
         if (ImGui::Begin("Asset Info", nullptr, ImGuiWindowFlags_MenuBar))
         {
             if (ImGui::BeginMenuBar())
@@ -1191,41 +968,25 @@ void HandleRenderFrame()
             {
 
                 const uint32_t type = firstAsset->GetAssetType();
-
-                // Skip texture preview in Asset Info - it has its own window
-                const bool isTextureType = (type == MAKEFOURCC('t', 'x', 't', 'r') || type == MAKEFOURCC('u', 'i', 'm', 'g') ||
-                    type == MAKEFOURCC('u', 'i', 'f', 't') || type == MAKEFOURCC('u', 'i', 'a', 't'));
-
-                if (!isTextureType)
+                if (auto it = g_assetData.m_assetTypeBindings.find(type); it != g_assetData.m_assetTypeBindings.end())
                 {
-                    if (auto it = g_assetData.m_assetTypeBindings.find(type); it != g_assetData.m_assetTypeBindings.end())
+                    if (it->second.previewFunc)
                     {
-                        if (it->second.previewFunc)
-                        {
-                            // First frame is a special case, we wanna reset some settings for the preview function.
-                            const bool firstFrameForAsset = firstAsset != prevRenderInfoAsset;
+                        // First frame is a special case, we wanna reset some settings for the preview function.
+                        const bool firstFrameForAsset = firstAsset != prevRenderInfoAsset;
 
-                            previewDrawData = reinterpret_cast<CDXDrawData*>(it->second.previewFunc(static_cast<CPakAsset*>(firstAsset), firstFrameForAsset));
-                            prevRenderInfoAsset = firstAsset;
+                        previewDrawData = reinterpret_cast<CDXDrawData*>(it->second.previewFunc(static_cast<CPakAsset*>(firstAsset), firstFrameForAsset));
+                        prevRenderInfoAsset = firstAsset;
 
-                        }
-                        else
-                        {
-                            ImGui::Text("Asset type '%s' does not currently support Asset Preview.", fourCCToString(type).c_str());
-                        }
                     }
                     else
                     {
-                        ImGui::Text("Asset type '%s' is not currently supported.", fourCCToString(type).c_str());
+                        ImGui::Text("Asset type '%s' does not currently support Asset Preview.", fourCCToString(type).c_str());
                     }
                 }
                 else
                 {
-                    ImGui::Text("Texture preview is available in the Texture Preview window.");
-                    if (ImGui::Button("Open Texture Preview"))
-                    {
-                        uiState.texturePreviewWindowVisible = true;
-                    }
+                    ImGui::Text("Asset type '%s' is not currently supported.", fourCCToString(type).c_str());
                 }
             }
             else
@@ -1237,31 +998,8 @@ void HandleRenderFrame()
         ImGui::End();
     }
 
-    // Auto-open Texture Preview window when selection changes to a texture
-    if (firstAsset)
-    {
-        const uint64_t currentGuid = firstAsset->GetAssetGUID();
-        if (currentGuid != lastSelectedAssetGuid)
-        {
-            lastSelectedAssetGuid = currentGuid;
-            const uint32_t type = firstAsset->GetAssetType();
-            if (type == MAKEFOURCC('t', 'x', 't', 'r') || type == MAKEFOURCC('u', 'i', 'm', 'g') ||
-                type == MAKEFOURCC('u', 'i', 'f', 't') || type == MAKEFOURCC('u', 'i', 'a', 't'))
-            {
-                uiState.texturePreviewWindowVisible = true;
-            }
-        }
-    }
-    else
-    {
-        lastSelectedAssetGuid = 0;
-    }
-
     if (uiState.settingsWindowVisible)
         DrawSettingsWindow(&uiState);
-
-    if (uiState.texturePreviewWindowVisible)
-        TexturePreviewWindow_Draw(&uiState, firstAsset);
 
 #if defined(HAS_ITEMFLAV_WINDOW)
     if (uiState.itemflavWindowVisible)

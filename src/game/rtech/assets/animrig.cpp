@@ -6,6 +6,8 @@
 #include <core/mdl/stringtable.h>
 #include <core/mdl/rmax.h>
 #include <core/mdl/cast.h>
+#include <core/mdl/anim_qc.h>
+#include <core/mdl/modeldata.h>
 
 #include <thirdparty/imgui/imgui.h>
 #include <thirdparty/imgui/misc/imgui_utility.h>
@@ -281,13 +283,17 @@ bool ExportAnimRigAsset(CAsset* const asset, const int setting)
 
     const ModelParsedData_t* const parsedData = &animRigAsset->parsedData;
 
-    if (g_ExportSettings.exportRigSequences && animRigAsset->numAnimSeqs > 0)
+    // Only export sequences when SMD format is selected
+    const bool bExportSequences = (setting == eAnimRigExportSetting::ANIMRIG_SMD);
+
+    if (bExportSequences && animRigAsset->numAnimSeqs > 0)
     {
-        if (!ExportAnimSeqFromAsset(exportPath, rigStem, animRigAsset->name, animRigAsset->numAnimSeqs, animRigAsset->animSeqs, animRigAsset->GetRig()))
+        // Force SMD format for animations when exporting rig as SMD
+        if (!ExportAnimSeqFromAsset(exportPath, rigStem, animRigAsset->name, animRigAsset->numAnimSeqs, animRigAsset->animSeqs, animRigAsset->GetRig(), eAnimSeqExportSetting::ANIMSEQ_SMD))
             return false;
     }
 
-    if (g_ExportSettings.exportRigSequences && parsedData->NumLocalSeq() > 0)
+    if (bExportSequences && parsedData->NumLocalSeq() > 0)
     {
         std::filesystem::path outputPath(exportPath);
         outputPath.append(std::format("anims_{}/temp", rigStem));
@@ -298,16 +304,14 @@ bool ExportAnimRigAsset(CAsset* const asset, const int setting)
             return false;
         }
 
-        auto aseqAssetBinding = g_assetData.m_assetTypeBindings.find('qesa');
-        assertm(aseqAssetBinding != g_assetData.m_assetTypeBindings.end(), "Unable to find asset type binding for \"aseq\" assets");
-
         for (int i = 0; i < parsedData->NumLocalSeq(); i++)
         {
             const ModelSeq_t* const seqdesc = parsedData->LocalSeq(i);
 
             outputPath.replace_filename(seqdesc->szlabel);
 
-            ExportSeqDesc(aseqAssetBinding->second.e.exportSetting, seqdesc, outputPath, animRigAsset->name, animRigAsset->GetRig(), RTech::StringToGuid(seqdesc->szlabel));
+            // Force SMD format for local sequences when exporting rig as SMD
+            ExportSeqDesc(eAnimSeqExportSetting::ANIMSEQ_SMD, seqdesc, outputPath, animRigAsset->name, animRigAsset->GetRig(), RTech::StringToGuid(seqdesc->szlabel));
         }
     }
 
@@ -331,7 +335,8 @@ bool ExportAnimRigAsset(CAsset* const asset, const int setting)
     }
     case eAnimRigExportSetting::ANIMRIG_SMD:
     {
-        return ExportModelSMD(parsedData, exportPath) && ExportModelQC(parsedData, exportPath, setting, 54);
+        // Export SMD and QC together
+        return ExportModelSMD(parsedData, exportPath) && ExportAnimRigQC(animRigAsset, exportPath);
     }
     default:
     {

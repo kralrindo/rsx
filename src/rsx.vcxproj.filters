@@ -360,6 +360,9 @@
     <ClInclude Include="core\mdl\modeldata.h">
       <Filter>core\mdl</Filter>
     </ClInclude>
+    <ClInclude Include="core\mdl\anim_qc.h">
+      <Filter>core\mdl</Filter>
+    </ClInclude>
     <ClInclude Include="game\rtech\assets\material_snapshot.h">
       <Filter>game\rtech\assets</Filter>
     </ClInclude>
@@ -422,6 +425,9 @@
     </ClInclude>
     <ClInclude Include="core\utils\cli_parser.h">
       <Filter>core\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="core\render\preview\audio_preview.h">
+      <Filter>core\render\preview</Filter>
     </ClInclude>
     <ClInclude Include="core\render\preview\lighting.h">
       <Filter>core\render\preview</Filter>
@@ -710,6 +716,9 @@
     <ClCompile Include="core\mdl\animdata.cpp">
       <Filter>core\mdl</Filter>
     </ClCompile>
+    <ClCompile Include="core\mdl\anim_qc.cpp">
+      <Filter>core\mdl</Filter>
+    </ClCompile>
     <ClCompile Include="core\mdl\modeldata_qc.cpp">
       <Filter>core\mdl</Filter>
     </ClCompile>
@@ -724,6 +733,9 @@
     </ClCompile>
     <ClCompile Include="core\render\ui\log_window.cpp">
       <Filter>core\render\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="core\render\preview\audio_preview.cpp">
+      <Filter>core\render\preview</Filter>
     </ClCompile>
     <ClCompile Include="core\render\preview\preview.cpp">
       <Filter>core\render\preview</Filter>
