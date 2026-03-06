@@ -11,7 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Run vcpkg
-        run: vcpkg install rapidjson curl
+        run: vcpkg install
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.1
       - name: Build
