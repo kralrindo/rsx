@@ -361,3 +361,6 @@ rsx_cache_db.bin
 *.json
 *.tlog
 /build/Release_NoGui/rsx
+
+# vcpkg manifest installed dependencies
+vcpkg_installed/
