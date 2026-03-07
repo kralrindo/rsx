@@ -2,7 +2,7 @@
 #include <core/utils/autoupdater.h>
 
 // Current version (matches FILEVERSION in rsx.rc)
-const char* AutoUpdater::CURRENT_VERSION = "1.1.8";
+const char* AutoUpdater::CURRENT_VERSION = "1.2.1";
 
 // Default repository
 const char* AutoUpdater::GITHUB_REPO = "kralrindo/rsx";
@@ -313,7 +313,7 @@ UpdateInfo_t AutoUpdater::CheckForUpdates()
     }
 
     // Compare versions (semantic versioning)
-    // Current: 1.1.8, Latest: could be 1.1.9, 1.2.0, etc.
+    // Current: 1.2.1, Latest: could be 1.2.2, 1.2.3, etc.
     // Only report update if latest version is actually NEWER (not just different)
 
     info.hasUpdate = IsNewerVersion(info.latestVersion, CURRENT_VERSION);
