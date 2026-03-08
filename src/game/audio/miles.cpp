@@ -378,7 +378,7 @@ bool ExportAudioSourceAsset(CAsset* const asset, const int setting)
 	const auto ASI_notify_seek = static_cast<ASI_notify_seek_f>(decoder->ASI_notify_seek);
 	const auto ASI_decode_block = static_cast<ASI_decode_block_f>(decoder->ASI_decode_block);
 	const auto ASI_get_block_size = static_cast<ASI_get_block_size_f>(decoder->ASI_get_block_size);
-	const auto ASI_dealloc = static_cast<ASI_dealloc_f>(decoder->ASI_unk_dealloc_maybe);
+	const auto ASI_dealloc = static_cast<ASI_dealloc_f>(decoder->ASI_dealloc);
 
 	uint16_t channels;
 	uint32_t sampleRate;

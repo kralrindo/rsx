@@ -35,7 +35,7 @@ struct MilesASIDecoder_t
 	void* ASI_stream_seek_direct; // 40 - not used
 	void* ASI_decode_block; // 48
 	void* ASI_get_block_size; // 56
-	void* ASI_unk_dealloc_maybe; // 64 - not used
+	void* ASI_dealloc; // 64 - not used
 };
 
 typedef uint32_t(*ASI_read_stream_f)(char*, uint64_t, void*); // buffer, readAmount, userData
@@ -468,7 +468,7 @@ public:
 
 	~CMilesAudioAsset()
 	{
-		delete m_assetData;
+		delete (MilesSource_t*)m_assetData;
 	};
 
 	void SetContainerName(const std::string& containerName)
