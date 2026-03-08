@@ -1,5 +1,6 @@
 #pragma once
 
+#if !defined(NO_LIBCURL)
 struct CURLProgress
 {
 	CURLProgress()
@@ -62,3 +63,5 @@ CURLINFO CURLRetrieveInfo(CURL* curl);
 
 bool CURLHandleError(CURL* curl, const CURLcode res, std::string& outMessage, const bool logError);
 void CURLFormatUrl(std::string& outUrl, const char* host, const char* api);
+
+#endif

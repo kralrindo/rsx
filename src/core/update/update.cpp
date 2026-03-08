@@ -1,9 +1,13 @@
 #include "pch.h"
 #include "update.h"
-#include <curl/curl.h>
 #include <core/utils/jsonutils.h>
-#include <core/utils/curlutils.h>
 #include <core/version.h>
+
+#if !defined(NO_LIBCURL)
+#include <curl/curl.h>
+#include <core/utils/curlutils.h>
+#endif
+
 
 bool SendRequest(const std::string& finalUrl, const char* request,
     std::string& outResponse, std::string& outMessage, CURLINFO& outStatus, const bool forceIPv4)
@@ -122,6 +126,7 @@ bool GetLatestGitHubReleaseInformation(GitHubReleaseInfo_s* update)
                 if (!JSON_GetValue(release, "prerelease", isPreRelease))
                     return false;
 
+                // Prereleases are not recommended for most users, so let's not prompt the user with them
                 if (isPreRelease)
                     continue;
 

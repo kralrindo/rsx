@@ -259,14 +259,14 @@ int main(int argc, char* argv[])
 
     Log("Starting RSX v%s\n", VERSION_STRING);
 
-#if 1/*!defined(_DEBUG) && */
+#if !defined(_DEBUG) && !defined(NO_LIBCURL) // Update Checking should not run on debug as we probably don't care about updating
     GitHubReleaseInfo_s releaseInfo;
     if (!noGui && GetLatestGitHubReleaseInformation(&releaseInfo))
     {
         const char* newVersionType = nullptr;
         if ((newVersionType = releaseInfo.GetHighestDifferingVersionNumber()))
         {
-            Log("Found a new %s release update: %s\n", newVersionType, releaseInfo.tagName.c_str());
+            Log("** Found a new %s update: %s\n", newVersionType, releaseInfo.tagName.c_str());
         }
     }
 #endif

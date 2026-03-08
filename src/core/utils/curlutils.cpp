@@ -4,6 +4,8 @@
 //
 //===========================================================================//
 #include <pch.h>
+
+#if !defined(NO_LIBCURL)
 #include <curl/curl.h>
 #include "core/utils/curlutils.h"
 #include "core/utils/utils_general.h"
@@ -295,3 +297,5 @@ void CURLFormatUrl(std::string& outUrl, const char* host, const char* api)
 {
     outUrl = std::format("https://{}{}", host, api);
 }
+
+#endif
