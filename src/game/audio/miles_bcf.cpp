@@ -41,6 +41,7 @@ typedef struct UEBinkAudioDecodeInterface
 	DecodeResetStartFrameFnType* ResetStartFn;
 } UEBinkAudioDecodeInterface;
 
+// From linked BinkA UE decoder lib
 extern UEBinkAudioDecodeInterface* __fastcall UnrealBinkAudioDecodeInterface();
 
 bool ASI_stream_parse_metadata_bink(const char* dataBuffer, size_t dataBufferLen, uint16_t* outChannels, uint32_t* outSampleRate, uint32_t* outSampleCount, int* outDecoderInfo, uint32_t* outMemNeededToOpen)
@@ -212,9 +213,6 @@ uint8_t ASI_open_stream(void* decoderMem, size_t* decoderMemSize, ASI_read_strea
 	// Write the "lastSeek" value into the end of the decoded seek table to represent seeking to the end of the audio
 	decoder->decodedSeekTable[decoder->seekTableEntryCount] = lastSeek;
 
-	// "decoders" is not a real var. it is used as a marker for where the stream decoder memory starts
-	// in the buffer that "decoder" exists in
-	
 	for (uint32_t i = 0; i < decoder->streamCount; ++i)
 	{
 		// cleaned up in ASI_dealloc_bink
@@ -223,7 +221,6 @@ uint8_t ASI_open_stream(void* decoderMem, size_t* decoderMemSize, ASI_read_strea
 
 		// if this flag is set, the file is version 2?
 		const bool unkFlag = HIWORD(fileHeader.maxCompSpaceNeeded) != 0;
-
 
 		UnrealBinkAudioDecodeInterface()->OpenFn(decMem, fileHeader.sampleRate, streamChannels, false, unkFlag);
 	
@@ -528,7 +525,7 @@ MilesASIDecoder_t* GetBinkAudioDecoder()
 	binkAudio->ASI_notify_seek = ASI_reset_start;
 	binkAudio->ASI_decode_block = ASI_decode_block;
 	binkAudio->ASI_get_block_size = ASI_get_block_size;
-	binkAudio->ASI_unk_dealloc_maybe = ASI_dealloc_bink;
+	binkAudio->ASI_dealloc = ASI_dealloc_bink;
 
 	return binkAudio;
 }
