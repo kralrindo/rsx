@@ -24,6 +24,10 @@
 #include <game/asset.h>
 #include <core/logging/logger.h>
 
+#pragma warning(push, 0)
+#pragma warning( disable: 4127 )
+
+
 CDXParentHandler* g_dxHandler;
 std::atomic<uint32_t> g_maxConcurrentThreadCount = 1u;
 
@@ -373,3 +377,5 @@ int WINAPI WinMain(
 {
     return main(__argc, __argv);
 };
+
+#pragma warning(pop)
