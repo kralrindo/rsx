@@ -310,6 +310,7 @@ public:
         DX_RELEASE_PTR(m_previewState.frameBufferSRV);
         DX_RELEASE_PTR(m_previewState.previewRTV);
         DX_RELEASE_PTR(m_previewState.previewDSV);
+        DX_RELEASE_PTR(m_previewState.previewDepthBuffer);
     };
 
 	void HandleResize(const uint16_t x, const uint16_t y);
@@ -375,7 +376,7 @@ public:
 
     bool CreateViewForSceneWindow(const uint16_t w, const uint16_t h);
 private:
-    bool CreateDepthBuffer(ID3D11Texture2D* const frameBuffer, ID3D11DepthStencilView** depthStencilView);
+    bool CreateDepthBuffer(ID3D11Texture2D* const frameBuffer, ID3D11Texture2D** depthBuffer, ID3D11DepthStencilView** depthStencilView);
 	bool CreateMainView(const uint16_t w, const uint16_t h);
 
     bool CreateMisc();
@@ -393,6 +394,7 @@ private:
 	IDXGISwapChain* m_pSwapChain;
 	ID3D11RenderTargetView* m_pMainView;
     ID3D11DepthStencilView* m_pDepthStencilView;
+    ID3D11Texture2D* m_pDepthBuffer;
     ID3D11DepthStencilState* m_pDepthStencilState; // depth enabled
     ID3D11RasterizerState* m_pRasterizerState; // main rasterizer state
     ID3D11RasterizerState* m_pRasterizerStateWF; // main rasterizer state
@@ -439,6 +441,7 @@ private:
         ID3D11ShaderResourceView* frameBufferSRV;
         ID3D11RenderTargetView* previewRTV;
         ID3D11DepthStencilView* previewDSV;
+        ID3D11Texture2D* previewDepthBuffer;
     } m_previewState;
 
 

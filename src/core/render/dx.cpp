@@ -583,7 +583,7 @@ bool CDXParentHandler::CreateMainView(const uint16_t w, const uint16_t h)
         return false;
     }
 
-    this->CreateDepthBuffer(pBackBuffer, &m_pDepthStencilView);
+    this->CreateDepthBuffer(pBackBuffer, &m_pDepthBuffer, &m_pDepthStencilView);
     {
         D3D11_RASTERIZER_DESC desc = {};
         desc.FillMode = D3D11_FILL_SOLID;
@@ -704,16 +704,16 @@ bool CDXParentHandler::CreateViewForSceneWindow(const uint16_t w, const uint16_t
         return false;
     }
 
-    this->CreateDepthBuffer(m_previewState.frameBuffer, &m_previewState.previewDSV);
+    this->CreateDepthBuffer(m_previewState.frameBuffer, &m_previewState.previewDepthBuffer, &m_previewState.previewDSV);
     
     m_projectionMatrix = XMMatrixPerspectiveFovLH(0.25f * XM_PI, static_cast<float>(w) / h, 0.1f, g_PreviewSettings.previewCullDistance);
 
     return true;
 }
 
-bool CDXParentHandler::CreateDepthBuffer(ID3D11Texture2D* const frameBuffer, ID3D11DepthStencilView** depthStencilView)
+bool CDXParentHandler::CreateDepthBuffer(ID3D11Texture2D* const frameBuffer, ID3D11Texture2D** depthBuffer, ID3D11DepthStencilView** depthStencilView)
 {
-    ID3D11Texture2D* depthBuffer = nullptr;
+    assert(depthBuffer); assert(depthStencilView);
     D3D11_TEXTURE2D_DESC depthBufferDesc = {};
 
     // copy desc from the frame buffer
@@ -723,8 +723,8 @@ bool CDXParentHandler::CreateDepthBuffer(ID3D11Texture2D* const frameBuffer, ID3
     depthBufferDesc.Format = DXGI_FORMAT_R32_TYPELESS;
     depthBufferDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 
-    HRESULT hr = m_pDevice->CreateTexture2D(&depthBufferDesc, NULL, &depthBuffer);
-    if (FAILED(hr) || !depthBuffer)
+    HRESULT hr = m_pDevice->CreateTexture2D(&depthBufferDesc, NULL, depthBuffer);
+    if (FAILED(hr) || !*depthBuffer)
     {
         assertm(false, "Failed to create depth buffer.");
         return false;
@@ -735,7 +735,7 @@ bool CDXParentHandler::CreateDepthBuffer(ID3D11Texture2D* const frameBuffer, ID3
     depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
     depthStencilViewDesc.Texture2D.MipSlice = 0u; // depth buffer does not have mips so make sure it uses the right data
 
-    hr = m_pDevice->CreateDepthStencilView(depthBuffer, &depthStencilViewDesc, depthStencilView);
+    hr = m_pDevice->CreateDepthStencilView(*depthBuffer, &depthStencilViewDesc, depthStencilView);
     if (FAILED(hr))
         assertm(false, "Failed to create depth stencil view.");
 
@@ -786,6 +786,7 @@ void CDXParentHandler::CleanupD3D()
     DX_RELEASE_PTR(m_pDeviceContext);
     DX_RELEASE_PTR(m_pSwapChain);
     DX_RELEASE_PTR(m_pDepthStencilView);
+    DX_RELEASE_PTR(m_pDepthBuffer);
     DX_RELEASE_PTR(m_pDepthStencilState);
     DX_RELEASE_PTR(m_pRasterizerState);
     DX_RELEASE_PTR(m_pRasterizerStateWF);
@@ -815,8 +816,8 @@ void CDXParentHandler::CleanupD3D()
     DX_RELEASE_PTR(m_staticShadowTexture);
     DX_RELEASE_PTR(m_staticShadowTextureSRV);
 
-    DX_RELEASE_PTR(m_previewState.previewRTV);
-    DX_RELEASE_PTR(m_previewState.frameBuffer);
+    // Reuse resizing function for preview cleanup here, since all it does is release states
+    CleanupForPreviewResize();
 }
 
 void CDXParentHandler::HandleResize(const uint16_t x, const uint16_t y)

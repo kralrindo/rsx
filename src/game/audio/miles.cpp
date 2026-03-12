@@ -3,6 +3,7 @@
 
 #include <game/audio/wavefile.h>
 #include <game/rtech/utils/utils.h>
+#include <imgui.h>
 
 bool CMilesAudioBank::IsValidSource(const MilesSource_t* source) const
 {
@@ -558,6 +559,14 @@ bool ExportAudioSourceAsset(CAsset* const asset, const int setting)
 	return true;
 }
 
+void* AudioSource_Preview(CAsset* const asset, const bool firstFrameForAsset)
+{
+	UNUSED(asset);
+	UNUSED(firstFrameForAsset);
+
+	return nullptr;
+}
+
 void InitAudioSourceAssetType()
 {
 	AssetTypeBinding_t type =
@@ -567,7 +576,7 @@ void InitAudioSourceAssetType()
 		.headerAlignment = 1,
 		.loadFunc = nullptr,
 		.postLoadFunc = nullptr,
-		.previewFunc = nullptr,
+		.previewFunc = AudioSource_Preview,
 		.e = { ExportAudioSourceAsset, 0, nullptr, 0ull },
 	};
 

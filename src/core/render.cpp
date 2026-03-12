@@ -24,7 +24,6 @@ extern CDXParentHandler* g_dxHandler;
 extern std::atomic<uint32_t> g_maxConcurrentThreadCount;
 extern ExportSettings_t g_ExportSettings;
 
-
 PreviewSettings_t g_PreviewSettings { .previewCullDistance = PREVIEW_CULL_DEFAULT, .previewMovementSpeed = PREVIEW_SPEED_DEFAULT };
 
 CPreviewDrawData g_currentPreviewDrawData;
@@ -998,9 +997,6 @@ void HandleRenderFrame()
     }
     ImGui::End();
 
-    
-
-    
     if (uiState.settingsWindowVisible)
         SettingsWnd_Draw(&uiState);
 
