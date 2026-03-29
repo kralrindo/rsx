@@ -21,7 +21,9 @@ bool CCacheDBManager::SaveToFile(const std::string& path)
 	if (currFileCRC > 0 && currFileCRC != m_sourceCRC)
 	{
 		// [rika]: update cache file from the one on disk
-		LoadFromFile(path);
+		if (!LoadFromFile(path))
+			return false;
+
 		Log("CACHE: Reloaded cache file after being updated by another process...\n");
 	}
 
