@@ -94,7 +94,7 @@ void Preview_Model(CDXDrawData* drawData)
             ctx->VSSetShader(meshDrawData.vertexShader, nullptr, 0u);
 
             ID3D11Buffer* sharedConstBuffers[] = {
-                camera->bufCommonPerCamera,           // CBufCommonPerCamera - b2
+                camera->bufCommonPerCamera,    // CBufCommonPerCamera - b2
                 drawData->modelInstanceBuffer, // CBufModelInstance   - b3
             };
 
@@ -117,8 +117,6 @@ void Preview_Model(CDXDrawData* drawData)
 
             ctx->IASetVertexBuffers(0u, 1u, &meshDrawData.vertexBuffer, &meshDrawData.vertexStride, &offset);
             // ==============================================================================
-
-            assertm(meshDrawData.pixelShader != nullptr, "No pixel shader?");
 
             ctx->PSSetShader(meshDrawData.pixelShader, nullptr, 0u);
 
