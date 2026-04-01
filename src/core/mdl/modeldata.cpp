@@ -630,8 +630,6 @@ void CreateBuffersForModelDrawData(ModelParsedData_t* const parsedData, CDXDrawD
 				UNUSED(hr);
 				assert(SUCCEEDED(hr));
 			}
-
-			delete[] wfs;
 		}
 	}
 
