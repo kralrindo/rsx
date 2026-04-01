@@ -101,10 +101,12 @@ void Vertex_t::ParseVertexFromVG(Vertex_t* const vert, VertexWeight_t* const wei
 			// only hit if we have over 2 bones/weights
 			for (uint8_t i = curIdx; i < blendIndices->boneCount; i++)
 			{
-				weights[curIdx].bone = boneMap[weightExtra[blendWeights->Index() + (curIdx - 1)].bone];
-				weights[curIdx].weight = weightExtra[blendWeights->Index() + (curIdx - 1)].Weight();
+				auto extraWeight = weightExtra[blendWeights->ExtraWeightsStartIndex() + (curIdx - 1)];
 
-				remaining -= weightExtra[blendWeights->Index() + (curIdx - 1)].weight;
+				weights[curIdx].bone = boneMap[extraWeight.bone];
+				weights[curIdx].weight = extraWeight.Weight();
+
+				remaining -= extraWeight.weight;
 
 				curIdx++;
 			}
