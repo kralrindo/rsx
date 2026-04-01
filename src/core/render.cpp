@@ -349,11 +349,11 @@ void SettingsWnd_Draw(CUIState* uiState)
         // ===============================================================================================================
         ImGui::SeparatorText("Export Formats");
 
-        for (auto& it : g_assetData.m_assetTypeBindings)
+        for (auto& [fourCC, binding] : g_assetData.m_assetTypeBindings)
         {
-            if (it.second.e.exportSettingArr)
+            if (binding.e.exportSettingArr)
             {
-                ImGui::Combo(fourCCToString(it.first).c_str(), &it.second.e.exportSetting, it.second.e.exportSettingArr, static_cast<int>(it.second.e.exportSettingArrSize));
+                ImGui::Combo(fourCCToString(fourCC).c_str(), &binding.e.exportSetting, binding.e.exportSettingArr, static_cast<int>(binding.e.exportSettingArrSize));
             }
         }
     }
