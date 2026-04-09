@@ -861,10 +861,10 @@ void HandleRenderFrame()
             switch (previewDrawData->dataType)
             {
             case CDXDrawData::DrawDataType_e::MODEL:
-                Preview_Model(previewDrawData);
+                Preview_Model(previewDrawData, ImGui::GetIO().DeltaTime);
                 break;
             case CDXDrawData::DrawDataType_e::TEXTURE:
-                Preview_Texture(previewDrawData);
+                Preview_Texture(previewDrawData, ImGui::GetIO().DeltaTime);
                 break;
             default:
             {

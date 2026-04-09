@@ -34,8 +34,8 @@ void GetShadersForVertexLump(int vertexType, CShader** vertexShaderOut, CShader*
 		inputElements[2] = { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
 		inputElements[3] = { "UNK",      0, DXGI_FORMAT_R32_UINT,        0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
 
-		vertexShader = g_dxHandler->GetShaderManager()->LoadShader("shaders/vertexLitFlat_vs", eShaderType::Vertex, false);
-		pixelShader = g_dxHandler->GetShaderManager()->LoadShader("shaders/bsp_ps", eShaderType::Pixel, false);
+		vertexShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/vertexLitFlat_vs", s_VertexLitFlatShader, eShaderType::Vertex, inputElements, numElements);
+		pixelShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/bsp_ps", s_BSPPixelShader, eShaderType::Pixel);
 
 		break;
 	}
@@ -66,8 +66,8 @@ void GetShadersForVertexLump(int vertexType, CShader** vertexShaderOut, CShader*
 		inputElements[4] = { "TEXCOORD",  1, DXGI_FORMAT_R32G32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
 		inputElements[5] = { "UNK",       0, DXGI_FORMAT_R32_UINT,        0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
 
-		vertexShader = g_dxHandler->GetShaderManager()->LoadShader("shaders/vertexLitBump_vs", eShaderType::Vertex, false);
-		pixelShader = g_dxHandler->GetShaderManager()->LoadShader("shaders/bsp_ps", eShaderType::Pixel, false);
+		vertexShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/vertexLitBump_vs", s_VertexLitBumpShader, eShaderType::Vertex, inputElements, numElements);
+		pixelShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/bsp_ps", s_BSPPixelShader, eShaderType::Pixel);
 
 		break;
 	}
@@ -87,8 +87,8 @@ void GetShadersForVertexLump(int vertexType, CShader** vertexShaderOut, CShader*
 		inputElements[2] = { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
 		inputElements[3] = { "UNK",      0, DXGI_FORMAT_R32_UINT,        0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
 
-		vertexShader = g_dxHandler->GetShaderManager()->LoadShader("shaders/vertexLitFlat_vs", eShaderType::Vertex, false);
-		pixelShader = g_dxHandler->GetShaderManager()->LoadShader("shaders/bsp_ps", eShaderType::Pixel, false);
+		vertexShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/vertexLitFlat_vs", s_VertexLitFlatShader, eShaderType::Vertex, inputElements, numElements);
+		pixelShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/bsp_ps", s_BSPPixelShader, eShaderType::Pixel);
 
 		break;
 	}
@@ -108,28 +108,15 @@ void GetShadersForVertexLump(int vertexType, CShader** vertexShaderOut, CShader*
 		inputElements[2] = { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
 		inputElements[3] = { "UNK",      0, DXGI_FORMAT_R32G32_UINT,        0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
 
-		vertexShader = g_dxHandler->GetShaderManager()->LoadShader("shaders/vertexUnlitTS_vs", eShaderType::Vertex, false);
-		pixelShader = g_dxHandler->GetShaderManager()->LoadShader("shaders/bsp_ps", eShaderType::Pixel, false);
+		vertexShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/vertexUnlitTS_vs", s_VertexUnlitTSShader, eShaderType::Vertex, inputElements, numElements);
+		pixelShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/bsp_ps", s_BSPPixelShader, eShaderType::Pixel);
 
 		break;
 	}
 	}
 
-	if (!vertexShader->GetInputLayout())
-	{
-		ID3D11InputLayout* inputLayout = nullptr;
-
-		const HRESULT hr = g_dxHandler->GetDevice()->CreateInputLayout(
-			inputElements, numElements,
-			vertexShader->GetBytecodeBlob()->GetBufferPointer(),
-			vertexShader->GetBytecodeBlob()->GetBufferSize(),
-			&inputLayout);
-		UNUSED(hr);
-		assert(SUCCEEDED(hr));
-
-		vertexShader->SetInputLayout(inputLayout);
-	}
-
+	assert(vertexShader->GetInputLayout());
+	
 	*vertexShaderOut = vertexShader;
 	*pixelShaderOut = pixelShader;
 
