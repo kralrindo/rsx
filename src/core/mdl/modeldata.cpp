@@ -608,28 +608,34 @@ void CreateBuffersForModelDrawData(ModelParsedData_t* const parsedData, CDXDrawD
 			meshDrawData->numIndices = mesh.indexCount;
 		}
 
-		if (!meshDrawData->weightsBuffer && mesh.extraBoneWeightsSize > 0)
+		if (!meshDrawData->weightsBuffer)
 		{
-			char* ebwData = mesh.extraBoneWeights;
-			int64_t ebwSize = mesh.extraBoneWeightsSize;
+			VertexWeight_t* const weights = parsedVertexData->GetWeights();
+			const int64_t numWeights = parsedVertexData->GetWeightCount();
+
+			VertexWeight_ForShader_t* wfs = new VertexWeight_ForShader_t[numWeights];
+			for (int64_t j = 0; j < numWeights; ++j)
+				wfs[j] = weights[j];
 
 			if(CreateD3DBuffer(g_dxHandler->GetDevice(),
-				&meshDrawData->weightsBuffer, static_cast<UINT>(ebwSize),
+				&meshDrawData->weightsBuffer, static_cast<UINT>(numWeights) * sizeof(VertexWeight_ForShader_t),
 				D3D11_USAGE_DYNAMIC, D3D11_BIND_SHADER_RESOURCE,
-				D3D11_CPU_ACCESS_WRITE, D3D11_RESOURCE_MISC_BUFFER_STRUCTURED, sizeof(uint32_t), ebwData
+				D3D11_CPU_ACCESS_WRITE, D3D11_RESOURCE_MISC_BUFFER_STRUCTURED, sizeof(VertexWeight_ForShader_t), wfs
 			))
 			{
 				D3D11_SHADER_RESOURCE_VIEW_DESC desc{};
 				desc.Format = DXGI_FORMAT_UNKNOWN;
 				desc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
 				desc.Buffer.FirstElement = 0;
-				desc.Buffer.NumElements = static_cast<UINT>(ebwSize / sizeof(uint32_t));
+				desc.Buffer.NumElements = static_cast<UINT>(numWeights);
 
 				HRESULT hr = g_dxHandler->GetDevice()->CreateShaderResourceView(meshDrawData->weightsBuffer, &desc, &meshDrawData->weightsSRV);
 
 				UNUSED(hr);
 				assert(SUCCEEDED(hr));
 			}
+
+			delete[] wfs;
 		}
 	}
 
@@ -1762,6 +1768,42 @@ bool ExportSeqDesc(const int setting, const ModelSeq_t* const seqdesc, std::file
 	}
 }
 
+#if defined(HAS_BONED_MODELS)
+void CalcMatrixForBone_Unparented(const ModelBone_t& bone, matrix3x4_t& matOut)
+{
+	matrix3x4_t mat;
+	QuaternionMatrix(bone.quat, mat);
+	MatrixSetColumn(bone.pos, 3, mat);
+
+	mat[0][0] *= bone.scale.x;
+	mat[1][0] *= bone.scale.x;
+	mat[2][0] *= bone.scale.x;
+	mat[0][1] *= bone.scale.y;
+	mat[1][1] *= bone.scale.y;
+	mat[2][1] *= bone.scale.y;
+	mat[0][2] *= bone.scale.z;
+	mat[1][2] *= bone.scale.z;
+	mat[2][2] *= bone.scale.z;
+
+	matOut = mat;
+}
+
+void CalcMatrixForBone_Unparented(const ModelBone_t& bone, XMMATRIX& matOut)
+{
+	XMVECTOR quat = { bone.quat.x, bone.quat.y, bone.quat.z, bone.quat.w };
+	XMVECTOR pos = { bone.pos.x, bone.pos.y, bone.pos.z };
+
+	XMMATRIX rotationMatrix = XMMatrixRotationQuaternion(quat);
+
+	XMMATRIX translationMatrix = XMMatrixTranslation(bone.pos.x, bone.pos.y, bone.pos.z);
+
+	XMMATRIX transform = XMMatrixMultiply(rotationMatrix, translationMatrix);
+
+	XMMATRIX finalMatrix = XMMatrixMultiply(transform, XMMatrixScaling(bone.scale.x, bone.scale.y, bone.scale.z));
+
+	matOut = finalMatrix;
+}
+
 //
 // PREVIEWDATA
 //
@@ -1781,13 +1823,39 @@ void UpdateModelBoneMatrix(CDXDrawData* const drawData, const ModelParsedData_t*
 	if (FAILED(hr))
 		return;
 
-	matrix3x4_t* boneArray = reinterpret_cast<matrix3x4_t*>(resource.pData);
+	XMMATRIX* boneArray = reinterpret_cast<XMMATRIX*>(resource.pData);
+
+	std::vector<XMMATRIX> tempBoneMatrices(parsedData->bones.size());
 
 	int i = 0;
 	for (const ModelBone_t& bone : parsedData->bones)
 	{
-		const XMMATRIX bonePosMatrix = XMLoadFloat3x4(reinterpret_cast<const XMFLOAT3X4*>(&bone.poseToBone));
-		XMStoreFloat3x4(reinterpret_cast<XMFLOAT3X4*>(boneArray + i), bonePosMatrix);
+		CalcMatrixForBone_Unparented(bone, tempBoneMatrices[i]);
+		
+		// now handle parenting
+		if (bone.parent != -1)
+			tempBoneMatrices[i] = XMMatrixMultiply(tempBoneMatrices[bone.parent], tempBoneMatrices[i]);
+
+		const XMMATRIX inverseBindMat = parsedData->boneInverseBindMatrices.at(i);
+		const XMMATRIX multiplied = XMMatrixMultiply(tempBoneMatrices[i], inverseBindMat);
+
+		boneArray[i] = multiplied;
+
+		//if (bone.parent != -1)
+		//{
+		//	XMVECTOR scale;
+		//	XMVECTOR pos;
+		//	XMVECTOR rot;
+		//	XMMatrixDecompose(&scale, &rot, &pos, tempBoneMatrices[i]);
+
+		//	XMVECTOR parentPos;
+		//	XMMatrixDecompose(&scale, &rot, &parentPos, tempBoneMatrices[bone.parent]);
+		//	//MatrixGetColumn(boneArray[bone.parent], 3, parentPos);
+
+		//	constexpr uint32_t boneColour = 0xFF0000FF;
+
+		//	drawData->DrawLine(pos, parentPos, boneColour, true, 1.f, -1.f);
+		//}
 
 		i++;
 	}
@@ -1795,14 +1863,40 @@ void UpdateModelBoneMatrix(CDXDrawData* const drawData, const ModelParsedData_t*
 	ctx->Unmap(drawData->boneMatrixBuffer, 0);
 }
 
-void InitModelBoneMatrix(CDXDrawData* const drawData, const ModelParsedData_t* const parsedData)
+// Calculates a matrix that translates from model-space to joint-space.
+// This is only calculated once when the model is first selected for preview, as it's completely useless for export
+void CalculateBonesInverseBindMatrix(ModelParsedData_t* const parsedData)
+{
+	parsedData->boneInverseBindMatrices.resize(parsedData->bones.size());
+
+	std::vector<XMMATRIX> tempBoneMatrices(parsedData->bones.size());
+
+	int i = 0;
+	for (const ModelBone_t& bone : parsedData->bones)
+	{
+		CalcMatrixForBone_Unparented(bone, tempBoneMatrices[i]);
+
+		// now handle parenting
+		if (bone.parent != -1)
+			tempBoneMatrices[i] = XMMatrixMultiply(tempBoneMatrices[bone.parent], tempBoneMatrices[i]);
+		
+		XMVECTOR determinant;
+		parsedData->boneInverseBindMatrices[i] = XMMatrixInverse(&determinant, tempBoneMatrices[i]);
+
+		assert(determinant.m128_f32[0] != 0 && determinant.m128_f32[1] != 0 && determinant.m128_f32[2] != 0);
+		//XMMATRIX fuck = XMLoadFloat3x4((XMFLOAT3X4*)boneArray + i);
+	}
+}
+
+void InitModelBoneMatrix(CDXDrawData* const drawData, ModelParsedData_t* const parsedData)
 {
 	ID3D11Device* const device = g_dxHandler->GetDevice();
 
 	D3D11_BUFFER_DESC desc{};
 
 	desc.ByteWidth = static_cast<UINT>(parsedData->bones.size()) * sizeof(matrix3x4_t);
-	desc.StructureByteStride = sizeof(matrix3x4_t);
+	desc.ByteWidth = static_cast<UINT>(parsedData->bones.size()) * sizeof(XMMATRIX);
+	desc.StructureByteStride = sizeof(XMMATRIX);
 
 	// make sure this buffer can be updated every frame
 	desc.Usage = D3D11_USAGE_DYNAMIC;
@@ -1837,8 +1931,12 @@ void InitModelBoneMatrix(CDXDrawData* const drawData, const ModelParsedData_t* c
 		return;
 #endif
 
+	CalculateBonesInverseBindMatrix(parsedData);
+
+	// Initial update for the bone matrices
 	UpdateModelBoneMatrix(drawData, parsedData);
 }
+#endif
 
 void* PreviewParsedData(ModelPreviewInfo_t* const info, ModelParsedData_t* const parsedData, char* const assetName, const uint64_t assetGUID, const bool firstFrameForAsset)
 {
@@ -1867,6 +1965,7 @@ void* PreviewParsedData(ModelPreviewInfo_t* const info, ModelParsedData_t* const
 		return nullptr;
 
 	drawData->vertexShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/model_vs", s_PreviewVertexShader, eShaderType::Vertex);;
+	drawData->vertexShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/model_vs", s_PreviewVertexShader, eShaderType::Vertex);
 	drawData->pixelShader = g_dxHandler->GetShaderManager()->LoadShaderFromString("shaders/model_ps", s_PreviewPixelShader, eShaderType::Pixel);
 
 	// [rika]: do the preview stuff here!
@@ -2077,9 +2176,11 @@ void* PreviewParsedData(ModelPreviewInfo_t* const info, ModelParsedData_t* const
 		}
 	}
 
+#if defined(HAS_BONED_MODELS)
 	// Map some (potentially incorrect) bone data
 	if (!drawData->boneMatrixBuffer)
 		InitModelBoneMatrix(drawData, parsedData);
+#endif
 
 	Preview_MapTransformsBuffer(drawData);
 	Preview_MapModelInstanceBuffer(drawData);

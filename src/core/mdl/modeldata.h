@@ -551,6 +551,7 @@ public:
 		{
 			this->meshVertexData.move(parsed.meshVertexData);
 			this->bones.swap(parsed.bones);
+			this->boneInverseBindMatrices.swap(parsed.boneInverseBindMatrices);
 			this->attachments.swap(parsed.attachments);
 			this->hitboxsets.swap(parsed.hitboxsets);
 
@@ -590,6 +591,7 @@ public:
 	CRamen meshVertexData;
 
 	std::vector<ModelBone_t> bones;
+	std::vector<XMMATRIX> boneInverseBindMatrices;
 	std::vector<ModelAttachment_t> attachments;
 	std::vector<ModelHitboxSet_t> hitboxsets;
 

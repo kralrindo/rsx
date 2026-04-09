@@ -5,8 +5,9 @@
 #include <misc/imgui_utility.h>
 #include <core/render/preview/preview.h>
 
-void Preview_Texture(CDXDrawData* drawData)
+void Preview_Texture(CDXDrawData* drawData, float dt)
 {
+    UNUSED(dt);
     static float textureZoom = 1.0f;
 
     const float aspectRatio = !drawData->previewTexture ? 1.f : static_cast<float>(drawData->previewTexture->GetWidth()) / drawData->previewTexture->GetHeight();

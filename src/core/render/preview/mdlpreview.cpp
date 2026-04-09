@@ -61,8 +61,6 @@ void Preview_Model(CDXDrawData* drawData, float dt)
     drawData->SetPSResource(PSRSRC_CLOUDMASK, g_dxHandler->GetCloudMaskSRV());
     drawData->SetPSResource(PSRSRC_STATICSHADOWTEXTURE, g_dxHandler->GetStaticShadowTexSRV());
 
-
-
     CDXCamera* const camera = g_dxHandler->GetCamera();
 
     if (drawData->vertexShader && drawData->pixelShader) LIKELY
@@ -85,7 +83,7 @@ void Preview_Model(CDXDrawData* drawData, float dt)
                 continue;
 
             // Add mesh weights StructuredBuffer as a resource
-            drawData->SetVSResource(1u, meshDrawData.weightsSRV);
+            drawData->SetVSResource(61u, meshDrawData.weightsSRV);
 
             ctx->RSSetState(meshDrawData.wireframe ? g_dxHandler->GetRasterizerStateWireFrame() : g_dxHandler->GetRasterizerState());
 
