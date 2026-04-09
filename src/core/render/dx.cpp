@@ -636,6 +636,16 @@ bool CDXParentHandler::CreateMainView(const uint16_t w, const uint16_t h)
     }
 
     {
+        D3D11_DEPTH_STENCIL_DESC desc = {};
+        desc.DepthEnable = false;
+        desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        desc.DepthFunc = D3D11_COMPARISON_LESS;
+
+        if (FAILED(m_pDevice->CreateDepthStencilState(&desc, &m_pDepthStencilStateNoDepthTest)))
+            assertm(false, "Failed to create non-depth stencil state.");
+    }
+
+    {
         // eventually there should be multiple sampler states that are chosen depending on material flags for model preview
         D3D11_SAMPLER_DESC desc = {};
         desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -824,6 +834,7 @@ void CDXParentHandler::CleanupD3D()
     DX_RELEASE_PTR(m_pDepthStencilView);
     DX_RELEASE_PTR(m_pDepthBuffer);
     DX_RELEASE_PTR(m_pDepthStencilState);
+    DX_RELEASE_PTR(m_pDepthStencilStateNoDepthTest);
     DX_RELEASE_PTR(m_pRasterizerState);
     DX_RELEASE_PTR(m_pRasterizerStateWF);
     DX_RELEASE_PTR(m_pSamplerState);

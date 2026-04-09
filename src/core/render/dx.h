@@ -387,7 +387,7 @@ public:
 	inline IDXGISwapChain* GetSwapChain() const { return m_pSwapChain; };
 	inline ID3D11RenderTargetView* GetMainView() const { return m_pMainView; };
     inline ID3D11DepthStencilView* GetDepthStencilView() const { return m_pDepthStencilView; };
-    inline ID3D11DepthStencilState* GetDepthStencilState() { return m_pDepthStencilState; };
+    inline ID3D11DepthStencilState* GetDepthStencilState(bool depthTest=true) { return depthTest ? m_pDepthStencilState : m_pDepthStencilStateNoDepthTest; };
     inline ID3D11RasterizerState* GetRasterizerState() const { return m_pRasterizerState; };
     inline ID3D11RasterizerState* GetRasterizerStateWireFrame() const { return m_pRasterizerStateWF; };
     inline ID3D11SamplerState* GetSamplerState() const { return m_pSamplerState; };
@@ -447,7 +447,10 @@ private:
 	ID3D11RenderTargetView* m_pMainView;
     ID3D11DepthStencilView* m_pDepthStencilView;
     ID3D11Texture2D* m_pDepthBuffer;
+
+    ID3D11DepthStencilState* m_pDepthStencilStateNoDepthTest; // depth disabled
     ID3D11DepthStencilState* m_pDepthStencilState; // depth enabled
+
     ID3D11RasterizerState* m_pRasterizerState; // main rasterizer state
     ID3D11RasterizerState* m_pRasterizerStateWF; // main rasterizer state
     ID3D11SamplerState* m_pSamplerState;
