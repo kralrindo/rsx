@@ -211,6 +211,19 @@ void LoadUIImageAsset(CAssetContainer* const pak, CAsset* const asset)
     pakAsset->setExtraData(uiAsset);
 }
 
+void PostLoadUIImageAsset(CAssetContainer* container, CAsset* asset)
+{
+    UNUSED(container);
+
+    CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
+
+    assertm(pakAsset->extraData(), "extra data should be valid");
+    UIImageAsset* const uiAsset = reinterpret_cast<UIImageAsset*>(pakAsset->extraData());
+
+    if (!uiAsset->name)
+        pakAsset->SetAssetNameFromCache();
+}
+
 // Or swizzle work..
 std::unique_ptr<CTexture> DoTilingWork(std::unique_ptr<CTexture> texture, std::unique_ptr<char[]> const& buf, const size_t bufSize, const uint32_t widthBlocks, const uint32_t heightBlocks, const uint32_t bpp2x)
 {    
@@ -788,7 +801,7 @@ void InitUIImageAssetType()
         .type = 'aiiu',
         .headerAlignment = 8,
         .loadFunc = LoadUIImageAsset,
-        .postLoadFunc = nullptr,
+        .postLoadFunc = PostLoadUIImageAsset,
         .previewFunc = PreviewUIImageAsset,
         .e = { ExportUIImageAsset, 0, settings, ARRSIZE(settings) },
     };

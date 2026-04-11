@@ -24,8 +24,14 @@ const int CPakFile::ResolvePointers()
         if (curCount >= this->numProcessedPages)
             break;
 
+        if (curPointer->index >= this->pageBuffers.size())
+            continue;
+
         PagePtr_t* const ptr = reinterpret_cast<PagePtr_t*>(this->pageBuffers[curPointer->index] + curPointer->offset);
-        assertm(ptr->ptr, "uh oh something went very wrong!!!! (shifted pointers are most likely wrong)");
+
+        if (ptr->index >= this->pageBuffers.size() || !ptr->ptr)
+            continue;
+
         ptr->ptr = this->pageBuffers[ptr->index] + ptr->offset;
     }
 

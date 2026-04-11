@@ -126,17 +126,29 @@ void PostLoadUIImageAtlasAsset(CAssetContainer* const pak, CAsset* const asset)
     UIImageAtlasAsset* const uiAsset = reinterpret_cast<UIImageAtlasAsset*>(pakAsset->extraData());
 
     CPakAsset* const textureAsset = g_assetData.FindAssetByGUID<CPakAsset>(uiAsset->atlasGUID);
-    assertm(textureAsset, "Asset should be valid.");
+    if (!textureAsset)
+    {
+        printf("UI image atlas 0x%llX: atlas texture 0x%llX not found\n", pakAsset->data()->guid, uiAsset->atlasGUID);
+        pakAsset->SetAssetNameFromCache();
+        return;
+    }
 
     TextureAsset* const txtrAsset = reinterpret_cast<TextureAsset*>(textureAsset->extraData());
+    if (!txtrAsset)
+    {
+        printf("UI image atlas 0x%llX: atlas texture 0x%llX has no extra data\n", pakAsset->data()->guid, uiAsset->atlasGUID);
+        pakAsset->SetAssetNameFromCache();
+        return;
+    }
 
     if (txtrAsset->name)
     {
         std::string atlasName = "ui_image_atlas/" + std::string(txtrAsset->name) + ".rpak";
 
-        //assertm(pakAsset->data()->guids == RTech::StringToGuid(atlasName.c_str()), "hashed name for atlas did not match existing guid\n");
-
-        pakAsset->SetAssetName(atlasName, true);
+        if (pakAsset->data()->guid == RTech::StringToGuid(atlasName.c_str()))
+            pakAsset->SetAssetName(atlasName, true);
+        else
+            pakAsset->SetAssetNameFromCache();
     }
     else
     {
