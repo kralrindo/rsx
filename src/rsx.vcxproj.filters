@@ -423,15 +423,14 @@
     <ClInclude Include="core\utils\cli_parser.h">
       <Filter>core\utils</Filter>
     </ClInclude>
-    <ClInclude Include="core\render\preview\audio_preview.h">
-      <Filter>core\render\preview</Filter>
-    </ClInclude>
     <ClInclude Include="core\render\preview\lighting.h">
       <Filter>core\render\preview</Filter>
     </ClInclude>
     <ClInclude Include="core\render\preview\preview.h">
       <Filter>core\render\preview</Filter>
     </ClInclude>
+    <ClInclude Include="core\utils\autoupdater.h" />
+    <ClInclude Include="game\rtech\utils\zstd_loader.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -737,6 +736,8 @@
     <ClCompile Include="core\render\ui\itemflav_window.cpp">
       <Filter>core\render\ui</Filter>
     </ClCompile>
+    <ClCompile Include="core\utils\autoupdater.cpp" />
+    <ClCompile Include="game\rtech\utils\zstd_loader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="cpp.hint" />
