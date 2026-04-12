@@ -170,8 +170,7 @@ namespace RTechZstd
 
         if (g_bindings.isError(result))
         {
-            const char* errName = g_bindings.getErrorName(result);
-            Log("RSX: Zstd decode failed (%s).\n", errName ? errName : "unknown");
+            Log("RSX: Zstd decode failed (%s).\n", g_bindings.getErrorName(result));
             return false;
         }
 

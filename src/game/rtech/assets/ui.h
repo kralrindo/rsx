@@ -464,25 +464,75 @@ struct UIAssetHeader_t
 };
 static_assert(sizeof(UIAssetHeader_t) == 104, "UIAssetHeader_t must be 104 bytes");
 
+// UIAsset owns copies of all data buffers from the pak header.
+// Pak page memory may be freed after loading, so we must not store raw pak pointers.
 class UIAsset
 {
 public:
-    UIAsset(UIAssetHeader_t* hdr)
-        : name(hdr->name)
-        , elementWidth(hdr->elementWidth)
+    UIAsset(UIAssetHeader_t* hdr, int version)
+        : elementWidth(hdr->elementWidth)
         , elementHeight(hdr->elementHeight)
         , elementWidthRatio(hdr->elementWidthRatio)
         , elementHeightRatio(hdr->elementHeightRatio)
-        , argNames(hdr->argNames)
-        , args(hdr->args)
-        , argClusters(hdr->argClusters)
-        , argDefaultValues(hdr->defaultValues)
         , argCount(hdr->argCount)
         , argClusterCount(hdr->argClusterCount)
         , argDefaultValueSize(hdr->defaultValuesSize)
-    {}
+    {
+        // Copy name string (always valid - resolved from header page)
+        if (hdr->name)
+            ownedName = hdr->name;
 
-    bool HasArgNames() const { return argNames != nullptr; }
+        // Copy args array (always valid - in header page)
+        if (hdr->args && hdr->argCount > 0)
+        {
+            ownedArgs.resize(hdr->argCount);
+            memcpy(ownedArgs.data(), hdr->args, hdr->argCount * sizeof(UIAssetArg_t));
+        }
+
+        // Copy arg clusters (always valid - in header page)
+        if (hdr->argClusters && hdr->argClusterCount > 0)
+        {
+            ownedArgClusters.resize(hdr->argClusterCount);
+            memcpy(ownedArgClusters.data(), hdr->argClusters, hdr->argClusterCount * sizeof(UIAssetArgCluster_t));
+        }
+
+        // Copy defaultValues buffer (CPU data page - may be freed after load)
+        if (hdr->defaultValues && hdr->defaultValuesSize > 0)
+        {
+            ownedDefaultValues.resize(hdr->defaultValuesSize);
+            memcpy(ownedDefaultValues.data(), hdr->defaultValues, hdr->defaultValuesSize);
+        }
+
+        // Copy argNames string table (V29/V30 only - V39+ has no arg names)
+        if (version <= 30 && hdr->argNames && hdr->argCount > 0)
+        {
+            size_t argNamesSize = 0;
+            for (int16_t i = 0; i < hdr->argCount; i++)
+            {
+                uint16_t nameOff = hdr->args[i].nameOffset;
+                if (nameOff > 0)
+                {
+                    size_t endPos = nameOff + strnlen(hdr->argNames + nameOff, 256) + 1;
+                    if (endPos > argNamesSize)
+                        argNamesSize = endPos;
+                }
+            }
+            if (argNamesSize > 0)
+            {
+                ownedArgNames.resize(argNamesSize);
+                memcpy(ownedArgNames.data(), hdr->argNames, argNamesSize);
+            }
+        }
+    }
+
+    // Accessors that return pointers into owned buffers (always valid)
+    const char* GetName() const { return ownedName.empty() ? nullptr : ownedName.c_str(); }
+    UIAssetArg_t* GetArgs() { return ownedArgs.empty() ? nullptr : ownedArgs.data(); }
+    const UIAssetArg_t* GetArgs() const { return ownedArgs.empty() ? nullptr : ownedArgs.data(); }
+    void* GetDefaultValues() { return ownedDefaultValues.empty() ? nullptr : ownedDefaultValues.data(); }
+    const char* GetArgNames() const { return ownedArgNames.empty() ? nullptr : ownedArgNames.data(); }
+
+    bool HasArgNames() const { return !ownedArgNames.empty(); }
 
     const char* GetCachedString(uint16_t dataOffset) const
     {
@@ -498,26 +548,23 @@ public:
             cachedStrings[dataOffset] = "";
     }
 
-    bool HasCachedString(uint16_t dataOffset) const
-    {
-        return cachedStrings.find(dataOffset) != cachedStrings.end();
-    }
-
-    const char* name;
+    // Public fields (scalar values copied by value - always safe)
+    std::string ownedName;
 
     float elementWidth;
     float elementHeight;
     float elementWidthRatio;
     float elementHeightRatio;
 
-    const char* argNames;
-    UIAssetArg_t* args;
-    UIAssetArgCluster_t* argClusters;
-    void* argDefaultValues;
-
     int16_t argCount;
     uint16_t argClusterCount;
     uint16_t argDefaultValueSize;
+
+    // Owned data buffers (copies of pak page data)
+    std::vector<UIAssetArg_t> ownedArgs;
+    std::vector<UIAssetArgCluster_t> ownedArgClusters;
+    std::vector<uint8_t> ownedDefaultValues;
+    std::vector<char> ownedArgNames;
 
     std::unordered_map<uint16_t, std::string> cachedStrings;
 };

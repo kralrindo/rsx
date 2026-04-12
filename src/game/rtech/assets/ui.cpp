@@ -96,24 +96,38 @@ static bool SafeReadBool(const void* ptr, bool* out)
     __except(EXCEPTION_EXECUTE_HANDLER) { *out = false; return false; }
 }
 
+static bool IsValidReadablePointer(const void* ptr)
+{
+    uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+    // Reject NULL, low addresses, kernel space, and common sentinel values
+    if (addr == 0 || addr < 0x10000 || addr > 0x00007FFFFFFFFFFF)
+        return false;
+    if (addr == 0xFFFFFFFF || addr == 0xFFFFFFFFFFFFFFFF)
+        return false;
+    if (addr == 0xCDCDCDCDCDCDCDCD || addr == 0xDDDDDDDDDDDDDDDD || addr == 0xFEEEFEEEFEEEFEEE)
+        return false;
+    // Must be above 1MB to be a realistic heap/data pointer
+    if (addr < 0x100000)
+        return false;
+    return true;
+}
+
 static bool SafeCopyString(const char* src, char* dest, size_t maxLen)
 {
     if (!src || !dest || maxLen == 0)
         return false;
 
-    __try
-    {
-        size_t i = 0;
-        for (; i < maxLen - 1 && src[i] != '\0'; i++)
-            dest[i] = src[i];
-        dest[i] = '\0';
-        return true;
-    }
-    __except(EXCEPTION_EXECUTE_HANDLER)
-    {
-        dest[0] = '\0';
+    if (!IsValidReadablePointer(src))
         return false;
-    }
+
+    if (!UI_IsMemoryReadable(src, 1))
+        return false;
+
+    size_t i = 0;
+    for (; i < maxLen - 1 && src[i] != '\0'; i++)
+        dest[i] = src[i];
+    dest[i] = '\0';
+    return i > 0;
 }
 
 static bool LooksLikeInlineString(const void* ptr, size_t maxCheck = 8)
@@ -140,35 +154,9 @@ static bool LooksLikeInlineString(const void* ptr, size_t maxCheck = 8)
 static bool LooksLikeValidPointer(const void* ptr)
 {
     if (!ptr) return false;
-    __try
-    {
-        uintptr_t val = 0;
-        memcpy(&val, ptr, sizeof(uintptr_t));
-        if (val < 0x10000) return false;
-        if (val > 0x00007FFFFFFFFFFF) return false;
-        return true;
-    }
-    __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
-}
-
-// Preview a string pointer: dereference ptr-to-ptr and copy the string
-static bool SafePreviewString(const void* strPtrPtr, char* outBuffer, size_t bufferSize)
-{
-    if (!strPtrPtr || !outBuffer || bufferSize == 0) return false;
-    outBuffer[0] = '\0';
-
-    __try
-    {
-        const char* strPtr = nullptr;
-        memcpy(&strPtr, strPtrPtr, sizeof(const char*));
-        if (!strPtr) return false;
-
-        uintptr_t ptrVal = reinterpret_cast<uintptr_t>(strPtr);
-        if (ptrVal < 0x10000 || ptrVal > 0x00007FFFFFFFFFFF) return false;
-
-        return SafeCopyString(strPtr, outBuffer, bufferSize);
-    }
-    __except(EXCEPTION_EXECUTE_HANDLER) { outBuffer[0] = '\0'; return false; }
+    uintptr_t val = 0;
+    memcpy(&val, ptr, sizeof(uintptr_t));
+    return IsValidReadablePointer(reinterpret_cast<const void*>(val));
 }
 
 // Dereference a pointer stored at valuePtr and read the string it points to
@@ -177,29 +165,14 @@ static bool SafeReadStringPointerDirect(const void* valuePtr, char* outBuffer, s
     if (!valuePtr || !outBuffer || bufferSize == 0) return false;
     outBuffer[0] = '\0';
 
-    __try
-    {
-        const char* strPtr = nullptr;
-        memcpy(&strPtr, valuePtr, sizeof(const char*));
+    if (!IsValidReadablePointer(valuePtr)) return false;
 
-        uintptr_t ptrVal = reinterpret_cast<uintptr_t>(strPtr);
-        if (ptrVal == 0 || ptrVal == 0xFFFFFFFFFFFFFFFF || ptrVal > 0x00007FFFFFFFFFFF)
-            return false;
+    const char* strPtr = nullptr;
+    memcpy(&strPtr, valuePtr, sizeof(const char*));
 
-        __try
-        {
-            size_t len = 0;
-            while (len < bufferSize - 1 && strPtr[len] != '\0')
-            {
-                outBuffer[len] = strPtr[len];
-                len++;
-            }
-            outBuffer[len] = '\0';
-            return (len > 0);
-        }
-        __except(EXCEPTION_EXECUTE_HANDLER) { outBuffer[0] = '\0'; return false; }
-    }
-    __except(EXCEPTION_EXECUTE_HANDLER) { outBuffer[0] = '\0'; return false; }
+    if (!IsValidReadablePointer(strPtr)) return false;
+
+    return SafeCopyString(strPtr, outBuffer, bufferSize);
 }
 
 static size_t GetUICpuDataSize(CPakAsset* pakAsset)
@@ -298,75 +271,12 @@ void LoadUIAsset(CAssetContainer* const container, CAsset* const asset)
     {
     case 29:
     case 30:
-    {
-        UIAssetHeader_t* const hdr = reinterpret_cast<UIAssetHeader_t* const>(pakAsset->header());
-        uiAsset = new UIAsset(hdr);
-
-        // Cache string values during load while memory is accessible
-        if (hdr->args && hdr->defaultValues && hdr->argCount > 0)
-        {
-            for (int16_t i = 0; i < hdr->argCount; i++)
-            {
-                UIAssetArg_t* arg = &hdr->args[i];
-                uint8_t argType = arg->type;
-
-                if (argType != UI_ARG_TYPE_STRING && argType != UI_ARG_TYPE_ASSET &&
-                    argType != UI_ARG_TYPE_IMAGE && argType != UI_ARG_TYPE_UIHANDLE &&
-                    argType != UI_ARG_TYPE_FONT_FACE)
-                    continue;
-
-                uint16_t dataOffset = arg->dataOffset;
-                if (dataOffset >= hdr->defaultValuesSize)
-                    continue;
-
-                void* valuePtr = reinterpret_cast<char*>(hdr->defaultValues) + dataOffset;
-                char strBuf[1024] = {0};
-
-                if (SafeReadStringPointerDirect(valuePtr, strBuf, sizeof(strBuf)))
-                    uiAsset->CacheString(dataOffset, strBuf);
-                else if (ReadStringValue(valuePtr, strBuf, sizeof(strBuf), pakAsset->version()))
-                    uiAsset->CacheString(dataOffset, strBuf);
-                else
-                    uiAsset->CacheString(dataOffset, "");
-            }
-        }
-        break;
-    }
     case 39:
     case 40:
     case 42:
     {
         UIAssetHeader_t* const hdr = reinterpret_cast<UIAssetHeader_t* const>(pakAsset->header());
-        uiAsset = new UIAsset(hdr);
-
-        // Cache string values during load while memory is accessible
-        if (hdr->args && hdr->defaultValues && hdr->argCount > 0)
-        {
-            for (int16_t i = 0; i < hdr->argCount; i++)
-            {
-                UIAssetArg_t* arg = &hdr->args[i];
-                uint8_t argType = arg->type;
-
-                if (argType != UI_ARG_TYPE_STRING && argType != UI_ARG_TYPE_ASSET &&
-                    argType != UI_ARG_TYPE_IMAGE && argType != UI_ARG_TYPE_UIHANDLE &&
-                    argType != UI_ARG_TYPE_FONT_FACE)
-                    continue;
-
-                uint16_t dataOffset = arg->dataOffset;
-                if (dataOffset >= hdr->defaultValuesSize)
-                    continue;
-
-                void* valuePtr = reinterpret_cast<char*>(hdr->defaultValues) + dataOffset;
-                char strBuf[1024] = {0};
-
-                if (SafeReadStringPointerDirect(valuePtr, strBuf, sizeof(strBuf)))
-                    uiAsset->CacheString(dataOffset, strBuf);
-                else if (ReadStringValue(valuePtr, strBuf, sizeof(strBuf), pakAsset->version()))
-                    uiAsset->CacheString(dataOffset, strBuf);
-                else
-                    uiAsset->CacheString(dataOffset, "");
-            }
-        }
+        uiAsset = new UIAsset(hdr, pakAsset->version());
         break;
     }
     default:
@@ -376,15 +286,35 @@ void LoadUIAsset(CAssetContainer* const container, CAsset* const asset)
     }
     }
 
-    if (uiAsset->name)
+    if (uiAsset->GetName())
     {
-        const std::string uiName = "ui/" + std::string(uiAsset->name) + ".rpak";
+        const std::string uiName = "ui/" + std::string(uiAsset->GetName()) + ".rpak";
         pakAsset->SetAssetName(uiName, true);
     }
     else
         pakAsset->SetAssetNameFromCache();
 
     pakAsset->setExtraData(uiAsset);
+}
+
+// SEH-isolated string reader: no C++ objects in scope, safe for Release /O2
+// Returns true if a string was read into outBuffer
+static bool SEH_ReadArgString(void* defaultValues, uint16_t dataOffset, uint16_t defaultValuesSize, int version, char* outBuffer, size_t bufferSize)
+{
+    outBuffer[0] = '\0';
+
+    if (!defaultValues || dataOffset >= defaultValuesSize)
+        return false;
+
+    void* valuePtr = reinterpret_cast<char*>(defaultValues) + dataOffset;
+
+    if (SafeReadStringPointerDirect(valuePtr, outBuffer, bufferSize))
+        return true;
+
+    if (ReadStringValue(valuePtr, outBuffer, bufferSize, version))
+        return true;
+
+    return false;
 }
 
 void PostLoadUIAsset(CAssetContainer* const container, CAsset* const asset)
@@ -398,8 +328,31 @@ void PostLoadUIAsset(CAssetContainer* const container, CAsset* const asset)
 
     UIAsset* const uiAsset = reinterpret_cast<UIAsset*>(pakAsset->extraData());
 
-    if (!uiAsset->name)
+    if (!uiAsset->GetName())
         pakAsset->SetAssetNameFromCache();
+
+    // Cache string values while memory is still accessible
+    // SEH reads are isolated in SEH_ReadArgString (no C++ objects in SEH scope)
+    if (uiAsset->GetArgs() && uiAsset->GetDefaultValues() && uiAsset->argCount > 0)
+    {
+        for (int16_t i = 0; i < uiAsset->argCount; i++)
+        {
+            uint8_t argType = uiAsset->GetArgs()[i].type;
+
+            if (argType != UI_ARG_TYPE_STRING && argType != UI_ARG_TYPE_ASSET &&
+                argType != UI_ARG_TYPE_IMAGE && argType != UI_ARG_TYPE_UIHANDLE &&
+                argType != UI_ARG_TYPE_FONT_FACE)
+                continue;
+
+            uint16_t dataOffset = uiAsset->GetArgs()[i].dataOffset;
+            char strBuf[1024] = {0};
+
+            if (SEH_ReadArgString(uiAsset->GetDefaultValues(), dataOffset, uiAsset->argDefaultValueSize, pakAsset->version(), strBuf, sizeof(strBuf)))
+                uiAsset->CacheString(dataOffset, strBuf);
+            else
+                uiAsset->CacheString(dataOffset, "");
+        }
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -485,7 +438,7 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
 
     static std::vector<UIPreviewData_t> previewData;
 
-    if (!uiAsset->args || uiAsset->argCount <= 0)
+    if (!uiAsset->GetArgs() || uiAsset->argCount <= 0)
     {
         ImGui::TextUnformatted("No arguments in this UI asset.");
         return nullptr;
@@ -499,7 +452,7 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
         for (int i = 0; i < uiAsset->argCount; i++)
         {
             UIPreviewData_t& argPreviewData = previewData.at(i);
-            const UIAssetArg_t* const argData = &uiAsset->args[i];
+            const UIAssetArg_t* const argData = &uiAsset->GetArgs()[i];
 
             uint8_t argType = 0;
             uint8_t argUnk1 = 0;
@@ -535,8 +488,8 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
             }
 
             argPreviewData.index = i;
-            argPreviewData.name = uiAsset->argNames ? uiAsset->argNames + nameOffset : nullptr;
-            argPreviewData.value.rawptr = uiAsset->argDefaultValues ? (reinterpret_cast<char*>(uiAsset->argDefaultValues) + dataOffset) : nullptr;
+            argPreviewData.name = uiAsset->GetArgNames() ? uiAsset->GetArgNames() + nameOffset : nullptr;
+            argPreviewData.value.rawptr = uiAsset->GetDefaultValues() ? (reinterpret_cast<char*>(uiAsset->GetDefaultValues()) + dataOffset) : nullptr;
             argPreviewData.type = static_cast<UIAssetArgType_t>(argType);
             argPreviewData.typeStr = s_UIArgTypeNames[argType];
             argPreviewData.offset = dataOffset;
@@ -620,22 +573,17 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
                     case UIAssetArgType_t::UI_ARG_TYPE_NONE: break;
                     case UIAssetArgType_t::UI_ARG_TYPE_STRING:
                     {
-                        char safeBuf[256] = {0};
-                        if (SafePreviewString(item->value.string, safeBuf, sizeof(safeBuf)))
-                            ImGui::Text("\"%s\"", safeBuf);
-                        else
-                            ImGui::TextUnformatted("\"\"");
+                        const char* cached = uiAsset->GetCachedString(item->offset);
+                        ImGui::Text("\"%s\"", (cached && cached[0]) ? cached : "");
                         break;
                     }
                     case UIAssetArgType_t::UI_ARG_TYPE_ASSET:
                     case UIAssetArgType_t::UI_ARG_TYPE_IMAGE:
                     case UIAssetArgType_t::UI_ARG_TYPE_UIHANDLE:
+                    case UIAssetArgType_t::UI_ARG_TYPE_FONT_FACE:
                     {
-                        char safeBuf[256] = {0};
-                        if (SafePreviewString(item->value.string, safeBuf, sizeof(safeBuf)))
-                            ImGui::Text("$\"%s\"", safeBuf);
-                        else
-                            ImGui::TextUnformatted("$\"\"");
+                        const char* cached = uiAsset->GetCachedString(item->offset);
+                        ImGui::Text("$\"%s\"", (cached && cached[0]) ? cached : "");
                         break;
                     }
                     case UIAssetArgType_t::UI_ARG_TYPE_BOOL:
@@ -644,7 +592,7 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
                         if (SafeReadBool(item->value.boolean, &boolVal))
                             ImGui::Text("%s", boolVal ? "True" : "False");
                         else
-                            ImGui::TextUnformatted("(read error)");
+                            ImGui::TextUnformatted("-");
                         break;
                     }
                     case UIAssetArgType_t::UI_ARG_TYPE_INT:
@@ -653,7 +601,7 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
                         if (SafeReadInt(item->value.integer, &intVal))
                             ImGui::Text("%i", intVal);
                         else
-                            ImGui::TextUnformatted("(read error)");
+                            ImGui::TextUnformatted("-");
                         break;
                     }
                     case UIAssetArgType_t::UI_ARG_TYPE_FLOAT:
@@ -663,7 +611,7 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
                         if (SafeReadFloat(item->value.fpn, &floatVal))
                             ImGui::Text("%f", floatVal);
                         else
-                            ImGui::TextUnformatted("(read error)");
+                            ImGui::TextUnformatted("-");
                         break;
                     }
                     case UIAssetArgType_t::UI_ARG_TYPE_FLOAT2:
@@ -672,7 +620,7 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
                         if (SafeReadFloat2(item->value.fpn, floatVals))
                             ImGui::Text("%f, %f", floatVals[0], floatVals[1]);
                         else
-                            ImGui::TextUnformatted("(read error)");
+                            ImGui::TextUnformatted("-");
                         break;
                     }
                     case UIAssetArgType_t::UI_ARG_TYPE_FLOAT3:
@@ -681,7 +629,7 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
                         if (SafeReadFloat3(item->value.fpn, floatVals))
                             ImGui::Text("%f, %f, %f", floatVals[0], floatVals[1], floatVals[2]);
                         else
-                            ImGui::TextUnformatted("(read error)");
+                            ImGui::TextUnformatted("-");
                         break;
                     }
                     case UIAssetArgType_t::UI_ARG_TYPE_COLOR_ALPHA:
@@ -690,7 +638,7 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
                         if (SafeReadFloat4(item->value.fpn, floatVals))
                             ImGui::Text("%f, %f, %f, %f", floatVals[0], floatVals[1], floatVals[2], floatVals[3]);
                         else
-                            ImGui::TextUnformatted("(read error)");
+                            ImGui::TextUnformatted("-");
                         break;
                     }
                     case UIAssetArgType_t::UI_ARG_TYPE_WALLTIME:
@@ -699,14 +647,12 @@ void* PreviewUIAsset(CAsset* const asset, const bool firstFrameForAsset)
                         if (SafeReadInt64(item->value.integer64, &intVal))
                             ImGui::Text("%lli", intVal);
                         else
-                            ImGui::TextUnformatted("(read error)");
+                            ImGui::TextUnformatted("-");
                         break;
                     }
                     default:
-                    {
-                        ImGui::Text("UNSUPPORTED (%d)", item->type);
+                        ImGui::TextUnformatted("-");
                         break;
-                    }
                     }
                 }
             }
@@ -763,7 +709,7 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
         json << "{\n";
 
         // Asset metadata
-        json << "  \"name\": \"" << (uiAsset->name ? uiAsset->name : "") << "\",\n";
+        json << "  \"name\": \"" << (uiAsset->GetName() ? uiAsset->GetName() : "") << "\",\n";
         json << "  \"version\": " << pakAsset->version() << ",\n";
         json << "  \"guid\": \"0x" << std::hex << std::uppercase << pakAsset->guid() << std::dec << "\",\n";
         json << std::setprecision(9);
@@ -777,7 +723,7 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
         json << "  \"argCount\": " << uiAsset->argCount << ",\n";
         json << "  \"argClusterCount\": " << uiAsset->argClusterCount << ",\n";
         json << "  \"defaultValuesSize\": " << uiAsset->argDefaultValueSize << ",\n";
-        json << "  \"hasArgNames\": " << (uiAsset->argNames ? "true" : "false") << ",\n";
+        json << "  \"hasArgNames\": " << (uiAsset->GetArgNames() ? "true" : "false") << ",\n";
 
         // Args array
         json << "  \"args\": [\n";
@@ -787,7 +733,7 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
             uint8_t argUnk1 = 0;
             uint16_t dataOffset = 0, nameOffset = 0, shortHash = 0;
 
-            if (SafeReadUIArg(&uiAsset->args[i], &argType, &argUnk1, &dataOffset, &nameOffset, &shortHash))
+            if (SafeReadUIArg(&uiAsset->GetArgs()[i], &argType, &argUnk1, &dataOffset, &nameOffset, &shortHash))
             {
                 json << "    {\n";
                 json << "      \"index\": " << i << ",\n";
@@ -798,17 +744,17 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
                 json << "      \"nameOffset\": " << nameOffset << ",\n";
                 json << "      \"shortHash\": \"0x" << std::hex << shortHash << std::dec << "\"";
 
-                if (uiAsset->argNames && nameOffset > 0)
+                if (uiAsset->GetArgNames() && nameOffset > 0)
                 {
                     char nameBuf[256] = {0};
-                    if (SafeCopyString(uiAsset->argNames + nameOffset, nameBuf, sizeof(nameBuf)))
+                    if (SafeCopyString(uiAsset->GetArgNames() + nameOffset, nameBuf, sizeof(nameBuf)))
                         json << ",\n      \"name\": \"" << nameBuf << "\"";
                 }
 
                 // Resolved value for all arg types
-                if (uiAsset->argDefaultValues && dataOffset < uiAsset->argDefaultValueSize)
+                if (uiAsset->GetDefaultValues() && dataOffset < uiAsset->argDefaultValueSize)
                 {
-                    void* valuePtr = reinterpret_cast<char*>(uiAsset->argDefaultValues) + dataOffset;
+                    void* valuePtr = reinterpret_cast<char*>(uiAsset->GetDefaultValues()) + dataOffset;
                     UIAssetArgType_t argTypeEnum = static_cast<UIAssetArgType_t>(argType);
 
                     if (argTypeEnum == UI_ARG_TYPE_STRING || argTypeEnum == UI_ARG_TYPE_ASSET ||
@@ -911,17 +857,17 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
         std::vector<uint8_t> defaultStrings;
         std::vector<uint16_t> untrackedStringOffsets;
         json << "  \"defaultValuesHex\": \"";
-        if (uiAsset->argDefaultValues && uiAsset->argDefaultValueSize > 0)
+        if (uiAsset->GetDefaultValues() && uiAsset->argDefaultValueSize > 0)
         {
             std::vector<uint8_t> sanitizedData(uiAsset->argDefaultValueSize);
-            memcpy(sanitizedData.data(), uiAsset->argDefaultValues, uiAsset->argDefaultValueSize);
+            memcpy(sanitizedData.data(), uiAsset->GetDefaultValues(), uiAsset->argDefaultValueSize);
 
             // Replace string pointers with offsets into defaultStrings
             for (int16_t argIdx = 0; argIdx < uiAsset->argCount; argIdx++)
             {
                 uint8_t argType = 0, argUnk1 = 0;
                 uint16_t dataOffset = 0, nameOffset = 0, shortHash = 0;
-                if (SafeReadUIArg(uiAsset->args + argIdx, &argType, &argUnk1, &dataOffset, &nameOffset, &shortHash))
+                if (SafeReadUIArg(uiAsset->GetArgs() + argIdx, &argType, &argUnk1, &dataOffset, &nameOffset, &shortHash))
                 {
                     if (argType == UI_ARG_TYPE_STRING || argType == UI_ARG_TYPE_ASSET ||
                         argType == UI_ARG_TYPE_IMAGE || argType == UI_ARG_TYPE_FONT_FACE)
@@ -940,7 +886,7 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
                             }
                             else
                             {
-                                uint8_t* valuePtr = reinterpret_cast<uint8_t*>(uiAsset->argDefaultValues) + dataOffset;
+                                uint8_t* valuePtr = reinterpret_cast<uint8_t*>(uiAsset->GetDefaultValues()) + dataOffset;
                                 gotString = ReadStringValue(valuePtr, strBuf, sizeof(strBuf), pakAsset->version());
                                 strValue = strBuf;
                             }
@@ -969,7 +915,7 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
                 {
                     uint8_t argType = 0, argUnk1 = 0;
                     uint16_t dataOffset = 0, nameOffset = 0, shortHash = 0;
-                    if (SafeReadUIArg(uiAsset->args + argIdx, &argType, &argUnk1, &dataOffset, &nameOffset, &shortHash))
+                    if (SafeReadUIArg(uiAsset->GetArgs() + argIdx, &argType, &argUnk1, &dataOffset, &nameOffset, &shortHash))
                     {
                         if (argType == UI_ARG_TYPE_STRING || argType == UI_ARG_TYPE_ASSET ||
                             argType == UI_ARG_TYPE_IMAGE || argType == UI_ARG_TYPE_FONT_FACE ||
@@ -985,7 +931,7 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
                     if (handledOffsets.count(static_cast<uint16_t>(offset)) > 0)
                         continue;
 
-                    const uint8_t* originalPtr = reinterpret_cast<const uint8_t*>(uiAsset->argDefaultValues) + offset;
+                    const uint8_t* originalPtr = reinterpret_cast<const uint8_t*>(uiAsset->GetDefaultValues()) + offset;
                     if (!UI_IsMemoryReadable(originalPtr, 8))
                         continue;
 
@@ -1239,15 +1185,15 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
 
         // ArgNames string table
         json << "  \"argNamesHex\": \"";
-        if (hdr->argNames && uiAsset->argNames && UI_IsMemoryReadable(uiAsset->argNames, 1))
+        if (hdr->argNames && uiAsset->GetArgNames() && UI_IsMemoryReadable(uiAsset->GetArgNames(), 1))
         {
             size_t argNamesSize = 0;
             for (int i = 0; i < uiAsset->argCount; i++)
             {
-                uint16_t nameOffsetVal = uiAsset->args[i].nameOffset;
+                uint16_t nameOffsetVal = uiAsset->GetArgs()[i].nameOffset;
                 if (nameOffsetVal > 0)
                 {
-                    const char* nameStr = uiAsset->argNames + nameOffsetVal;
+                    const char* nameStr = uiAsset->GetArgNames() + nameOffsetVal;
                     if (UI_IsMemoryReadable(nameStr, 1))
                     {
                         size_t endPos = nameOffsetVal + strnlen(nameStr, 256) + 1;
@@ -1256,9 +1202,9 @@ bool ExportUIAsset(CAsset* const asset, const int setting)
                     }
                 }
             }
-            if (argNamesSize > 0 && UI_IsMemoryReadable(uiAsset->argNames, argNamesSize))
+            if (argNamesSize > 0 && UI_IsMemoryReadable(uiAsset->GetArgNames(), argNamesSize))
             {
-                uint8_t* namesData = reinterpret_cast<uint8_t*>(const_cast<char*>(uiAsset->argNames));
+                uint8_t* namesData = reinterpret_cast<uint8_t*>(const_cast<char*>(uiAsset->GetArgNames()));
                 for (size_t i = 0; i < argNamesSize; i++)
                     json << std::hex << std::setfill('0') << std::setw(2) << (int)namesData[i];
             }

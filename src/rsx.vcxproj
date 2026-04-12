@@ -417,6 +417,7 @@
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <GenerateMapFile>true</GenerateMapFile>
     </Link>
     <PreBuildEvent>
       <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)tools\prebuild.ps1" -projectDir $(ProjectDir)</Command>

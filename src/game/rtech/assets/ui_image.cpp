@@ -217,7 +217,9 @@ void PostLoadUIImageAsset(CAssetContainer* container, CAsset* asset)
 
     CPakAsset* pakAsset = static_cast<CPakAsset*>(asset);
 
-    assertm(pakAsset->extraData(), "extra data should be valid");
+    if (!pakAsset->extraData())
+        return;
+
     UIImageAsset* const uiAsset = reinterpret_cast<UIImageAsset*>(pakAsset->extraData());
 
     if (!uiAsset->name)
