@@ -97,6 +97,12 @@
     <Filter Include="core\update">
       <UniqueIdentifier>{f819a795-d086-4c82-9fad-17af48e6abb4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="thirdparty\miniaudio">
+      <UniqueIdentifier>{3fcc9b5e-2aa1-4519-8659-18cde944d60b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\audio">
+      <UniqueIdentifier>{f862f8b4-f4d4-4035-b79f-05b904f551b5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -459,6 +465,12 @@
     <ClInclude Include="core\fonts\codicons.h">
       <Filter>core\fonts</Filter>
     </ClInclude>
+    <ClInclude Include="thirdparty\miniaudio\miniaudio.h">
+      <Filter>thirdparty\miniaudio</Filter>
+    </ClInclude>
+    <ClInclude Include="core\audio\audioplayer.h">
+      <Filter>core\audio</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -781,6 +793,12 @@
     </ClCompile>
     <ClCompile Include="core\render\preview\mdlpreview.cpp">
       <Filter>core\render\preview</Filter>
+    </ClCompile>
+    <ClCompile Include="thirdparty\miniaudio\miniaudio.c">
+      <Filter>thirdparty\miniaudio</Filter>
+    </ClCompile>
+    <ClCompile Include="core\audio\audioplayer.cpp">
+      <Filter>core\audio</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
