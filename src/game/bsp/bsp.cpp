@@ -123,6 +123,7 @@ void GetShadersForVertexLump(int vertexType, CShader** vertexShaderOut, CShader*
 	delete[] inputElements;
 }
 
+// teehee: (20 + (0x40c >> (4 * (lumpId & 3)) & 0xF));
 UINT GetVertexStrideByLumpId(int lumpId)
 {
 	switch (lumpId)
@@ -249,7 +250,11 @@ void CBSPData::CreateOrUpdatePreviewStructuredBuffers()
 	if (m_vertPositionsBuffer)
 	{
 		D3D11_MAPPED_SUBRESOURCE resource;
-		assert(SUCCEEDED(ctx->Map(this->m_vertPositionsBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource)));
+		const HRESULT hr = ctx->Map(this->m_vertPositionsBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
+
+		if (!SUCCEEDED(hr))
+			return;
+		assert(SUCCEEDED(hr));
 
 		memcpy(resource.pData, GetLumpData(LUMP_VERTEXES).get(), vertPositionsLumpSize);
 
@@ -259,7 +264,12 @@ void CBSPData::CreateOrUpdatePreviewStructuredBuffers()
 	if (m_vertNormalsBuffer)
 	{
 		D3D11_MAPPED_SUBRESOURCE resource;
-		assert(SUCCEEDED(ctx->Map(this->m_vertNormalsBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource)));
+		const HRESULT hr = ctx->Map(this->m_vertNormalsBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
+
+		if (!SUCCEEDED(hr))
+			return;
+
+		assert(SUCCEEDED(hr));
 
 		memcpy(resource.pData, GetLumpData(LUMP_VERTNORMALS).get(), vertNormalsLumpSize);
 
@@ -293,7 +303,7 @@ void CBSPData::PopulateFromPakAsset(CPakAsset* pakAsset, void* bspData)
 				if (lumpAsset)
 					SetLumpData(i, GetWrapAssetData(lumpAsset, nullptr));
 				else
-					printf("no asset %s?\n", lumpAssetName.c_str());
+					Log("BSP: Map %s expected lump ID %04X (%s) to exist, but no lump could be found. Are we missing a file?\n", m_mapName.c_str(), i, s_LumpNames[(lumptype_e)i]);
 			}
 		}
 	}
