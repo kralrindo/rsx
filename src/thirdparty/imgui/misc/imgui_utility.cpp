@@ -401,6 +401,7 @@ void ImGuiHandler::SetStyle()
     const ImVec4 yellow = ImVec4(0.980f, 0.913f, 0.596f, 1.0f); // #f9e2af
     const ImVec4 green = ImVec4(0.650f, 0.890f, 0.631f, 1.0f); // #a6e3a1
     const ImVec4 teal = ImVec4(0.580f, 0.886f, 0.819f, 1.0f); // #94e2d5
+    const ImVec4 darkTeal = ImVec4(0.157f, 0.353f, 0.282f, 1.0f); // #285a48
     const ImVec4 sapphire = ImVec4(0.458f, 0.784f, 0.878f, 1.0f); // #74c7ec
     const ImVec4 blue = ImVec4(0.533f, 0.698f, 0.976f, 1.0f); // #89b4fa
     const ImVec4 lavender = ImVec4(0.709f, 0.764f, 0.980f, 1.0f); // #b4befe
@@ -446,7 +447,7 @@ void ImGuiHandler::SetStyle()
     colors[ImGuiCol_DockingEmptyBg] = base;
     colors[ImGuiCol_PlotLines] = blue;
     colors[ImGuiCol_PlotLinesHovered] = peach;
-    colors[ImGuiCol_PlotHistogram] = teal;
+    colors[ImGuiCol_PlotHistogram] = darkTeal;
     colors[ImGuiCol_PlotHistogramHovered] = green;
     colors[ImGuiCol_TableHeaderBg] = surface0;
     colors[ImGuiCol_TableBorderStrong] = surface1;
