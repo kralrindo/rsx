@@ -71,6 +71,12 @@ const bool CPakFile::ParseFileBuffer(const std::string& path, bool* alreadyLoade
     // parse our initial header (subject to change)
     ParsePakFileHeader(m_Buf.get());
 
+    // Block loading of effects.rpak and effects(01).rpak from R5Reloaded.
+    // These files are very strange and cause some problems, so to allow for bulk processing of R5Reloaded's pak files,
+    // these must be blocked
+    if (header()->crc == 0x339D935ECDCB7220 || header()->crc == 0x6731F02CD5CD70E2)
+        return false;
+
     if (g_assetData.m_pakLoadStatusMap.count(header()->crc) != 0)
     {
         *alreadyLoaded = true;
