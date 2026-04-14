@@ -4,6 +4,8 @@
 constexpr int MILES_DECODER_BINKA = 2;
 constexpr int MILES_DECODER_RADA = 6;
 
+constexpr int DECODE_FORMAT_F32 = 0b10;
+
 // Used for offsets that are initially stored as 32-bit values and then converted to
 // pointers at runtime
 union OffsetPtr_t
@@ -331,6 +333,7 @@ struct MilesBankHeader_v45_t
 };
 
 static_assert(offsetof(MilesBankHeader_v45_t, unk_offset_38) == 0x38);
+
 
 class CMilesAudioBank : public CAssetContainer
 {
