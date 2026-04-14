@@ -23,6 +23,7 @@ void HandlePakLoad(std::vector<std::string> filePaths)
     }
 
     g_assetData.m_doneLoad = false;
+    g_assetData.m_numFailedContainerLoads = 0;
     
     for (const std::string& path : filePaths)
     {
@@ -36,9 +37,11 @@ void HandlePakLoad(std::vector<std::string> filePaths)
 
             if (std::filesystem::exists(patchMasterPath))
             {
+                bool alreadyLoaded = false;
+
                 // [rika]: prevent double load on patch_master and catch if it fails to load
                 g_assetData.m_pakPatchMaster = new CPakFile();
-                if (static_cast<CPakFile*>(g_assetData.m_pakPatchMaster)->ParseFileBuffer(patchMasterPath.string()))
+                if (static_cast<CPakFile*>(g_assetData.m_pakPatchMaster)->ParseFileBuffer(patchMasterPath.string(), &alreadyLoaded))
                 {
                     const CPakFile* const pak = static_cast<CPakFile*>(g_assetData.m_pakPatchMaster);
 
@@ -75,7 +78,10 @@ void HandlePakLoad(std::vector<std::string> filePaths)
             }
         }
 
-        if (CPakFile* const pak = new CPakFile(); pak->ParseFileBuffer(fsPath.string()))
+        printf("\n");
+
+        bool alreadyLoaded = false;
+        if (CPakFile* const pak = new CPakFile(); pak->ParseFileBuffer(fsPath.string(), &alreadyLoaded))
         {
             if(pak->header()->crc != 0)
                 g_assetData.m_pakLoadStatusMap.emplace(pak->header()->crc, true);
@@ -84,7 +90,10 @@ void HandlePakLoad(std::vector<std::string> filePaths)
         }
         else
         {
-            //assertm(false, "Parsing pak from file failed.");
+            // Don't add to the number of failed container loads if the file failed to load due to already being loaded by a base rpak
+            if(!alreadyLoaded)
+                g_assetData.m_numFailedContainerLoads++;
+
             delete pak;
         }
         ++pakLoadingProgress;

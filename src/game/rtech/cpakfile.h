@@ -647,6 +647,11 @@ struct PakLoadedAssetTypeInfo_t
     uint32_t headerSize;
 
     uint32_t version;
+
+    // Track if there is more than one value for either header size or version within
+    // the same file. Used for validation mode.
+    bool inconsistentHeaderSize : 1;
+    bool inconsistentVersions : 1;
 };
 #endif // #if defined(PAKLOAD_PATCHING_ANY)
 
@@ -658,7 +663,7 @@ public:
 
     const CAsset::ContainerType GetContainerType() const { return CAsset::ContainerType::PAK; };
 
-    const bool ParseFileBuffer(const std::string& path);
+    const bool ParseFileBuffer(const std::string& path, bool* alreadyLoaded);
     const bool DecompressFileBuffer(const char* fileBuffer, std::shared_ptr<char[]>* outBuffer);
 
 #if defined(PAKLOAD_PATCHING_ANY)
@@ -792,6 +797,15 @@ private:
 
     std::shared_ptr<char[]> m_Buf;
 
+public:
+    bool segmentPaddingTooSmall : 1;
+    bool segmentPaddingTooBig : 1;
+
+    const std::unordered_map<uint32_t, PakLoadedAssetTypeInfo_t>& GetLoadedAssetTypeInfo() const
+    {
+        return loadedAssetTypeInfo;
+    };
+
 private:
 
     // Populates CPakFile members from file
@@ -823,11 +837,11 @@ private:
     inline void ResetHeaders()
     {
         // header handled differently
-        m_pSegmentHeaders = const_cast<PakSegmentHdr_t*>(m_pHeader->GetSegmentHeaders());
-        m_pPageHeaders = const_cast<PakPageHdr_t*>   (m_pHeader->GetPageHeaders());
-        m_pPointerHeaders = const_cast<PakPointerHdr_t*>(m_pHeader->GetPointerHeaders());
-        m_pAssetsRaw = const_cast<void*>           (m_pHeader->GetAssets());
-        m_pGuidRefHeaders = const_cast<PakGuidRefHdr_t*>(m_pHeader->GetGuidRefHeaders());
+        m_pSegmentHeaders  = const_cast<PakSegmentHdr_t*>(m_pHeader->GetSegmentHeaders());
+        m_pPageHeaders     = const_cast<PakPageHdr_t*>   (m_pHeader->GetPageHeaders());
+        m_pPointerHeaders  = const_cast<PakPointerHdr_t*>(m_pHeader->GetPointerHeaders());
+        m_pAssetsRaw       = const_cast<void*>           (m_pHeader->GetAssets());
+        m_pGuidRefHeaders  = const_cast<PakGuidRefHdr_t*>(m_pHeader->GetGuidRefHeaders());
         m_pDependentAssets = const_cast<int*>            (m_pHeader->GetDependentAssetData());
     }
 #endif // #if defined(PAKLOAD_PATCHING_ANY)
@@ -1079,15 +1093,8 @@ class CPakAsset;
 class CPakAsset : public CAsset
 {
 private:
-    //CPakFile* m_containerFile;
-    //PakAsset_t* m_assetData;
-    //std::string m_assetName;
-
     std::shared_ptr<void> m_ExtraData;
 
-    // indicates whether this asset has been exported successfully since it was loaded
-    // stores the result of whether the last export attempt succeeded
-    //bool m_exported;
 public:
     CPakAsset(CPakFile* pak, PakAsset_t* asset, std::string name)
     {
@@ -1103,8 +1110,6 @@ public:
 
     CPakAsset() = default;
     ~CPakAsset() = default;
-
-    //void SetAssetName(const std::string& path) { m_assetName = std::filesystem::path(path).make_preferred().string(); }
 
     uint32_t GetAssetType() const { return data()->type; }
 

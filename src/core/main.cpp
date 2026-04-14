@@ -182,6 +182,7 @@ static void RegisterAssetTypeBindings(const CCommandLine* const cli)
 
 #if defined(DEBUG_NO_ASEQ_POSTLOAD)
     g_assetData.Log_Warning(nullptr, "Built with DEBUG_NO_ASEQ_POSTLOAD. Animation Sequence (aseq) assets will not work properly!");
+    printf("\n");
 #endif
 }
 

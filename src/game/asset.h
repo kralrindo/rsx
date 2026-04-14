@@ -466,6 +466,9 @@ struct AssetTypeBinding_t
 		const char** exportSettingArr;
 		size_t exportSettingArrSize;
 	} e;
+
+	int _latestFoundVersion;
+	uint32_t _foundHeaderSize;
 };
 
 class CGlobalAssetData
@@ -495,9 +498,15 @@ public:
 
 	LogErrorListInfo_t m_logErrorListInfo;
 	uint32_t m_numLogMessages;
+	uint32_t m_numFailedContainerLoads;
 
 	bool m_donePostLoad : 1;
 	bool m_doneLoad : 1;
+	bool m_validate : 1;
+	bool m_validateAssetLoading : 1;
+
+	size_t GetNumAssets() const { return v_assets.size(); };
+	size_t GetNumContainers() const { return v_assetContainers.size(); };
 
 	void AddAssetPostLoadCallback(uint64_t guid, AssetLoadCallback_t callback)
 	{

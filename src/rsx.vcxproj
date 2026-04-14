@@ -23,6 +23,7 @@
     <ClInclude Include="core\cache\cachedb.h" />
     <ClInclude Include="core\crashhandler.h" />
     <ClInclude Include="core\features.h" />
+    <ClInclude Include="core\filehandling\validation.h" />
     <ClInclude Include="core\fonts\codicons.h" />
     <ClInclude Include="core\mdl\animdata.h" />
     <ClInclude Include="core\mdl\modeldata.h" />
@@ -159,6 +160,7 @@
     <ClCompile Include="core\filehandling\bpk.cpp" />
     <ClCompile Include="core\filehandling\list.cpp" />
     <ClCompile Include="core\filehandling\mbnk.cpp" />
+    <ClCompile Include="core\filehandling\validation.cpp" />
     <ClCompile Include="core\mdl\animdata.cpp" />
     <ClCompile Include="core\mdl\modeldata.cpp" />
     <ClCompile Include="core\mdl\modeldata_qc.cpp" />

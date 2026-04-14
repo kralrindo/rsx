@@ -57,7 +57,7 @@ struct PakFileLoadState_t
     int pageEnd;
 };
 
-const bool CPakFile::ParseFileBuffer(const std::string& path)
+const bool CPakFile::ParseFileBuffer(const std::string& path, bool* alreadyLoaded)
 {
     // Make sure that the pak instance always holds an absolute file path
     if (!std::filesystem::path(path).is_absolute())
@@ -70,6 +70,13 @@ const bool CPakFile::ParseFileBuffer(const std::string& path)
 
     // parse our initial header (subject to change)
     ParsePakFileHeader(m_Buf.get());
+
+    if (g_assetData.m_pakLoadStatusMap.count(header()->crc) != 0)
+    {
+        *alreadyLoaded = true;
+
+        return false;
+    }
 
     switch (header()->version)
     {
@@ -310,13 +317,6 @@ const bool CPakFile::LoadNonPatched()
 template<class PakHdr, class PakAsset>
 const bool CPakFile::LoadAndPatchPakFileData()
 {
-    if (g_assetData.m_pakLoadStatusMap.count(header()->crc) != 0)
-    {
-        Log("Pakfile '%s' failed to load because its CRC was already recorded as being loaded.\n", GetFilePath().c_str());
-
-        return false;
-    }    
-
     // if this is not consistent across patches.. uhm?
     const short pakVersion = header()->version;
 
@@ -357,7 +357,7 @@ const bool CPakFile::LoadAndPatchPakFileData()
 
         PakFileLoadState_t loadState = {};
         if (!ParseFromFile(patchFilePath.string(), loadState.fileBuffer))
-            assert(0); // [rexx]: i will deal with this later
+            return false;
 
         // get PakHdr from the newly loaded and decompressed pak
         const PakHdr* const patchPakHdr = reinterpret_cast<const PakHdr*>(loadState.fileBuffer.get());
@@ -384,7 +384,10 @@ const bool CPakFile::LoadAndPatchPakFileData()
         memcpy(combinedPakDataBuffer.get() + nextPakDataOffset, file.fileBuffer.get() + sizeof(PakHdr), pakDataSize);
         nextPakDataOffset += pakDataSize;
     }
+
     this->m_Buf = combinedPakDataBuffer;
+
+    pakChain.clear();
 
     // new header of a patched pak buffer
     ParsePakFileHeader(m_Buf.get(), pakVersion);
@@ -501,7 +504,8 @@ const bool CPakFile::LoadAndPatchPakFileData()
 const bool CPakFile::ParseFromFile(const std::string& filePath, std::shared_ptr<char[]>& buf)
 {
 #if (PAKLOAD_DEBUG == PAKLOAD_DEBUG_LOG)
-    Log("LOAD: parsing pak file from path: ('%s')\n", filePath.c_str());
+    const std::filesystem::path fsPath(filePath);
+    Log("RPAK: Decompressing pak file: %s\n", fsPath.filename().string().c_str());
 #endif // #if (PAKLOAD_DEBUG >= PAKLOAD_DEBUG_LOG)
 
     if (!FileSystem::ReadFileData(filePath, &buf))
@@ -817,12 +821,19 @@ bool CPakFile::AllocateSegments()
 
         if (actualSegmentAlignmentPadding < segmentRequiredAlignmentPadding[i])
         {
-            g_assetData.Log_Warning(this, "Tried to allocate a segment buffer for segment %i that was too small (required padding size %lld, got %lld)", i, segmentRequiredAlignmentPadding[i], actualSegmentAlignmentPadding);
+            if(!g_assetData.m_validate)
+                g_assetData.Log_Warning(this, "Tried to allocate a segment buffer for segment %i that was too small (required padding size %lld, got %lld)", i, segmentRequiredAlignmentPadding[i], actualSegmentAlignmentPadding);
             
+            this->segmentPaddingTooSmall = true;
             return false;
         }
         else if (actualSegmentAlignmentPadding > segmentRequiredAlignmentPadding[i])
-            g_assetData.Log_Warning(this, "Pak allocated segment buffers that are larger than required for segment %i. This is likely due to it being a custom pak made with a buggy version of RePak (required padding size %lld, got %lld)", i, segmentRequiredAlignmentPadding[i], actualSegmentAlignmentPadding);
+        {
+            if (!g_assetData.m_validate)
+                g_assetData.Log_Warning(this, "Pak allocated segment buffers that are larger than required for segment %i. This is likely due to it being a custom pak made with a buggy version of RePak (required padding size %lld, got %lld)", i, segmentRequiredAlignmentPadding[i], actualSegmentAlignmentPadding);
+
+            this->segmentPaddingTooBig = true;
+        }
     }
 
     return true;
@@ -918,9 +929,7 @@ void CPakFile::CalculateLoadedAssetTypeInfo()
         const uint32_t headerStructSize = PakAsset_t::HeaderStructSize(asset, this->header()->version);
         const uint32_t version = PakAsset_t::Version(asset, this->header()->version);
 
-#if defined(ASSERTS)
         const bool assetTypeAlreadyFound = this->loadedAssetTypeInfo.contains(type);
-#endif // #if defined(ASSERTS)
 
         PakLoadedAssetTypeInfo_t* const assetType = &this->loadedAssetTypeInfo[type];
 
@@ -931,6 +940,15 @@ void CPakFile::CalculateLoadedAssetTypeInfo()
             assertm(assetType->version == version, "Mismatched asset version. Already found asset of the same type with a different version.");
         }
 #endif // #ifdef ASSERTS
+
+        if (assetTypeAlreadyFound)
+        {
+            if (!assetType->inconsistentHeaderSize)
+                assetType->inconsistentHeaderSize = (assetType->headerSize != headerStructSize);
+        
+            if (!assetType->inconsistentVersions)
+                assetType->inconsistentVersions = (assetType->version != version);
+        }
 
         assetType->assetCount++;
         assetType->headerSize = headerStructSize;
@@ -1162,6 +1180,9 @@ void CPakFile::ProcessAssets()
 
     std::mutex assetMutex;
 
+    if (g_assetData.m_validate)
+        Log("Processing assets for container: %s\n", this->getPakStem().c_str());
+
     // atomic int will ensure we aren't processing the same asset multiple times.
     std::atomic<uint32_t> assetIdx = 0;
     parallelProcessTask.addTask([this, &assetIdx, &assetMutex, &parallelLoadTask]
@@ -1185,14 +1206,19 @@ void CPakFile::ProcessAssets()
             const std::string tempName = std::format("{}/0x{:X}", prefix, pAsset->guid);
 
             CPakAsset* const asset = new CPakAsset(this, pAsset, tempName);
-            parallelLoadTask.addTask([this, pAsset, asset]
+
+            // Load assets as long as we are not in validation mode without -validateload
+            if (!g_assetData.m_validate || g_assetData.m_validateAssetLoading)
             {
-                if (auto it = g_assetData.m_assetTypeBindings.find(pAsset->type); it != g_assetData.m_assetTypeBindings.end())
-                {
-                    if (it->second.loadFunc)
-                        it->second.loadFunc(this, asset);
-                }
-            }, 1u);
+                parallelLoadTask.addTask([this, pAsset, asset] {
+                    if (auto it = g_assetData.m_assetTypeBindings.find(pAsset->type); it != g_assetData.m_assetTypeBindings.end())
+                    {
+                        if (it->second.loadFunc)
+                            it->second.loadFunc(this, asset);
+                    }
+
+                    }, 1u);
+            }
             
             // mutex so we can write to m_pakAssets safely.
             std::lock_guard<std::mutex> lock(assetMutex);
@@ -1256,4 +1282,5 @@ void CPakFile::ProcessAssets()
     if (g_assetData.m_donePostLoad)
         HandleOwnPostLoad();
 #endif
+
 }

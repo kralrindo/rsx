@@ -471,6 +471,9 @@
     <ClInclude Include="core\audio\audioplayer.h">
       <Filter>core\audio</Filter>
     </ClInclude>
+    <ClInclude Include="core\filehandling\validation.h">
+      <Filter>core\filehandling</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -799,6 +802,9 @@
     </ClCompile>
     <ClCompile Include="core\audio\audioplayer.cpp">
       <Filter>core\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="core\filehandling\validation.cpp">
+      <Filter>core\filehandling</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

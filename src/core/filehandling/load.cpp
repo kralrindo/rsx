@@ -2,6 +2,7 @@
 #include <core/filehandling/load.h>
 #include <core/filehandling/export.h>
 #include <core/utils/cli_parser.h>
+#include <core/filehandling/validation.h>
 
 extern CBufferManager g_BufferManager;
 
@@ -45,6 +46,9 @@ static void HandleFileLoad(std::vector<std::string> filePaths, HandleFileLoadCal
         else
             GroupPathByExtension(&pathsByExtension, fsPath);
     }
+
+    g_assetData.m_validate = cli && cli->HasParam("-validate");
+    g_assetData.m_validateAssetLoading = cli && cli->HasParam("-validateload");
 
     for (uint32_t i = 0; i < CAsset::ContainerType::_COUNT; ++i)
     {
@@ -91,7 +95,11 @@ void OnCLILoadComplete(const CCommandLine* const cli)
             break;
     }
 
-    if (cli->HasParam("-export"))
+    if (cli->HasParam("-validate"))
+    {
+        ValidateLoadedPakFiles();
+    }
+    else if (cli->HasParam("-export"))
     {
         bool filterAssets = false;
         std::vector<CGlobalAssetData::AssetLookup_t>& assets = g_assetData.v_assets;
