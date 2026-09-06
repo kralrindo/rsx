@@ -101,7 +101,6 @@ void* PreviewAudioEventAsset(CAsset* const asset, const bool firstFrameForAsset)
 					pd->volumeMins = minsMaxs.first;
 					pd->volumeMaxs = minsMaxs.second;
 				}
-
 			}
 		}
 	}
@@ -182,11 +181,9 @@ void* PreviewAudioEventAsset(CAsset* const asset, const bool firstFrameForAsset)
 				ImPlot::EndSubplots();
 			}
 			ImPlot::PopStyleVar();
-
 		}
 		i++;
 	}
-
 
 	return nullptr;
 }
@@ -230,7 +227,7 @@ bool ExportAudioEventAsset(CAsset* const asset, int type)
 		<< "eventName: " << aevtPath.filename() << "\n"
 		<< "actions:\n[\n";
 
-	const std::unordered_set<uint8_t> types = { 13 };
+	const std::unordered_set<uint8_t> types = {  };
 	bool shouldWrite = false;
 
 	for (auto& [action, previewData] : event->actions)
