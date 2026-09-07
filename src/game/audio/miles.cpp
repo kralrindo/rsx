@@ -17,12 +17,23 @@
 
 void CMilesAudioBank::ContainerPreviewUI() const
 {
+	ImGui::PushStyleColor(ImGuiCol_Text, project ? ImVec4(0.875f, 1.f, 0.f, 1.f) : ImVec4(1.f, 0.f, 0.f, 1.f));
+	if (project)
+		ImGui::Text("Project loaded: %s", project->GetFilePath().filename().string().c_str());
+	else
+		ImGui::Text("Project unloaded.");
+	ImGui::PopStyleColor();
+
 	ImGui::Text("%u sources (%u valid, %u invalid)\n%u events", sourceCount, sourceCount - invalidSourceCount, invalidSourceCount, eventCount);
 }
 
 CMilesAudioAsset::~CMilesAudioAsset()
 {
-	delete (MilesSource_t*)m_assetData;
+	// wtf
+	if (this->GetAssetType() == (uint32_t)AssetType_t::AEVT)
+		delete (MilesEvent_s*)m_assetData;
+	else
+		delete (MilesSource_t*)m_assetData;
 };
 
 std::string CMilesAudioBank::GetStreamingFileNameForSource(const MilesSource_t* source) const
@@ -339,9 +350,28 @@ const bool CMilesAudioBank::ParseFile(const std::string& path)
 		Log("MBNK: Tried to parse unimplemented file version %i.\n", hdrShort->version);
 		return false;
 	}
-	else
+	else Log("MBNK: Loaded bank \"%s\" with %u sources and %u events.\n", this->stringTable, this->sourceCount, this->eventCount);
+
+
+	std::filesystem::path projectPath(path);
+	projectPath.replace_filename(m_version <= 13 ? "titanfall_2.mprj" : "audio.mprj");
+
+	this->project = std::make_unique<CMilesAudioProject>();
+
+	if (!this->project->ParseFile(projectPath))
 	{
-		Log("MBNK: Loaded bank \"%s\" with %u sources and %u events.\n", this->stringTable, this->sourceCount, this->eventCount);
+		this->project.reset();
+
+		Log("MBNK: Failed to load project\n");
 		return true;
 	}
+
+	if (project->GetLanguageNames().size() != languageNames.size())
+	{
+		Log("MBNK: Mismatched language names between MPRJ and MBNK. Using the project's language definitions.\n");
+
+		languageNames = project->GetLanguageNames();
+	}
+
+	return true;
 }

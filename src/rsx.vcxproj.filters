@@ -512,6 +512,9 @@
     <ClInclude Include="thirdparty\imgui\implot\implot.h">
       <Filter>thirdparty\imgui\implot</Filter>
     </ClInclude>
+    <ClInclude Include="game\audio\project.h">
+      <Filter>game\audio</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -869,6 +872,9 @@
     </ClCompile>
     <ClCompile Include="thirdparty\imgui\implot\implot_demo.cpp">
       <Filter>thirdparty\imgui\implot</Filter>
+    </ClCompile>
+    <ClCompile Include="game\audio\project.cpp">
+      <Filter>game\audio</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

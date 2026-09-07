@@ -17,6 +17,8 @@ union OffsetPtr_t
 	void* ptr;
 };
 
+#include "project.h"
+
 struct MilesASIUserData_t
 {
 	StreamIO* streamReader;
@@ -556,7 +558,7 @@ public:
 	// the base name for the bank is always at the start of the string table
 	const char* GetBankStem() const { return stringTable; };
 
-	const std::vector<const char*>& GetLanguageNames() const { return languageNames; }
+	const std::vector<std::string>& GetLanguageNames() const { return languageNames; }
 
 	const char* GetString(uint64_t offset) const
 	{
@@ -623,6 +625,8 @@ private:
 
 	const bool ParseFromHeader();
 
+	std::unique_ptr<CMilesAudioProject> project;
+
 	// Maps a language index to a bitfield that indicates if
 	// the corresponding patch stream files exist.
 	std::map<uint16_t, uint32_t> m_localisedStreamStates;
@@ -630,7 +634,7 @@ private:
 
 	std::shared_ptr<char[]> m_fileBuf;
 
-	std::vector<const char*> languageNames;
+	std::vector<std::string> languageNames;
 
 	uint32_t buildTag;
 	uint32_t bankHash;

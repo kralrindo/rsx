@@ -156,6 +156,11 @@ struct MilesSource_t
 	{
 	};
 
+	~MilesSource_t()
+	{
+		audioMarkers.clear();
+	}
+
 	uint64_t nameOffset;
 	uint64_t streamDataOffset;
 	uint64_t streamHeaderOffset;
