@@ -12,6 +12,8 @@ public:
         return CAsset::ContainerType::MDL;
     }
 
+	void ContainerPreviewUI() const {};
+
     void SetFileName(const char* fileName) { m_fileName = fileName; }
     const char* const GetFileName() const { return m_fileName; }
 

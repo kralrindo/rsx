@@ -545,12 +545,13 @@ public:
 		return CAsset::ContainerType::AUDIO;
 	}
 
+	void ContainerPreviewUI() const;
+
 	const bool ParseFile(const std::string& path);
 
 	int GetVersion() const { return m_version; };
 	uint32_t GetSourceCount() const { return sourceCount; };
 	uint32_t GetEventCount() const { return eventCount; };
-
 
 	// the base name for the bank is always at the start of the string table
 	const char* GetBankStem() const { return stringTable; };

@@ -449,6 +449,7 @@ public:
 	virtual ~CAssetContainer() {};
 
 	virtual const ContainerType GetContainerType() const = 0;
+	virtual void ContainerPreviewUI() const = 0;
 
 	void SetFilePath(const std::filesystem::path& filePath)
 	{

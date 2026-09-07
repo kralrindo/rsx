@@ -15,6 +15,11 @@
 #include "source.h"
 #include "event.h"
 
+void CMilesAudioBank::ContainerPreviewUI() const
+{
+	ImGui::Text("%lld sources, %lld events", sourceCount, eventCount);
+}
+
 CMilesAudioAsset::~CMilesAudioAsset()
 {
 	delete (MilesSource_t*)m_assetData;

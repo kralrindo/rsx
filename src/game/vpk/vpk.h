@@ -114,6 +114,8 @@ public:
 
 	const CAsset::ContainerType GetContainerType() const { return CAsset::ContainerType::VPK; };
 
+	void ContainerPreviewUI() const {};
+
 	void ProcessAssets();
 	bool ParseFromFile(const std::string& filePath);
 

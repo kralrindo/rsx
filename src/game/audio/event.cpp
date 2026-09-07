@@ -201,7 +201,7 @@ bool ExportAudioEventAsset(CAsset* const asset, int type)
 		printf("Failed to parse!\n");
 		return false;
 	}
-	CMilesAudioBank* audioBank = asset->GetContainerFile<CMilesAudioBank>();
+	//CMilesAudioBank* audioBank = asset->GetContainerFile<CMilesAudioBank>();
 
 	// Create exported path + asset path.
 	std::filesystem::path exportPath = g_rsxSettings.GetExportDirectory();

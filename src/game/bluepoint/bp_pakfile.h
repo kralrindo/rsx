@@ -123,6 +123,9 @@ public:
         return CAsset::ContainerType::BP_PAK;
     }
 
+    void ContainerPreviewUI() const {};
+
+
     void SetFileName(const char* fileName) { strncpy_s(m_fileName, 64, fileName, strnlen_s(fileName, 64)); }
     const char* const GetFileName() const { return m_fileName; }
 
