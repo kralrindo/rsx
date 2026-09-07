@@ -26,11 +26,7 @@ const bool CMilesAudioProject::ParseFile(const std::filesystem::path& path)
 		Log("MPRJ: Tried to parse unimplemented file version %i.\n", hdrShort->version);
 		return false;
 	}
-	else
-	{
-		//Log("MRPJ: Loaded bank \"%s\" with %u sources and %u events.\n", this->stringTable, this->sourceCount, this->eventCount);
-		return true;
-	}
+	else return true;
 }
 
 const bool CMilesAudioProject::ParseFromHeader()
