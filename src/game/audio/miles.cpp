@@ -17,7 +17,7 @@
 
 void CMilesAudioBank::ContainerPreviewUI() const
 {
-	ImGui::Text("%lld sources, %lld events", sourceCount, eventCount);
+	ImGui::Text("%u sources (%u valid, %u invalid)\n%u events", sourceCount, sourceCount - invalidSourceCount, invalidSourceCount, eventCount);
 }
 
 CMilesAudioAsset::~CMilesAudioAsset()
@@ -124,6 +124,7 @@ static void MilesBank_ParseSources(CMilesAudioBank* bank)
 
 		if (!bank->IsValidSource(sourceAssetData))
 		{
+			bank->TrackInvalidSource();
 			delete sourceAssetData;
 			continue;
 		}

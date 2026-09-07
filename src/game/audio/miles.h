@@ -537,7 +537,7 @@ struct MilesSource_t;
 class CMilesAudioBank : public CAssetContainer
 {
 public:
-	CMilesAudioBank() {};
+	CMilesAudioBank() : invalidSourceCount(0), sourceCount(0), eventCount(0) {};
 	~CMilesAudioBank() = default;
 
 	const CAsset::ContainerType GetContainerType() const
@@ -615,6 +615,8 @@ public:
 	std::string GetStreamingFileNameForSource(const MilesSource_t* source) const;
 
 	bool IsValidSource(const MilesSource_t* source) const;
+
+	void TrackInvalidSource() { invalidSourceCount++; };
 private:
 
 	void DiscoverStreamingFiles();
@@ -634,6 +636,7 @@ private:
 	uint32_t bankHash;
 
 	uint32_t sourceCount;
+	uint32_t invalidSourceCount;
 	uint32_t eventCount;
 
 	uint32_t localisedSourceCount;
