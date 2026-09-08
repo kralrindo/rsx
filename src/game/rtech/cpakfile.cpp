@@ -48,6 +48,75 @@ CPakFile::~CPakFile()
     if (nullptr != m_pAssetsInternal) delete[] m_pAssetsInternal;
 }
 
+void CPakFile::ContainerPreviewUI() const
+{
+    constexpr ImGuiTableFlags tableFlags =
+        ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable
+        | ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_NoBordersInBody
+        | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingFixedFit;
+
+    bool anyInconsistencies = false;
+    if (ImGui::BeginTable("Asset Table", 4, tableFlags, ImVec2(0,400)))
+    {
+        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide, 0.0f, 0);
+        ImGui::TableSetupColumn("Version", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.0f, 1);
+        ImGui::TableSetupColumn("Header Size", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.0f, 2);
+        ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_NoResize | ImGuiTableColumnFlags_WidthFixed, 0.0f, 3);
+        ImGui::TableSetupScrollFreeze(1, 1);
+
+        ImGui::TableHeadersRow();
+
+        for (auto& [fourCC, typeInfo] : loadedAssetTypeInfo)
+        {
+            if (typeInfo.inconsistentHeaderSize || typeInfo.inconsistentVersions)
+                anyInconsistencies = true;
+
+            ImGui::PushID(fourCC);
+
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, 0.0f);
+
+            if (ImGui::TableSetColumnIndex(0))
+            {
+                bool colouredText = false;
+
+                const AssetType_t assetType = static_cast<AssetType_t>(fourCC);
+                if (s_AssetTypeColours.contains(assetType))
+                {
+                    colouredText = true;
+
+                    const Color4& col = s_AssetTypeColours.at(assetType);
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(col.r, col.g, col.b, col.a));
+                }
+
+                ImGui::Text("%s", fourCCToString(fourCC).c_str());
+
+                if (colouredText)
+                    ImGui::PopStyleColor();
+            }
+
+            if (ImGui::TableSetColumnIndex(1))
+                ImGui::Text("%i%c", typeInfo.version, typeInfo.inconsistentVersions ? '*' : ' ');
+
+            if (ImGui::TableSetColumnIndex(2))
+                ImGui::Text("%u%c", typeInfo.headerSize, typeInfo.inconsistentHeaderSize ? '*' : ' ');
+
+            if (ImGui::TableSetColumnIndex(3))
+                ImGui::Text("%lld", typeInfo.assetCount);
+
+            ImGui::PopID();
+        }
+
+        ImGui::EndTable();
+    }
+
+    if (anyInconsistencies)
+    {
+        ImGui::PushFont(NULL, 14.f);
+        ImGui::TextDisabled("* This file has assets with more than one different value for the same asset type. **This is not normal**\n* If this is your own custom RPak file, you should rebuild it");
+        ImGui::PopFont();
+    }
+}
+
 struct PakFileLoadState_t
 {
     PakFileLoadState_t() : fileBuffer(NULL), pageStart(0), pageEnd(0) {};

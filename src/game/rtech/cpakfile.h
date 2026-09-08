@@ -677,7 +677,7 @@ public:
 
     const CAsset::ContainerType GetContainerType() const { return CAsset::ContainerType::PAK; };
 
-    void ContainerPreviewUI() const {};
+    void ContainerPreviewUI() const;
 
     const bool ParseFileBuffer(const std::string& path, bool* alreadyLoaded);
     const bool DecompressFileBuffer(const char* fileBuffer, std::shared_ptr<char[]>* outBuffer);
