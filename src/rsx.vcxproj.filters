@@ -112,6 +112,12 @@
     <Filter Include="thirdparty\imgui\implot">
       <UniqueIdentifier>{08453191-7974-4350-970f-8bf25cf445bf}</UniqueIdentifier>
     </Filter>
+    <Filter Include="thirdparty\rad_lzb_simple">
+      <UniqueIdentifier>{7b07f2e4-0912-4cd1-a512-7f407ac5a295}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\bridge">
+      <UniqueIdentifier>{ed944e90-b9d0-4ab5-9ee8-2c9e6dddf993}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -498,8 +504,6 @@
     <ClInclude Include="game\vpk\vpk.h">
       <Filter>game\vpk</Filter>
     </ClInclude>
-    <ClInclude Include="core\bridge\bridge.h" />
-    <ClInclude Include="thirdparty\rad_lzb_simple\rad_lzb_simple.h" />
     <ClInclude Include="game\audio\source.h">
       <Filter>game\audio</Filter>
     </ClInclude>
@@ -514,6 +518,12 @@
     </ClInclude>
     <ClInclude Include="game\audio\project.h">
       <Filter>game\audio</Filter>
+    </ClInclude>
+    <ClInclude Include="thirdparty\rad_lzb_simple\rad_lzb_simple.h">
+      <Filter>thirdparty\rad_lzb_simple</Filter>
+    </ClInclude>
+    <ClInclude Include="core\bridge\bridge.h">
+      <Filter>core\bridge</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -853,8 +863,6 @@
     <ClCompile Include="core\filehandling\valvepak.cpp">
       <Filter>core\filehandling</Filter>
     </ClCompile>
-    <ClCompile Include="core\bridge\bridge.cpp" />
-    <ClCompile Include="thirdparty\rad_lzb_simple\rad_lzb_simple.c" />
     <ClCompile Include="game\audio\source.cpp">
       <Filter>game\audio</Filter>
     </ClCompile>
@@ -875,6 +883,12 @@
     </ClCompile>
     <ClCompile Include="game\audio\project.cpp">
       <Filter>game\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="thirdparty\rad_lzb_simple\rad_lzb_simple.c">
+      <Filter>thirdparty\rad_lzb_simple</Filter>
+    </ClCompile>
+    <ClCompile Include="core\bridge\bridge.cpp">
+      <Filter>core\bridge</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
